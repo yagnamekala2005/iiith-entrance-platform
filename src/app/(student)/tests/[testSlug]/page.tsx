@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTestBySlug } from "@/lib/content/queries";
+import { getActiveAttemptForTest } from "@/lib/attempts/queries";
+import { StartAttemptButton } from "@/components/attempts/start-attempt-button";
 
 interface PageProps {
   params: Promise<{ testSlug: string }>;
@@ -13,6 +15,8 @@ export default async function TestDetailPage({ params }: PageProps) {
   if (!test) {
     notFound();
   }
+
+  const activeAttempt = await getActiveAttemptForTest(test.id);
 
   const durationMinutes = Math.round(test.duration_seconds / 60);
   const durationHours = (durationMinutes / 60).toFixed(1);
@@ -50,7 +54,7 @@ export default async function TestDetailPage({ params }: PageProps) {
         <div className="border border-slate-200 bg-white p-5">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Duration</p>
           <p className="mt-2 text-2xl font-bold text-slate-900">{durationMinutes} minutes</p>
-          <p className="mt-0.5 text-xs text-slate-500">({durationHours} hours timed test)</p>
+          <p className="mt-0.5 text-xs text-slate-500">({durationHours} hours timed pattern)</p>
         </div>
         <div className="border border-slate-200 bg-white p-5">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Questions</p>
@@ -109,7 +113,7 @@ export default async function TestDetailPage({ params }: PageProps) {
         </div>
       </section>
 
-      {/* Start Test action preview */}
+      {/* Start / Resume Practice Attempt action */}
       <div className="mt-10 flex items-center justify-between border-t border-slate-200 pt-6">
         <Link
           href="/tests"
@@ -118,19 +122,13 @@ export default async function TestDetailPage({ params }: PageProps) {
           &larr; Back to Tests
         </Link>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-500">
-            Timed engine launches in Phase 4
-          </span>
-          <button
-            type="button"
-            disabled
-            className="cursor-not-allowed rounded-md bg-teal-800/60 px-6 py-3 text-sm font-semibold text-white shadow-sm"
-          >
-            Start Test (Phase 4 Engine)
-          </button>
+          <StartAttemptButton
+            testId={test.id}
+            hasActiveAttempt={Boolean(activeAttempt)}
+            activeAttemptId={activeAttempt?.id}
+          />
         </div>
       </div>
     </main>
   );
 }
-

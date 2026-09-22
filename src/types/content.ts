@@ -2,6 +2,8 @@ export type ContentStatus = "draft" | "review" | "published" | "archived";
 export type Difficulty = "easy" | "medium" | "hard";
 export type QuestionType = "mcq";
 export type TestType = "practice" | "mock";
+export type AttemptStatus = "in_progress" | "submitted" | "abandoned";
+export type AttemptQuestionStatus = "unanswered" | "answered" | "skipped";
 
 export interface Exam {
   id: string;
@@ -145,3 +147,107 @@ export interface TestWithDetails extends Test {
   total_marks: number;
 }
 
+// ==========================================
+// Phase 3: Practice & Test-Taking Interfaces
+// ==========================================
+
+export interface TestAttempt {
+  id: string;
+  user_id: string;
+  test_id: string;
+  status: AttemptStatus;
+  started_at: string;
+  submitted_at: string | null;
+  score: number;
+  max_score: number;
+  correct_count: number;
+  incorrect_count: number;
+  unanswered_count: number;
+  total_questions: number;
+  created_at: string;
+  updated_at: string;
+  test?: TestWithDetails | null;
+}
+
+export interface AttemptQuestion {
+  id: string;
+  attempt_id: string;
+  question_id: string;
+  section_id: string | null;
+  display_order: number;
+  selected_option_id: string | null;
+  status: AttemptQuestionStatus;
+  marked_for_review: boolean;
+  answered_at: string | null;
+  marks: number;
+  negative_marks: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AttemptQuestionTaking {
+  id: string;
+  attempt_id: string;
+  question_id: string;
+  section_id: string | null;
+  section_name?: string;
+  display_order: number;
+  selected_option_id: string | null;
+  status: AttemptQuestionStatus;
+  marked_for_review: boolean;
+  marks: number;
+  negative_marks: number;
+  question_text: string;
+  difficulty: Difficulty;
+  options: QuestionOption[];
+}
+
+export interface AttemptForTaking {
+  attempt: TestAttempt;
+  test: TestWithDetails;
+  questions: AttemptQuestionTaking[];
+}
+
+export interface AttemptSectionResult {
+  section_id: string;
+  section_name: string;
+  total_questions: number;
+  correct_count: number;
+  incorrect_count: number;
+  unanswered_count: number;
+  score: number;
+  max_score: number;
+}
+
+export interface AttemptResult {
+  attempt: TestAttempt;
+  test: Test;
+  accuracy_percentage: number;
+  section_results: AttemptSectionResult[];
+}
+
+export interface AttemptReviewQuestion {
+  id: string;
+  question_id: string;
+  section_id: string | null;
+  section_name?: string;
+  display_order: number;
+  question_text: string;
+  difficulty: Difficulty;
+  marks: number;
+  negative_marks: number;
+  options: QuestionOption[];
+  selected_option_id: string | null;
+  correct_option_id: string;
+  is_correct: boolean;
+  is_unanswered: boolean;
+  score_awarded: number;
+  explanation: string | null;
+}
+
+export interface AttemptReview {
+  attempt: TestAttempt;
+  test: Test;
+  questions: AttemptReviewQuestion[];
+  section_results: AttemptSectionResult[];
+}

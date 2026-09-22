@@ -13,6 +13,7 @@ export default function StudentLayout({ children }: Readonly<{ children: React.R
             <Link className="hover:text-teal-800" href="/dashboard">Dashboard</Link>
             <Link className="hover:text-teal-800" href="/practice">Practice</Link>
             <Link className="hover:text-teal-800" href="/tests">Mock Tests</Link>
+            <Link className="hover:text-teal-800" href="/attempts">Attempts</Link>
             <SignOutButton />
           </nav>
         </div>
