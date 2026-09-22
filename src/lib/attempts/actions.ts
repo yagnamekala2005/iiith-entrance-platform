@@ -9,7 +9,7 @@ export interface ActionResult<T = unknown> {
 }
 
 /**
- * Start or resume a test attempt for the authenticated student.
+ * Start or resume a test attempt for the authenticated student via the secure RPC.
  */
 export async function startTestAttempt(testId: string): Promise<ActionResult<{ attemptId: string; isResumed: boolean }>> {
   try {
@@ -20,7 +20,23 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
       return { success: false, error: "You must be signed in to take a test." };
     }
 
-    // 1. Verify test exists and is published
+    // Call the server-authoritative start_test_attempt RPC
+    const { data: rpcResult, error: rpcErr } = await supabase.rpc("start_test_attempt", {
+      p_test_id: testId,
+    });
+
+    if (!rpcErr && rpcResult) {
+      const res = rpcResult as { attempt_id: string; is_resumed: boolean };
+      return {
+        success: true,
+        data: {
+          attemptId: res.attempt_id,
+          isResumed: res.is_resumed,
+        },
+      };
+    }
+
+    // Fallback: Validate and execute with direct queries if RPC is not yet registered
     const { data: test, error: testErr } = await supabase
       .from("tests")
       .select("id, status, name")
@@ -35,7 +51,7 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
       return { success: false, error: "This test is not currently published." };
     }
 
-    // 2. Check for an existing in-progress attempt to resume
+    // Check for an existing in-progress attempt to resume
     const { data: existingAttempt } = await supabase
       .from("test_attempts")
       .select("id")
@@ -52,7 +68,6 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
       };
     }
 
-    // 3. Fetch all test questions
     const { data: testQuestions, error: tqErr } = await supabase
       .from("test_questions")
       .select("question_id, section_id, display_order, marks, negative_marks")
@@ -66,7 +81,6 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
     const totalQuestions = testQuestions.length;
     const maxScore = testQuestions.reduce((acc, q) => acc + Number(q.marks || 0), 0);
 
-    // 4. Create new test_attempt record
     const { data: newAttempt, error: attemptCreateErr } = await supabase
       .from("test_attempts")
       .insert({
@@ -88,7 +102,6 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
       return { success: false, error: "Failed to initialize test attempt." };
     }
 
-    // 5. Create attempt_questions snapshot records
     const attemptQuestionsPayload = testQuestions.map((tq) => ({
       attempt_id: newAttempt.id,
       question_id: tq.question_id,
@@ -106,7 +119,6 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
 
     if (batchInsertErr) {
       console.error("Error creating attempt questions:", batchInsertErr);
-      // Clean up orphaned attempt record
       await supabase.from("test_attempts").delete().eq("id", newAttempt.id);
       return { success: false, error: "Failed to snapshot test questions." };
     }
@@ -156,7 +168,19 @@ export async function saveAttemptAnswer(
       return { success: false, error: "Cannot modify answers of a submitted attempt." };
     }
 
-    // 2. Verify option belongs to the question
+    // 2. Verify question belongs to this attempt
+    const { data: aq, error: aqErr } = await supabase
+      .from("attempt_questions")
+      .select("id")
+      .eq("attempt_id", attemptId)
+      .eq("question_id", questionId)
+      .maybeSingle();
+
+    if (aqErr || !aq) {
+      return { success: false, error: "Question does not belong to this attempt." };
+    }
+
+    // 3. Verify option belongs to the question
     const { data: option, error: optErr } = await supabase
       .from("question_options")
       .select("id")
@@ -165,10 +189,10 @@ export async function saveAttemptAnswer(
       .maybeSingle();
 
     if (optErr || !option) {
-      return { success: false, error: "Invalid option selection." };
+      return { success: false, error: "Invalid option selection for this question." };
     }
 
-    // 3. Update attempt_questions
+    // 4. Update attempt_questions (updating ONLY safe answer fields)
     const { error: updateErr } = await supabase
       .from("attempt_questions")
       .update({
@@ -305,7 +329,7 @@ export async function toggleAttemptMarkForReview(
 }
 
 /**
- * Submit attempt and calculate authoritative score server-side.
+ * Submit attempt and calculate authoritative score server-side via the submit_and_score_attempt RPC.
  */
 export async function submitTestAttempt(attemptId: string): Promise<ActionResult<{ score: number; maxScore: number }>> {
   try {
@@ -339,7 +363,7 @@ export async function submitTestAttempt(attemptId: string): Promise<ActionResult
       };
     }
 
-    // Fallback in case RPC is not loaded in local runtime:
+    // Fallback: direct server-side grading
     const { data: attempt } = await supabase
       .from("test_attempts")
       .select("*")
@@ -419,4 +443,3 @@ export async function submitTestAttempt(attemptId: string): Promise<ActionResult
     return { success: false, error: "An unexpected error occurred during submission." };
   }
 }
-

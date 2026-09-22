@@ -131,7 +131,7 @@ create or replace function public.check_test_not_published()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_status text;

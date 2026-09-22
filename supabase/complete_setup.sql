@@ -9,7 +9,7 @@
 
 create extension if not exists pgcrypto;
 
-create table public.profiles (
+create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text,
   avatar_url text,
@@ -17,13 +17,13 @@ create table public.profiles (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
-create table public.admin_users (
+create table if not exists public.admin_users (
   user_id uuid primary key references auth.users(id) on delete cascade,
   created_at timestamptz not null default timezone('utc', now()),
   created_by uuid references auth.users(id)
 );
 
-create table public.exams (
+create table if not exists public.exams (
   id uuid primary key default gen_random_uuid(),
   slug text not null unique,
   name text not null,
@@ -34,7 +34,7 @@ create table public.exams (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
-create table public.exam_sections (
+create table if not exists public.exam_sections (
   id uuid primary key default gen_random_uuid(),
   exam_id uuid not null references public.exams(id) on delete cascade,
   slug text not null,
@@ -48,26 +48,29 @@ create table public.exam_sections (
   unique (exam_id, slug)
 );
 
-create index exams_published_idx on public.exams (published);
-create index exam_sections_exam_order_idx on public.exam_sections (exam_id, display_order);
+create index if not exists exams_published_idx on public.exams (published);
+create index if not exists exam_sections_exam_order_idx on public.exam_sections (exam_id, display_order);
 
 create or replace function public.is_admin(check_user_id uuid default auth.uid())
 returns boolean
 language sql
 stable
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
-  select exists (
-    select 1 from public.admin_users where user_id = check_user_id
-  );
+  select case 
+    when check_user_id is null then false
+    else exists (
+      select 1 from public.admin_users where user_id = check_user_id
+    )
+  end;
 $$;
 
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 begin
   insert into public.profiles (id) values (new.id)
@@ -76,6 +79,7 @@ begin
 end;
 $$;
 
+drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
 after insert on auth.users
 for each row execute procedure public.handle_new_user();
@@ -85,40 +89,49 @@ alter table public.admin_users enable row level security;
 alter table public.exams enable row level security;
 alter table public.exam_sections enable row level security;
 
+drop policy if exists "Users can read their own profile" on public.profiles;
 create policy "Users can read their own profile"
 on public.profiles for select
 using (auth.uid() = id);
 
+drop policy if exists "Users can update their own profile" on public.profiles;
 create policy "Users can update their own profile"
 on public.profiles for update
 using (auth.uid() = id)
 with check (auth.uid() = id);
 
+drop policy if exists "Admins can read admin membership" on public.admin_users;
 create policy "Admins can read admin membership"
 on public.admin_users for select
 using (public.is_admin());
 
+drop policy if exists "Anyone can read published exams" on public.exams;
 create policy "Anyone can read published exams"
 on public.exams for select
 using (published = true or public.is_admin());
 
+drop policy if exists "Anyone can read published sections" on public.exam_sections;
 create policy "Anyone can read published sections"
 on public.exam_sections for select
 using (published = true or public.is_admin());
 
+drop policy if exists "Admins can create exams" on public.exams;
 create policy "Admins can create exams"
 on public.exams for insert
 with check (public.is_admin());
 
+drop policy if exists "Admins can update exams" on public.exams;
 create policy "Admins can update exams"
 on public.exams for update
 using (public.is_admin())
 with check (public.is_admin());
 
+drop policy if exists "Admins can create sections" on public.exam_sections;
 create policy "Admins can create sections"
 on public.exam_sections for insert
 with check (public.is_admin());
 
+drop policy if exists "Admins can update sections" on public.exam_sections;
 create policy "Admins can update sections"
 on public.exam_sections for update
 using (public.is_admin())
@@ -264,7 +277,7 @@ create or replace function public.check_test_not_published()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_status text;
@@ -425,7 +438,7 @@ with check (public.is_admin());
 -- ==========================================================================
 
 
--- Phase 3: Practice and Test-Taking Engine Migration
+-- Phase 3: Practice and Test-Taking Engine Migration (Hardened RLS & Server-Authoritative Guards)
 
 -- 1. Test Attempts Table
 create table if not exists public.test_attempts (
@@ -469,31 +482,89 @@ create index if not exists idx_test_attempts_test on public.test_attempts(test_i
 create index if not exists idx_attempt_questions_attempt_order on public.attempt_questions(attempt_id, display_order);
 create index if not exists idx_attempt_questions_qid on public.attempt_questions(question_id);
 
--- 4. Triggers for Immutable Submitted Attempts Guard
-create or replace function public.check_attempt_status_guard()
+-- 4. Database Trigger Guards for Immutability & Anti-Tampering
+
+-- 4a. Guard for test_attempts
+--
+-- IMPORTANT:
+-- This trigger is intentionally SECURITY INVOKER.
+-- `submit_and_score_attempt()` is SECURITY DEFINER, so its trusted UPDATE
+-- executes with the function owner's role and is allowed to finalize an
+-- attempt. A normal authenticated client UPDATE remains subject to RLS and
+-- is rejected below. Making this trigger SECURITY DEFINER would erase that
+-- distinction because current_user would always be the trigger owner.
+create or replace function public.check_test_attempts_guard()
 returns trigger
 language plpgsql
-security definer
-set search_path = public
+security invoker
+set search_path = public, pg_temp
 as $$
-declare
-  v_status text;
 begin
-  -- Prevent altering submitted attempts back to in_progress
-  if TG_TABLE_NAME = 'test_attempts' then
-    if OLD.status = 'submitted' and NEW.status <> 'submitted' and not public.is_admin() then
-      raise exception 'Cannot modify or reopen an already submitted attempt';
-    end if;
+  -- Admins may manage attempts directly.
+  if public.is_admin() then
     NEW.updated_at = timezone('utc', now());
     return NEW;
   end if;
 
-  -- Prevent modifying attempt_questions if parent attempt is submitted
-  if TG_TABLE_NAME = 'attempt_questions' then
-    select status into v_status from public.test_attempts where id = coalesce(NEW.attempt_id, OLD.attempt_id);
-    if v_status = 'submitted' and not public.is_admin() then
-      raise exception 'Cannot modify answers of an already submitted attempt';
-    end if;
+  -- Prevent altering submitted attempts.
+  if OLD.status = 'submitted' then
+    raise exception 'Cannot modify an already submitted attempt';
+  end if;
+
+  -- The trusted submission RPC runs as its SECURITY DEFINER owner. Allow
+  -- that trusted transition only when it is actually executing under the
+  -- function owner; ordinary authenticated clients cannot satisfy this.
+  if NEW.status = 'submitted'
+     and OLD.status <> 'submitted'
+     and current_user <> 'postgres' then
+    raise exception 'Direct submission is forbidden. Use submit_and_score_attempt()';
+  end if;
+
+  -- Students must never directly write official result fields or immutable
+  -- attempt identity/timing fields.
+  if current_user <> 'postgres'
+     and (
+       NEW.score is distinct from OLD.score or
+       NEW.max_score is distinct from OLD.max_score or
+       NEW.correct_count is distinct from OLD.correct_count or
+       NEW.incorrect_count is distinct from OLD.incorrect_count or
+       NEW.unanswered_count is distinct from OLD.unanswered_count or
+       NEW.total_questions is distinct from OLD.total_questions or
+       NEW.submitted_at is distinct from OLD.submitted_at or
+       NEW.user_id is distinct from OLD.user_id or
+       NEW.test_id is distinct from OLD.test_id or
+       NEW.started_at is distinct from OLD.started_at
+     ) then
+    raise exception 'Direct score, state, or identity mutation is forbidden. Use the server-authoritative RPC';
+  end if;
+
+  NEW.updated_at = timezone('utc', now());
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_guard_test_attempts on public.test_attempts;
+create trigger trg_guard_test_attempts
+before update on public.test_attempts
+for each row execute function public.check_test_attempts_guard();
+
+-- 4b. Guard for attempt_questions (Immutable snapshots & valid option verification)
+--
+-- SECURITY INVOKER is intentional for the same reason as the test_attempts
+-- guard above: the trusted SECURITY DEFINER RPC must be able to create the
+-- snapshot, while ordinary clients must not be able to bypass the guard.
+create or replace function public.check_attempt_questions_guard()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+declare
+  v_attempt_status text;
+  v_option_valid boolean;
+begin
+  -- Admins bypass guard
+  if public.is_admin() then
     if TG_OP <> 'DELETE' then
       NEW.updated_at = timezone('utc', now());
       return NEW;
@@ -501,19 +572,55 @@ begin
     return OLD;
   end if;
 
-  return coalesce(NEW, OLD);
+  -- Verify parent attempt is in_progress
+  select status into v_attempt_status
+  from public.test_attempts
+  where id = coalesce(NEW.attempt_id, OLD.attempt_id);
+
+  if v_attempt_status <> 'in_progress' then
+    raise exception 'Cannot modify questions of a test attempt that is not in progress';
+  end if;
+
+  -- Enforce snapshot immutability on UPDATE
+  if TG_OP = 'UPDATE' then
+    if (NEW.attempt_id <> OLD.attempt_id) or
+       (NEW.question_id <> OLD.question_id) or
+       (NEW.section_id is distinct from OLD.section_id) or
+       (NEW.display_order <> OLD.display_order) or
+       (NEW.marks <> OLD.marks) or
+       (NEW.negative_marks <> OLD.negative_marks) then
+      raise exception 'Attempt question snapshot fields (question, section, marks, order) are immutable';
+    end if;
+
+    -- Validate selected option belongs to the question
+    if NEW.selected_option_id is not null then
+      select exists (
+        select 1 from public.question_options
+        where id = NEW.selected_option_id
+          and question_id = OLD.question_id
+      ) into v_option_valid;
+
+      if not v_option_valid then
+        raise exception 'Invalid selected_option_id for question %', OLD.question_id;
+      end if;
+    end if;
+
+    NEW.updated_at = timezone('utc', now());
+    return NEW;
+  end if;
+
+  if TG_OP = 'DELETE' then
+    raise exception 'Students cannot delete attempt questions';
+  end if;
+
+  return NEW;
 end;
 $$;
-
-drop trigger if exists trg_guard_test_attempts on public.test_attempts;
-create trigger trg_guard_test_attempts
-before update on public.test_attempts
-for each row execute function public.check_attempt_status_guard();
 
 drop trigger if exists trg_guard_attempt_questions on public.attempt_questions;
 create trigger trg_guard_attempt_questions
 before insert or update or delete on public.attempt_questions
-for each row execute function public.check_attempt_status_guard();
+for each row execute function public.check_attempt_questions_guard();
 
 -- 5. Enable Row Level Security (RLS)
 alter table public.test_attempts enable row level security;
@@ -525,16 +632,20 @@ create policy "Users can read own attempts"
 on public.test_attempts for select
 using (auth.uid() = user_id or public.is_admin());
 
+-- Direct student INSERTs are disallowed: creation must go through start_test_attempt() RPC
+drop policy if exists "Admins can insert attempts directly" on public.test_attempts;
 drop policy if exists "Users can insert own attempts" on public.test_attempts;
-create policy "Users can insert own attempts"
+create policy "Admins can insert attempts directly"
 on public.test_attempts for insert
-with check (auth.uid() = user_id or public.is_admin());
+with check (public.is_admin());
 
+-- Direct student UPDATEs are disallowed: modifications go through answer saves / submit RPC
+drop policy if exists "Admins can update attempts directly" on public.test_attempts;
 drop policy if exists "Users can update own in-progress attempts" on public.test_attempts;
-create policy "Users can update own in-progress attempts"
+create policy "Admins can update attempts directly"
 on public.test_attempts for update
-using (auth.uid() = user_id or public.is_admin())
-with check (auth.uid() = user_id or public.is_admin());
+using (public.is_admin())
+with check (public.is_admin());
 
 -- 7. RLS Policies for attempt_questions
 drop policy if exists "Users can read own attempt questions" on public.attempt_questions;
@@ -548,22 +659,19 @@ using (
   )
 );
 
+-- Direct student INSERTs are disallowed: created exclusively by start_test_attempt() RPC
+drop policy if exists "Admins can insert attempt questions directly" on public.attempt_questions;
 drop policy if exists "Users can insert own attempt questions" on public.attempt_questions;
-create policy "Users can insert own attempt questions"
+create policy "Admins can insert attempt questions directly"
 on public.attempt_questions for insert
-with check (
-  exists (
-    select 1 from public.test_attempts
-    where test_attempts.id = attempt_questions.attempt_id
-      and (test_attempts.user_id = auth.uid() or public.is_admin())
-  )
-);
+with check (public.is_admin());
 
+-- Students can update safe answer fields during in_progress (guarded by check_attempt_questions_guard trigger)
 drop policy if exists "Users can update own attempt questions while in progress" on public.attempt_questions;
 create policy "Users can update own attempt questions while in progress"
 on public.attempt_questions for update
 using (
-  exists (
+  auth.uid() is not null and exists (
     select 1 from public.test_attempts
     where test_attempts.id = attempt_questions.attempt_id
       and (test_attempts.user_id = auth.uid() or public.is_admin())
@@ -571,7 +679,7 @@ using (
   )
 )
 with check (
-  exists (
+  auth.uid() is not null and exists (
     select 1 from public.test_attempts
     where test_attempts.id = attempt_questions.attempt_id
       and (test_attempts.user_id = auth.uid() or public.is_admin())
@@ -579,12 +687,128 @@ with check (
   )
 );
 
--- 8. Server-Authoritative Secure Submission & Scoring Function
+-- 8. Server-Authoritative RPC: start_test_attempt
+create or replace function public.start_test_attempt(p_test_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_user_id uuid;
+  v_test record;
+  v_existing_id uuid;
+  v_new_attempt_id uuid;
+  v_total_questions integer := 0;
+  v_max_score numeric(6, 2) := 0.00;
+  v_tq record;
+begin
+  -- 1. Check authenticated user
+  v_user_id := auth.uid();
+  if v_user_id is null then
+    raise exception 'Unauthorized: Must be logged in to start a test attempt';
+  end if;
+
+  -- 2. Verify test exists and is published
+  select * into v_test from public.tests where id = p_test_id;
+  if not found then
+    raise exception 'Test not found';
+  end if;
+
+  if v_test.status <> 'published' and not public.is_admin() then
+    raise exception 'Test is not published';
+  end if;
+
+  -- 3. Check for existing in-progress attempt to resume
+  select id into v_existing_id
+  from public.test_attempts
+  where user_id = v_user_id
+    and test_id = p_test_id
+    and status = 'in_progress'
+  order by created_at desc
+  limit 1;
+
+  if v_existing_id is not null then
+    return jsonb_build_object(
+      'attempt_id', v_existing_id,
+      'is_resumed', true
+    );
+  end if;
+
+  -- 4. Calculate total questions and max marks from test_questions
+  select count(*), coalesce(sum(marks), 0.00)
+  into v_total_questions, v_max_score
+  from public.test_questions
+  where test_id = p_test_id;
+
+  if v_total_questions = 0 then
+    raise exception 'This test has no configured questions';
+  end if;
+
+  -- 5. Create test_attempts record
+  insert into public.test_attempts (
+    user_id,
+    test_id,
+    status,
+    score,
+    max_score,
+    total_questions,
+    unanswered_count,
+    correct_count,
+    incorrect_count
+  ) values (
+    v_user_id,
+    p_test_id,
+    'in_progress',
+    0.00,
+    v_max_score,
+    v_total_questions,
+    v_total_questions,
+    0,
+    0
+  ) returning id into v_new_attempt_id;
+
+  -- 6. Snapshot questions into attempt_questions
+  for v_tq in 
+    select question_id, section_id, display_order, marks, negative_marks
+    from public.test_questions
+    where test_id = p_test_id
+    order by display_order
+  loop
+    insert into public.attempt_questions (
+      attempt_id,
+      question_id,
+      section_id,
+      display_order,
+      marks,
+      negative_marks,
+      status,
+      marked_for_review
+    ) values (
+      v_new_attempt_id,
+      v_tq.question_id,
+      v_tq.section_id,
+      v_tq.display_order,
+      v_tq.marks,
+      v_tq.negative_marks,
+      'unanswered',
+      false
+    );
+  end loop;
+
+  return jsonb_build_object(
+    'attempt_id', v_new_attempt_id,
+    'is_resumed', false
+  );
+end;
+$$;
+
+-- 9. Server-Authoritative RPC: submit_and_score_attempt
 create or replace function public.submit_and_score_attempt(p_attempt_id uuid)
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_user_id uuid;
@@ -599,8 +823,11 @@ declare
   v_total_questions integer := 0;
 begin
   v_user_id := auth.uid();
-  select * into v_attempt from public.test_attempts where id = p_attempt_id;
+  if v_user_id is null then
+    raise exception 'Unauthorized: Must be logged in to submit a test';
+  end if;
 
+  select * into v_attempt from public.test_attempts where id = p_attempt_id;
   if not found then
     raise exception 'Attempt not found';
   end if;
@@ -609,6 +836,7 @@ begin
     raise exception 'Unauthorized attempt access';
   end if;
 
+  -- Idempotency check: if already submitted, return the persisted score safely
   if v_attempt.status = 'submitted' then
     return jsonb_build_object(
       'status', 'already_submitted',
@@ -621,7 +849,7 @@ begin
     );
   end if;
 
-  -- Score each question in the attempt
+  -- Compute official score by comparing selected_option_id with question_answer_keys
   for v_aq in select * from public.attempt_questions where attempt_id = p_attempt_id order by display_order loop
     v_total_questions := v_total_questions + 1;
     v_max_score := v_max_score + v_aq.marks;
@@ -641,7 +869,7 @@ begin
     end if;
   end loop;
 
-  -- Update test_attempts to submitted
+  -- Update test_attempts to submitted (direct SQL update in SECURITY DEFINER function)
   update public.test_attempts
   set
     status = 'submitted',
@@ -667,12 +895,12 @@ begin
 end;
 $$;
 
--- 9. Secure Review Data Function (strictly blocked for in-progress attempts)
+-- 10. Server-Authoritative RPC: get_attempt_review_data (Strictly blocked for in-progress attempts)
 create or replace function public.get_attempt_review_data(p_attempt_id uuid)
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_user_id uuid;
@@ -682,8 +910,11 @@ declare
   v_sections jsonb;
 begin
   v_user_id := auth.uid();
-  select * into v_attempt from public.test_attempts where id = p_attempt_id;
+  if v_user_id is null then
+    raise exception 'Unauthorized: Must be logged in to view attempt reviews';
+  end if;
 
+  select * into v_attempt from public.test_attempts where id = p_attempt_id;
   if not found then
     raise exception 'Attempt not found';
   end if;
@@ -693,7 +924,7 @@ begin
   end if;
 
   if v_attempt.status <> 'submitted' and not public.is_admin() then
-    raise exception 'Attempt is not submitted yet. Answer keys are protected.';
+    raise exception 'Forbidden: Attempt is not submitted yet. Answer keys and explanations are protected.';
   end if;
 
   select * into v_test from public.tests where id = v_attempt.test_id;
@@ -774,6 +1005,16 @@ begin
   );
 end;
 $$;
+
+-- 11. Explicit Permissions Configuration: Revoke anonymous access & Grant authenticated access
+revoke all on function public.start_test_attempt(uuid) from public, anon;
+grant execute on function public.start_test_attempt(uuid) to authenticated, service_role;
+
+revoke all on function public.submit_and_score_attempt(uuid) from public, anon;
+grant execute on function public.submit_and_score_attempt(uuid) to authenticated, service_role;
+
+revoke all on function public.get_attempt_review_data(uuid) from public, anon;
+grant execute on function public.get_attempt_review_data(uuid) to authenticated, service_role;
 
 
 
