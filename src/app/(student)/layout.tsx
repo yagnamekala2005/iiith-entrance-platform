@@ -9,9 +9,10 @@ export default function StudentLayout({ children }: Readonly<{ children: React.R
           <Link className="text-sm font-semibold tracking-[0.16em] text-teal-800" href="/dashboard">
             IIITH PREP
           </Link>
-          <nav className="flex gap-5 text-sm text-slate-600">
+          <nav className="flex items-center gap-5 text-sm text-slate-600">
             <Link className="hover:text-teal-800" href="/dashboard">Dashboard</Link>
             <Link className="hover:text-teal-800" href="/practice">Practice</Link>
+            <Link className="hover:text-teal-800" href="/tests">Mock Tests</Link>
             <SignOutButton />
           </nav>
         </div>
