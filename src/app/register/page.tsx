@@ -40,7 +40,7 @@ export default function RegisterPage() {
     setSuccess(false);
 
     const supabase = createClient();
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
       options: {
