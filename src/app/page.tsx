@@ -22,7 +22,7 @@ export default function Home() {
             <Link className="rounded-md bg-teal-700 px-5 py-3 text-sm font-semibold text-white hover:bg-teal-800" href="/register">
               Create an account
             </Link>
-            <Link className="rounded-md border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-800" href="/dashboard">
+            <Link className="rounded-md border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-800" href="/login">
               Open dashboard
             </Link>
           </div>
