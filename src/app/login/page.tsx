@@ -19,7 +19,13 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     setLoading(false);
-    setMessage(error ? error.message : "Signed in. You can open the dashboard now.");
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    window.location.href = "/dashboard";
   }
 
   return (
