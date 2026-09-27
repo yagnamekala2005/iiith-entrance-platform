@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function RegisterPage() {
@@ -10,6 +10,13 @@ export default function RegisterPage() {
   const [message, setMessage] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!success) return;
+
+    const timer = window.setTimeout(() => setSuccess(false), 4000);
+    return () => window.clearTimeout(timer);
+  }, [success]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -49,11 +56,7 @@ export default function RegisterPage() {
     }
 
     setSuccess(true);
-    setMessage(
-      data.session
-        ? "Your account has been created successfully."
-        : "Your account has been created. Check your email if confirmation is required."
-    );
+    setMessage("Your account has been created successfully.");
     setEmail("");
     setPassword("");
   }
