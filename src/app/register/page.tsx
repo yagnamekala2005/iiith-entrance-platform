@@ -51,7 +51,18 @@ export default function RegisterPage() {
     setLoading(false);
 
     if (error) {
-      setMessage(error.message);
+      const errorMessage = error.message.toLowerCase();
+
+      if (errorMessage.includes("rate limit") || errorMessage.includes("too many requests")) {
+        setMessage(
+          "Supabase email limit has been reached. Please wait for the limit to reset, or configure custom SMTP in Supabase."
+        );
+      } else if (errorMessage.includes("already registered")) {
+        setMessage("This email is already registered. Please sign in instead.");
+      } else {
+        setMessage(error.message);
+      }
+
       return;
     }
 
