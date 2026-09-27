@@ -26,7 +26,7 @@ export default function LoginPage() {
     setLoading(false);
 
     if (error) {
-      setMessage(error.message);
+      setMessage("Incorrect email or password. Please check your credentials and try again.");
       return;
     }
 
