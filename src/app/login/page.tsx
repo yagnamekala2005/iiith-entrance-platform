@@ -15,8 +15,13 @@ export default function LoginPage() {
     setLoading(true);
     setMessage("");
 
+    const normalizedEmail = email.trim().toLowerCase();
+
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
 
     setLoading(false);
 
