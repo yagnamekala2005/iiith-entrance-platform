@@ -1,7 +1,16 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 import { getPublishedExams, getPublishedTests, getSubjectsWithHierarchy } from "@/lib/content/queries";
 
 export default async function DashboardPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
   const [exams, tests, subjects] = await Promise.all([
     getPublishedExams(),
     getPublishedTests(),
@@ -22,7 +31,7 @@ export default async function DashboardPage() {
             Welcome back.
           </h1>
           <p className="mt-2 text-slate-600">
-            Your preparation workspace is ready.
+            Account: <span className="font-medium text-slate-800">{user.email}</span>
           </p>
         </div>
         <div className="flex gap-3">
