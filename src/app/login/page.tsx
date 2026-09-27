@@ -26,7 +26,21 @@ export default function LoginPage() {
     setLoading(false);
 
     if (error) {
-      setMessage("Incorrect email or password. Please check your credentials and try again.");
+      const errorMessage = error.message.toLowerCase();
+
+      if (errorMessage.includes("email not confirmed")) {
+        setMessage(
+          "This account was created, but the email is not confirmed yet. Confirm the email or disable Confirm email in Supabase Authentication settings."
+        );
+      } else if (
+        errorMessage.includes("invalid login credentials") ||
+        errorMessage.includes("invalid credentials")
+      ) {
+        setMessage("Incorrect email or password. Please check your credentials and try again.");
+      } else {
+        setMessage(error.message);
+      }
+
       return;
     }
 
