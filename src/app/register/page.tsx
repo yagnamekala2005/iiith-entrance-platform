@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
@@ -39,42 +38,34 @@ export default function RegisterPage() {
     setMessage("");
     setSuccess(false);
 
-    const supabase = createClient();
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: normalizedEmail,
+          password,
+        }),
+      });
 
-    // Account creation is handled directly by Supabase Auth.
-    // No email-confirmation redirect is used in this application flow.
-    const { data, error } = await supabase.auth.signUp({
-      email: normalizedEmail,
-      password,
-    });
+      const result = await response.json();
 
-    setLoading(false);
-
-    if (error) {
-      const errorMessage = error.message.toLowerCase();
-
-      if (errorMessage.includes("rate limit") || errorMessage.includes("too many requests")) {
-        setMessage(
-          "Account creation is temporarily rate-limited by Supabase. Please wait and try again."
-        );
-      } else if (errorMessage.includes("already registered")) {
-        setMessage("This email is already registered. Please sign in with that account.");
-      } else {
-        setMessage(error.message);
+      if (!response.ok) {
+        setMessage(result.error ?? "Unable to create the account. Please try again.");
+        return;
       }
 
-      return;
+      setSuccess(true);
+      setMessage(
+        "Your account has been created successfully. Sign in with the same email and password."
+      );
+      setEmail("");
+      setPassword("");
+    } catch {
+      setMessage("Unable to create the account. Please try again.");
+    } finally {
+      setLoading(false);
     }
-
-    if (!data.user) {
-      setMessage("The account could not be created. Please try again.");
-      return;
-    }
-
-    setSuccess(true);
-    setMessage("Your account has been created successfully. Sign in with the same email and password.");
-    setEmail("");
-    setPassword("");
   }
 
   return (
