@@ -29,18 +29,23 @@ export async function POST(request: Request) {
       );
     }
 
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const secretKey =
+      process.env.SUPABASE_SECRET_KEY ??
+      process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (!serviceRoleKey) {
+    if (!secretKey) {
       return NextResponse.json(
-        { error: "Server authentication is not configured. Add SUPABASE_SERVICE_ROLE_KEY to the server environment." },
+        {
+          error:
+            "Server authentication is not configured. Add the Supabase secret key to the server environment.",
+        },
         { status: 500 },
       );
     }
 
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      serviceRoleKey,
+      secretKey,
       {
         auth: {
           autoRefreshToken: false,
@@ -64,7 +69,10 @@ export async function POST(request: Request) {
         errorMessage.includes("user already")
       ) {
         return NextResponse.json(
-          { error: "This email is already registered. Please sign in with that account." },
+          {
+            error:
+              "This email is already registered. Please sign in with that account.",
+          },
           { status: 409 },
         );
       }
