@@ -40,12 +40,12 @@ export default function RegisterPage() {
     setSuccess(false);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signUp({
+
+    // Account creation is handled directly by Supabase Auth.
+    // No email-confirmation redirect is used in this application flow.
+    const { data, error } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
     });
 
     setLoading(false);
@@ -55,10 +55,10 @@ export default function RegisterPage() {
 
       if (errorMessage.includes("rate limit") || errorMessage.includes("too many requests")) {
         setMessage(
-          "Supabase email limit has been reached. Please wait for the limit to reset, or configure custom SMTP in Supabase."
+          "Account creation is temporarily rate-limited by Supabase. Please wait and try again."
         );
       } else if (errorMessage.includes("already registered")) {
-        setMessage("This email is already registered. Please sign in instead.");
+        setMessage("This email is already registered. Please sign in with that account.");
       } else {
         setMessage(error.message);
       }
@@ -66,8 +66,13 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!data.user) {
+      setMessage("The account could not be created. Please try again.");
+      return;
+    }
+
     setSuccess(true);
-    setMessage("Your account has been created successfully.");
+    setMessage("Your account has been created successfully. Sign in with the same email and password.");
     setEmail("");
     setPassword("");
   }
@@ -81,7 +86,7 @@ export default function RegisterPage() {
           aria-live="polite"
         >
           <p className="text-sm font-semibold text-emerald-700">Account created successfully</p>
-          <p className="mt-1 text-xs text-slate-600">You can now sign in with your email and password.</p>
+          <p className="mt-1 text-xs text-slate-600">Use the same email and password to sign in.</p>
         </div>
       )}
 
