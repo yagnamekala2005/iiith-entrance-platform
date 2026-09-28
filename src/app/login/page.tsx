@@ -15,11 +15,32 @@ export default function LoginPage() {
     setLoading(true);
     setMessage("");
 
+    const normalizedEmail = email.trim().toLowerCase();
+
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
 
     setLoading(false);
-    setMessage(error ? error.message : "Signed in. You can open the dashboard now.");
+
+    if (error) {
+      const errorMessage = error.message.toLowerCase();
+
+      if (
+        errorMessage.includes("invalid login credentials") ||
+        errorMessage.includes("invalid credentials")
+      ) {
+        setMessage("Incorrect email or password. Please check your credentials and try again.");
+      } else {
+        setMessage(error.message);
+      }
+
+      return;
+    }
+
+    window.location.href = "/dashboard";
   }
 
   return (
@@ -30,7 +51,12 @@ export default function LoginPage() {
         <p className="mt-2 text-sm text-slate-600">Continue your preparation workspace.</p>
         <label className="mt-8 block text-sm font-medium text-slate-700" htmlFor="email">Email</label>
         <input className="mt-2 w-full border border-slate-300 px-3 py-2.5 outline-none focus:border-teal-700" id="email" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} />
-        <label className="mt-5 block text-sm font-medium text-slate-700" htmlFor="password">Password</label>
+        <div className="mt-5 flex items-center justify-between">
+          <label className="block text-sm font-medium text-slate-700" htmlFor="password">Password</label>
+          <Link className="text-sm font-semibold text-teal-800 hover:text-teal-950" href="/forgot-password">
+            Forgot password?
+          </Link>
+        </div>
         <input className="mt-2 w-full border border-slate-300 px-3 py-2.5 outline-none focus:border-teal-700" id="password" minLength={6} onChange={(event) => setPassword(event.target.value)} required type="password" value={password} />
         <button className="mt-7 w-full bg-teal-700 px-4 py-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60" disabled={loading} type="submit">
           {loading ? "Signing in..." : "Sign in"}
