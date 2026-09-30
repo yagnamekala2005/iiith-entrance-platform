@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
+import { AdminPanel } from "@/components/admin/admin-panel";
 
 export default async function AdminPage() {
   const supabase = await createClient();
@@ -19,58 +21,63 @@ export default async function AdminPage() {
     redirect("/dashboard");
   }
 
-  // Admin content queries
+  const adminClient = createAdminClient();
+
+  // Load all foundational data in parallel
   const [
-    { count: totalQuestions },
-    { count: publishedQuestions },
-    { count: totalTests },
-    { count: totalSubjects },
+    { data: subjects },
+    { data: chapters },
+    { data: topics },
+    { data: exams },
+    { data: tests },
+    { data: questions },
+    { data: usersList },
+    { data: adminRows },
   ] = await Promise.all([
-    supabase.from("questions").select("*", { count: "exact", head: true }),
-    supabase.from("questions").select("*", { count: "exact", head: true }).eq("status", "published"),
-    supabase.from("tests").select("*", { count: "exact", head: true }),
-    supabase.from("subjects").select("*", { count: "exact", head: true }),
+    adminClient.from("subjects").select("id, name, slug").order("display_order", { ascending: true }),
+    adminClient.from("chapters").select("id, name, subject_id").order("display_order", { ascending: true }),
+    adminClient.from("topics").select("id, name, chapter_id").order("display_order", { ascending: true }),
+    adminClient.from("exams").select("id, name, slug"),
+    adminClient.from("tests").select("id, name, slug"),
+    adminClient
+      .from("questions")
+      .select(`
+        id,
+        question_text,
+        difficulty,
+        marks,
+        negative_marks,
+        explanation,
+        subject:subjects(id, name),
+        options:question_options(id, option_label, option_text),
+        answer_key:question_answer_keys(correct_option_id)
+      `)
+      .order("created_at", { ascending: false })
+      .limit(100),
+    adminClient.auth.admin.listUsers(),
+    adminClient.from("admin_users").select("user_id"),
   ]);
 
+  const userEmailMap = new Map<string, string>();
+  (usersList?.users || []).forEach((u) => {
+    if (u.email) userEmailMap.set(u.id, u.email);
+  });
+
+  const enrolledAdmins = (adminRows || []).map((ar) => ({
+    user_id: ar.user_id,
+    email: userEmailMap.get(ar.user_id) || "admin@iiith.ac.in",
+  }));
+
   return (
-    <main className="mx-auto max-w-7xl px-6 py-12">
-      <div className="border-b border-slate-800 pb-8">
-        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-teal-300">Protected workspace</p>
-        <h1 className="mt-3 text-4xl font-semibold tracking-tight text-white">Administration Foundation</h1>
-        <p className="mt-2 text-slate-400">
-          Authenticated Administrator: <span className="font-mono text-teal-300">{user.email}</span>
-        </p>
-      </div>
-
-      <div className="mt-8 grid gap-5 sm:grid-cols-4">
-        <div className="border border-slate-800 bg-slate-900/60 p-5">
-          <p className="text-xs uppercase tracking-wider text-slate-400">Total Questions</p>
-          <p className="mt-2 text-3xl font-bold text-teal-300">{totalQuestions ?? 0}</p>
-          <p className="mt-1 text-xs text-slate-400">{publishedQuestions ?? 0} published</p>
-        </div>
-        <div className="border border-slate-800 bg-slate-900/60 p-5">
-          <p className="text-xs uppercase tracking-wider text-slate-400">Published Tests</p>
-          <p className="mt-2 text-3xl font-bold text-teal-300">{totalTests ?? 0}</p>
-          <p className="mt-1 text-xs text-slate-400">Active test configurations</p>
-        </div>
-        <div className="border border-slate-800 bg-slate-900/60 p-5">
-          <p className="text-xs uppercase tracking-wider text-slate-400">Subjects</p>
-          <p className="mt-2 text-3xl font-bold text-teal-300">{totalSubjects ?? 0}</p>
-          <p className="mt-1 text-xs text-slate-400">PCM + Aptitude</p>
-        </div>
-        <div className="border border-slate-800 bg-slate-900/60 p-5">
-          <p className="text-xs uppercase tracking-wider text-slate-400">Answer Key Security</p>
-          <p className="mt-2 text-xl font-bold text-emerald-400">Enforced</p>
-          <p className="mt-1 text-xs text-slate-400">RLS restricts to admins</p>
-        </div>
-      </div>
-
-      <div className="mt-10 rounded-md border border-slate-800 bg-slate-900/30 p-6">
-        <h2 className="text-lg font-semibold text-white">Phase 2 Content Architecture Active</h2>
-        <p className="mt-2 text-sm leading-relaxed text-slate-400">
-          The database schema supports Exam &rarr; Section &rarr; Subject &rarr; Chapter &rarr; Topic &rarr; Question &rarr; Options hierarchy with protected answer keys. Full GUI authoring tools will be integrated in Phase 7.
-        </p>
-      </div>
-    </main>
+    <AdminPanel
+      currentAdminEmail={user.email || ""}
+      subjects={subjects || []}
+      chapters={chapters || []}
+      topics={topics || []}
+      exams={exams || []}
+      tests={tests || []}
+      initialQuestions={(questions as unknown as any) || []}
+      adminUsersList={enrolledAdmins}
+    />
   );
 }

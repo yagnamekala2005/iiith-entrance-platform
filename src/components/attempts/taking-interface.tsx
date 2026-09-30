@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useEffect, useTransition, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { AttemptForTaking, AttemptQuestionTaking } from "@/types/content";
 import { QuestionPalette } from "./question-palette";
@@ -22,23 +22,110 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "error">("saved");
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState<boolean>(false);
+  const [isMobilePaletteOpen, setIsMobilePaletteOpen] = useState<boolean>(false);
   const [, startTransition] = useTransition();
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [autoSubmitTriggered, setAutoSubmitTriggered] = useState<boolean>(false);
 
+  // Total test duration in seconds (default 3 hours = 10800s)
+  const totalDurationSeconds = data.test.duration_seconds || 10800;
+
+  // Initialize remaining time using started_at
+  const [secondsRemaining, setSecondsRemaining] = useState<number>(() => {
+    try {
+      const startTime = new Date(data.attempt.started_at).getTime();
+      const now = Date.now();
+      const elapsedSeconds = Math.floor((now - startTime) / 1000);
+      const remaining = totalDurationSeconds - elapsedSeconds;
+      return remaining > 0 ? remaining : 0;
+    } catch {
+      return totalDurationSeconds;
+    }
+  });
+
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Group questions by subject
+  const subjects = useMemo(() => {
+    const map = new Map<string, { name: string; slug: string; startIndex: number; count: number }>();
+    questions.forEach((q, idx) => {
+      const subName = q.subject_name || "General";
+      const subSlug = q.subject_slug || "general";
+      if (!map.has(subName)) {
+        map.set(subName, {
+          name: subName,
+          slug: subSlug,
+          startIndex: idx,
+          count: 0,
+        });
+      }
+      map.get(subName)!.count += 1;
+    });
+    return Array.from(map.values());
+  }, [questions]);
+
+  // Current question and subject
   const currentQuestion = questions[currentIndex];
   const totalQuestions = questions.length;
+  const currentSubjectName = currentQuestion?.subject_name || "General";
 
-  const difficultyColors = {
-    easy: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    medium: "bg-amber-50 text-amber-700 border-amber-200",
-    hard: "bg-rose-50 text-rose-700 border-rose-200",
+  // Real-time Countdown Timer effect
+  useEffect(() => {
+    timerRef.current = setInterval(() => {
+      setSecondsRemaining((prev) => {
+        if (prev <= 1) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
+
+  // Format seconds to HH:MM:SS
+  const formatTime = (secs: number) => {
+    const hours = Math.floor(secs / 3600);
+    const minutes = Math.floor((secs % 3600) / 60);
+    const seconds = secs % 60;
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
   };
+
+  // Submit test handler
+  const handleConfirmSubmit = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    const res = await submitTestAttempt(data.attempt.id);
+
+    if (res.success) {
+      startTransition(() => {
+        router.push(`/attempts/${data.attempt.id}/result`);
+      });
+    } else {
+      setIsSubmitting(false);
+      alert(res.error || "Failed to submit test. Please check your connection and try again.");
+    }
+  };
+
+  // Auto-submit when timer expires
+  useEffect(() => {
+    if (secondsRemaining <= 0 && !autoSubmitTriggered && !isSubmitting) {
+      setAutoSubmitTriggered(true);
+      setIsSubmitModalOpen(false);
+      setIsMobilePaletteOpen(false);
+      handleConfirmSubmit();
+    }
+  }, [secondsRemaining, autoSubmitTriggered, isSubmitting]);
 
   // 1. Select option
   const handleSelectOption = async (optionId: string) => {
     if (!currentQuestion) return;
 
-    // Optimistic update
+    // Fast optimistic update
     const updated = [...questions];
     updated[currentIndex] = {
       ...currentQuestion,
@@ -113,38 +200,101 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
     }
   };
 
-  // 4. Submit test
-  const handleConfirmSubmit = async () => {
-    setIsSubmitting(true);
-    const res = await submitTestAttempt(data.attempt.id);
-
-    if (res.success) {
-      startTransition(() => {
-        router.push(`/attempts/${data.attempt.id}/result`);
-      });
-    } else {
-      setIsSubmitting(false);
-      alert(res.error || "Failed to submit test. Please check your connection and try again.");
+  // 4. Mark & Next
+  const handleMarkAndNext = async () => {
+    await handleToggleMark();
+    if (currentIndex < totalQuestions - 1) {
+      setCurrentIndex((prev) => prev + 1);
     }
   };
 
+  // 5. Save & Next
+  const handleSaveAndNext = () => {
+    if (currentIndex < totalQuestions - 1) {
+      setCurrentIndex((prev) => prev + 1);
+    } else {
+      setIsSubmitModalOpen(true);
+    }
+  };
+
+  const difficultyColors = {
+    easy: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    medium: "bg-amber-50 text-amber-700 border-amber-200",
+    hard: "bg-rose-50 text-rose-700 border-rose-200",
+  };
+
+  // Timer warning thresholds
+  const isTimeLow = secondsRemaining <= 300; // < 5 mins
+  const isTimeWarning = secondsRemaining <= 900 && secondsRemaining > 300; // < 15 mins
+
+  const totalAttemptedCount = questions.filter((q) => q.selected_option_id).length;
+
   return (
-    <div className="min-h-screen bg-[#f8faf9] flex flex-col">
-      {/* Test Taking Header */}
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white px-6 py-3.5 shadow-xs">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="rounded bg-teal-50 px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-teal-800">
-              Practice Attempt
+    <div className="min-h-screen bg-[#f1f5f9] flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+      {/* Auto-Submit Expiration Modal */}
+      {autoSubmitTriggered && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-in fade-in">
+          <div className="max-w-md w-full rounded-2xl bg-white p-6 sm:p-8 text-center shadow-2xl">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100 text-3xl">
+              ⏰
+            </div>
+            <h2 className="mt-4 text-2xl font-black text-slate-900">Time Has Expired!</h2>
+            <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
+              Your test duration has ended. The system is automatically evaluating and scoring your answers.
+            </p>
+            <div className="mt-6 flex justify-center">
+              <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-xs font-bold text-blue-800">
+                <span className="h-2 w-2 animate-ping rounded-full bg-blue-600"></span>
+                Submitting Exam & Grading Answers...
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Top CBT Real-Time Navigation Bar */}
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md shadow-xs">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3.5">
+          {/* Left: Test Info */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <span className="rounded-lg bg-blue-700 px-2 sm:px-2.5 py-1 text-[10px] sm:text-xs font-black tracking-widest text-white uppercase shadow-xs">
+              CBT
             </span>
-            <h1 className="text-base font-bold text-slate-900 truncate max-w-xs sm:max-w-md">
-              {data.test.name}
-            </h1>
+            <div>
+              <h1 className="text-xs sm:text-base font-extrabold text-slate-900 truncate max-w-[150px] sm:max-w-xs md:max-w-md">
+                {data.test.name}
+              </h1>
+              <p className="text-[10px] text-slate-500 hidden sm:block">
+                {data.test.exam?.name || "IIITH Entrance"} &bull; Real-Time Evaluated
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* Auto-save status badge */}
-            <div className="hidden sm:flex items-center gap-1.5 text-xs">
+          {/* Right: Timer, Mobile Palette Toggle, Submit */}
+          <div className="flex items-center gap-2 sm:gap-4">
+            {/* Real-Time Countdown Timer */}
+            <div
+              className={`flex items-center gap-1.5 sm:gap-2 rounded-xl border px-2.5 sm:px-3.5 py-1 sm:py-1.5 transition-all ${
+                isTimeLow
+                  ? "border-rose-400 bg-rose-50 text-rose-700 animate-pulse"
+                  : isTimeWarning
+                  ? "border-amber-300 bg-amber-50 text-amber-900"
+                  : "border-slate-300 bg-slate-50 text-slate-900"
+              }`}
+            >
+              <span className="text-sm sm:text-base">⏱️</span>
+              <div className="text-right">
+                <p className="text-[9px] uppercase font-bold tracking-wider leading-none opacity-60 hidden sm:block">
+                  Time Left
+                </p>
+                <p className="font-mono text-xs sm:text-base font-black tracking-tight">
+                  {formatTime(secondsRemaining)}
+                </p>
+              </div>
+            </div>
+
+            {/* Sync state badge (Desktop) */}
+            <div className="hidden lg:flex items-center gap-1.5 text-xs">
               {saveStatus === "saving" && (
                 <span className="flex items-center gap-1 text-amber-600 font-medium">
                   <span className="h-2 w-2 animate-ping rounded-full bg-amber-500"></span>
@@ -152,119 +302,161 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                 </span>
               )}
               {saveStatus === "saved" && (
-                <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                <span className="flex items-center gap-1 text-emerald-700 font-semibold text-[11px]">
                   ✓ Saved
-                </span>
-              )}
-              {saveStatus === "error" && (
-                <span className="text-rose-600 font-medium">
-                  ⚠️ Save Error
                 </span>
               )}
             </div>
 
+            {/* Mobile Palette Open Button */}
+            <button
+              type="button"
+              onClick={() => setIsMobilePaletteOpen(true)}
+              className="lg:hidden rounded-lg border border-slate-200 bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-700"
+              aria-label="Open Question Palette"
+            >
+              📋 {totalAttemptedCount}/{totalQuestions}
+            </button>
+
+            {/* Finish & Submit Button */}
             <button
               type="button"
               onClick={() => setIsSubmitModalOpen(true)}
-              className="rounded-md bg-teal-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-teal-800"
+              className="rounded-xl bg-emerald-600 px-3 sm:px-4 py-1.5 sm:py-2 text-xs font-bold uppercase tracking-wider text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition-all"
             >
-              Submit Test
+              Submit
             </button>
+          </div>
+        </div>
+
+        {/* 4 Subjects Navigation Tabs */}
+        <div className="border-t border-slate-200/80 bg-slate-50/90 px-3 sm:px-6">
+          <div className="mx-auto flex max-w-7xl items-center gap-1.5 sm:gap-2 overflow-x-auto py-2 no-scrollbar">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 pr-1 shrink-0 hidden sm:inline">
+              Sections:
+            </span>
+            {subjects.map((sub) => {
+              const isCurrent = sub.name === currentSubjectName;
+              const subQuestions = questions.filter((q) => (q.subject_name || "General") === sub.name);
+              const answeredCount = subQuestions.filter((q) => q.selected_option_id).length;
+
+              return (
+                <button
+                  key={sub.name}
+                  type="button"
+                  onClick={() => setCurrentIndex(sub.startIndex)}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold whitespace-nowrap transition-all ${
+                    isCurrent
+                      ? "bg-blue-700 text-white shadow-sm"
+                      : "border border-slate-200 bg-white text-slate-700 hover:border-blue-400 hover:text-blue-900"
+                  }`}
+                >
+                  <span>{sub.name}</span>
+                  <span
+                    className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
+                      isCurrent ? "bg-blue-900 text-blue-200" : "bg-slate-100 text-slate-600"
+                    }`}
+                  >
+                    {answeredCount}/{sub.count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </header>
 
-      {/* Main Taking Body */}
-      <main className="mx-auto max-w-7xl w-full flex-1 px-4 py-6 sm:px-6">
+      {/* Main CBT Question Body */}
+      <main className="mx-auto max-w-7xl w-full flex-1 px-3 py-4 sm:px-6 sm:py-6">
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Question Display Column (2 cols wide) */}
           <div className="lg:col-span-2 space-y-4">
-            <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-xs">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-7 shadow-xs">
               {/* Question metadata header */}
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-2">
-                  <span className="rounded bg-teal-800 px-2.5 py-1 text-xs font-bold text-white">
-                    Q{currentIndex + 1} of {totalQuestions}
+                  <span className="rounded-lg bg-blue-700 px-3 py-1 text-xs font-black text-white shadow-xs">
+                    Question {currentIndex + 1} of {totalQuestions}
                   </span>
-                  {currentQuestion.section_name && (
-                    <span className="rounded bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
-                      {currentQuestion.section_name}
-                    </span>
-                  )}
+                  <span className="rounded bg-blue-50 px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-blue-800">
+                    {currentSubjectName}
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <span
-                    className={`rounded border px-2 py-0.5 text-xs font-semibold uppercase ${
-                      difficultyColors[currentQuestion.difficulty] || "bg-slate-100 text-slate-700 border-slate-200"
+                    className={`rounded border px-2 py-0.5 text-xs font-bold uppercase ${
+                      difficultyColors[currentQuestion?.difficulty || "medium"]
                     }`}
                   >
-                    {currentQuestion.difficulty}
+                    {currentQuestion?.difficulty}
                   </span>
-                  <span className="text-xs font-medium text-slate-500">
-                    +{currentQuestion.marks} / -{currentQuestion.negative_marks}
+                  <span className="rounded bg-slate-50 border border-slate-200 px-2 py-0.5 text-xs font-bold text-slate-700 font-mono">
+                    +{currentQuestion?.marks} / -{currentQuestion?.negative_marks}
                   </span>
                 </div>
               </div>
 
-              {/* Question Text */}
-              <div className="mt-6 text-base leading-relaxed text-slate-900 font-normal whitespace-pre-wrap">
-                {currentQuestion.question_text}
+              {/* Question Statement */}
+              <div className="mt-5 text-base sm:text-lg leading-relaxed text-slate-900 font-normal whitespace-pre-wrap select-none">
+                {currentQuestion?.question_text}
               </div>
 
-              {/* MCQ Options */}
-              <div className="mt-8 space-y-3">
-                {currentQuestion.options.map((option) => {
+              {/* 4 MCQ Option Tiles */}
+              <div className="mt-6 sm:mt-8 space-y-3">
+                {currentQuestion?.options.map((option) => {
                   const isSelected = currentQuestion.selected_option_id === option.id;
                   return (
                     <button
                       key={option.id}
                       type="button"
                       onClick={() => handleSelectOption(option.id)}
-                      className={`flex w-full items-start gap-3 rounded-lg border p-4 text-left text-sm transition-all ${
+                      className={`flex w-full items-start gap-3.5 rounded-xl border p-4 text-left text-sm sm:text-base transition-all min-h-[52px] ${
                         isSelected
-                          ? "border-teal-700 bg-teal-50/50 text-teal-950 ring-2 ring-teal-700 shadow-xs"
+                          ? "border-blue-600 bg-blue-50/70 text-blue-950 ring-2 ring-blue-600 shadow-xs font-medium"
                           : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
                       }`}
                     >
                       <span
-                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black transition-all ${
                           isSelected
-                            ? "bg-teal-700 text-white"
+                            ? "bg-blue-700 text-white"
                             : "border border-slate-300 bg-slate-100 text-slate-700"
                         }`}
                       >
                         {option.option_label}
                       </span>
-                      <span className="pt-0.5 leading-relaxed">{option.option_text}</span>
+                      <span className="pt-0.5 leading-relaxed font-normal">
+                        {option.option_text}
+                      </span>
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            {/* Action Buttons Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-xs">
+            {/* Bottom Real-Time Actions Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-4 shadow-xs">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handleToggleMark}
-                  className={`rounded-md border px-3.5 py-2 text-xs font-semibold uppercase tracking-wider transition-all ${
-                    currentQuestion.marked_for_review
+                  className={`rounded-xl border px-3 sm:px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all ${
+                    currentQuestion?.marked_for_review
                       ? "border-purple-600 bg-purple-50 text-purple-700"
                       : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
                   }`}
                 >
-                  {currentQuestion.marked_for_review ? "★ Marked for Review" : "☆ Mark for Review"}
+                  {currentQuestion?.marked_for_review ? "★ Marked" : "☆ Mark Review"}
                 </button>
 
-                {currentQuestion.selected_option_id && (
+                {currentQuestion?.selected_option_id && (
                   <button
                     type="button"
                     onClick={handleClearAnswer}
-                    className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-800"
                   >
-                    Clear Selection
+                    Clear
                   </button>
                 )}
               </div>
@@ -274,42 +466,80 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                   type="button"
                   disabled={currentIndex === 0}
                   onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
-                  className="rounded-md border border-slate-300 bg-white px-4 py-2 text-xs font-bold uppercase text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white"
+                  className="rounded-xl border border-slate-300 bg-white px-3.5 sm:px-4 py-2 text-xs font-bold uppercase text-slate-700 hover:bg-slate-50 disabled:opacity-30 disabled:hover:bg-white"
                 >
-                  &larr; Previous
+                  &larr; Prev
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleMarkAndNext}
+                  className="rounded-xl border border-purple-300 bg-purple-50 px-3.5 py-2 text-xs font-bold uppercase text-purple-800 hover:bg-purple-100 hidden sm:block"
+                >
+                  Mark & Next
                 </button>
 
                 {currentIndex < totalQuestions - 1 ? (
                   <button
                     type="button"
-                    onClick={() => setCurrentIndex((prev) => Math.min(totalQuestions - 1, prev + 1))}
-                    className="rounded-md bg-teal-700 px-5 py-2 text-xs font-bold uppercase text-white shadow-xs hover:bg-teal-800"
+                    onClick={handleSaveAndNext}
+                    className="rounded-xl bg-blue-700 px-4 sm:px-5 py-2 text-xs font-bold uppercase text-white shadow-xs hover:bg-blue-800 active:scale-95 transition-all"
                   >
-                    Next &rarr;
+                    Save & Next &rarr;
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={() => setIsSubmitModalOpen(true)}
-                    className="rounded-md bg-emerald-700 px-5 py-2 text-xs font-bold uppercase text-white shadow-xs hover:bg-emerald-800"
+                    className="rounded-xl bg-emerald-600 px-4 sm:px-5 py-2 text-xs font-bold uppercase text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all"
                   >
-                    Submit Test
+                    Submit Exam &rarr;
                   </button>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Question Palette Column (1 col wide) */}
-          <div>
+          {/* Desktop Right Question Palette Column */}
+          <div className="hidden lg:block">
             <QuestionPalette
               questions={questions}
               currentIndex={currentIndex}
+              currentSubject={currentSubjectName}
               onSelectQuestion={(idx) => setCurrentIndex(idx)}
             />
           </div>
         </div>
       </main>
+
+      {/* Mobile Bottom Question Palette Drawer Modal */}
+      {isMobilePaletteOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/60 backdrop-blur-xs p-2 sm:p-4 lg:hidden animate-in fade-in">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-900">Exam Question Palette</h3>
+              <button
+                type="button"
+                onClick={() => setIsMobilePaletteOpen(false)}
+                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 font-bold"
+              >
+                ✕ Close
+              </button>
+            </div>
+            <div className="mt-3">
+              <QuestionPalette
+                questions={questions}
+                currentIndex={currentIndex}
+                currentSubject={currentSubjectName}
+                onSelectQuestion={(idx) => {
+                  setCurrentIndex(idx);
+                  setIsMobilePaletteOpen(false);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Submit Confirmation Modal */}
       <SubmitModal
@@ -318,6 +548,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
         onConfirm={handleConfirmSubmit}
         isSubmitting={isSubmitting}
         questions={questions}
+        timeRemainingFormatted={formatTime(secondsRemaining)}
       />
     </div>
   );

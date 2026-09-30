@@ -1,24 +1,27 @@
-import Link from "next/link";
-import SignOutButton from "@/components/auth/sign-out-button";
+import { createClient } from "@/lib/supabase/server";
+import { StudentNavbar } from "@/components/navigation/student-navbar";
 
-export default function StudentLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function StudentLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  let isAdmin = false;
+  if (user) {
+    const { data: adminMembership } = await supabase
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (adminMembership) {
+      isAdmin = true;
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-[#f6f8f7]">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link className="text-sm font-semibold tracking-[0.16em] text-teal-800" href="/dashboard">
-            IIITH PREP
-          </Link>
-          <nav className="flex items-center gap-5 text-sm text-slate-600">
-            <Link className="hover:text-teal-800" href="/dashboard">Dashboard</Link>
-            <Link className="hover:text-teal-800" href="/practice">Practice</Link>
-            <Link className="hover:text-teal-800" href="/tests">Mock Tests</Link>
-            <Link className="hover:text-teal-800" href="/attempts">Attempts</Link>
-            <SignOutButton />
-          </nav>
-        </div>
-      </header>
-      {children}
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col font-sans">
+      <StudentNavbar userEmail={user?.email || "Student"} isAdmin={isAdmin} />
+      <div className="flex-1">{children}</div>
     </div>
   );
 }

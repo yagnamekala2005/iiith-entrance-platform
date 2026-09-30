@@ -8,12 +8,14 @@ interface StartAttemptButtonProps {
   testId: string;
   hasActiveAttempt?: boolean;
   activeAttemptId?: string;
+  size?: "sm" | "md" | "lg";
 }
 
 export function StartAttemptButton({
   testId,
   hasActiveAttempt,
   activeAttemptId,
+  size = "md",
 }: StartAttemptButtonProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -35,19 +37,25 @@ export function StartAttemptButton({
     }
   };
 
+  const sizeClasses =
+    size === "sm"
+      ? "px-4 py-2 text-xs font-bold"
+      : size === "lg"
+      ? "px-8 py-3.5 text-sm sm:text-base font-bold"
+      : "px-5 py-2.5 text-xs sm:text-sm font-bold";
+
   return (
     <button
       type="button"
       disabled={isLoading}
       onClick={handleStartOrResume}
-      className="rounded-md bg-teal-700 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-800 disabled:opacity-60"
+      className={`rounded-xl bg-blue-700 text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 disabled:opacity-50 transition-all uppercase tracking-wider ${sizeClasses}`}
     >
       {isLoading
-        ? "Preparing Practice Set..."
+        ? "Initializing CBT Session..."
         : hasActiveAttempt
-        ? "Continue In-Progress Attempt →"
-        : "Start Practice Attempt →"}
+        ? "Resume Live Exam &rarr;"
+        : "Start Mock Exam &rarr;"}
     </button>
   );
 }
-

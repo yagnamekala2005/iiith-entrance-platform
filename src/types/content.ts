@@ -191,6 +191,9 @@ export interface AttemptQuestionTaking {
   question_id: string;
   section_id: string | null;
   section_name?: string;
+  subject_id?: string | null;
+  subject_name?: string;
+  subject_slug?: string;
   display_order: number;
   selected_option_id: string | null;
   status: AttemptQuestionStatus;
@@ -219,11 +222,27 @@ export interface AttemptSectionResult {
   max_score: number;
 }
 
+export interface AttemptSubjectResult {
+  subject_id: string;
+  subject_name: string;
+  total_questions: number;
+  attempted_count: number;
+  unattempted_count: number;
+  correct_count: number;
+  incorrect_count: number;
+  score: number;
+  max_score: number;
+  accuracy: number;
+}
+
 export interface AttemptResult {
   attempt: TestAttempt;
-  test: Test;
+  test: Test & { exam?: Exam | null };
   accuracy_percentage: number;
+  attempted_count: number;
+  unattempted_count: number;
   section_results: AttemptSectionResult[];
+  subject_results: AttemptSubjectResult[];
 }
 
 export interface AttemptReviewQuestion {
@@ -231,6 +250,9 @@ export interface AttemptReviewQuestion {
   question_id: string;
   section_id: string | null;
   section_name?: string;
+  subject_id?: string | null;
+  subject_name?: string;
+  subject_slug?: string;
   display_order: number;
   question_text: string;
   difficulty: Difficulty;
@@ -248,6 +270,10 @@ export interface AttemptReviewQuestion {
 export interface AttemptReview {
   attempt: TestAttempt;
   test: Test;
+  attempted_count: number;
+  unattempted_count: number;
   questions: AttemptReviewQuestion[];
   section_results: AttemptSectionResult[];
+  subject_results: AttemptSubjectResult[];
 }
+
