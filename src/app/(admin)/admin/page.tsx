@@ -38,7 +38,7 @@ export default async function AdminPage() {
     adminClient.from("chapters").select("id, name, subject_id").order("display_order", { ascending: true }),
     adminClient.from("topics").select("id, name, chapter_id").order("display_order", { ascending: true }),
     adminClient.from("exams").select("id, name, slug"),
-    adminClient.from("tests").select("id, name, slug"),
+    adminClient.from("tests").select("id, name, slug, duration_seconds, test_type, exam_id, description, status").order("created_at", { ascending: false }),
     adminClient
       .from("questions")
       .select(`

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { AttemptForTaking, AttemptQuestionTaking } from "@/types/content";
 import { QuestionPalette } from "./question-palette";
 import { SubmitModal } from "./submit-modal";
+import { ScientificCalculator } from "@/components/calculator/scientific-calculator";
 import {
   saveAttemptAnswer,
   clearAttemptAnswer,
@@ -23,6 +24,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "error">("saved");
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState<boolean>(false);
   const [isMobilePaletteOpen, setIsMobilePaletteOpen] = useState<boolean>(false);
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState<boolean>(false);
   const [, startTransition] = useTransition();
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [autoSubmitTriggered, setAutoSubmitTriggered] = useState<boolean>(false);
@@ -229,6 +231,11 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
 
   const totalAttemptedCount = questions.filter((q) => q.selected_option_id).length;
 
+  // Scientific Calculator: Allowed in Maths, Physics, Chemistry; Hidden in Aptitude
+  const currentSubjectLower = (currentSubjectName || "").toLowerCase();
+  const isAptitudeSubject = currentSubjectLower.includes("aptitude") || currentSubjectLower.includes("reasoning");
+  const canUseCalculator = !isAptitudeSubject;
+
   return (
     <div className="min-h-screen bg-[#f1f5f9] flex flex-col font-sans selection:bg-blue-600 selection:text-white">
       {/* Auto-Submit Expiration Modal */}
@@ -270,8 +277,8 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
             </div>
           </div>
 
-          {/* Right: Timer, Mobile Palette Toggle, Submit */}
-          <div className="flex items-center gap-2 sm:gap-4">
+          {/* Right: Timer, Calculator (STEM), Mobile Palette Toggle, Submit */}
+          <div className="flex items-center gap-2 sm:gap-3.5">
             {/* Real-Time Countdown Timer */}
             <div
               className={`flex items-center gap-1.5 sm:gap-2 rounded-xl border px-2.5 sm:px-3.5 py-1 sm:py-1.5 transition-all ${
@@ -292,6 +299,23 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                 </p>
               </div>
             </div>
+
+            {/* Scientific Calculator Quick Action (Maths, Physics, Chemistry only) */}
+            {canUseCalculator && (
+              <button
+                type="button"
+                onClick={() => setIsCalculatorOpen((prev) => !prev)}
+                className={`flex items-center gap-1.5 rounded-xl border px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs font-bold transition-all shadow-xs ${
+                  isCalculatorOpen
+                    ? "border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/20"
+                    : "border-slate-300 bg-white text-slate-800 hover:border-blue-500 hover:bg-blue-50/60"
+                }`}
+                title="Open Scientific Calculator (Maths, Physics & Chemistry)"
+              >
+                <span className="text-sm sm:text-base">🧮</span>
+                <span className="hidden sm:inline">Calculator</span>
+              </button>
+            )}
 
             {/* Sync state badge (Desktop) */}
             <div className="hidden lg:flex items-center gap-1.5 text-xs">
@@ -540,6 +564,30 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
           </div>
         </div>
       )}
+
+      {/* Right Edge Docked Scientific Calculator Button (Only on STEM questions: Maths, Physics, Chemistry - Hidden on Aptitude) */}
+      {canUseCalculator && (
+        <div className="fixed right-0 top-1/2 -translate-y-1/2 z-40">
+          <button
+            type="button"
+            onClick={() => setIsCalculatorOpen((prev) => !prev)}
+            className="group flex flex-col items-center gap-1 rounded-l-2xl border-y border-l border-blue-400 bg-gradient-to-b from-blue-700 via-indigo-700 to-blue-900 py-3 px-2 sm:px-2.5 text-white shadow-2xl hover:from-blue-600 hover:to-indigo-600 active:scale-95 transition-all"
+            title="Open Scientific Calculator (Maths, Physics, Chemistry)"
+          >
+            <span className="text-lg sm:text-2xl drop-shadow-md">🧮</span>
+            <span className="[writing-mode:vertical-rl] text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-blue-100 mt-1">
+              CALC
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Interactive Scientific Calculator Tool */}
+      <ScientificCalculator
+        isOpen={isCalculatorOpen && canUseCalculator}
+        onClose={() => setIsCalculatorOpen(false)}
+        currentSubject={currentSubjectName}
+      />
 
       {/* Submit Confirmation Modal */}
       <SubmitModal

@@ -93,67 +93,49 @@ function LoginFormContent() {
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-slate-800 bg-white shadow-2xl">
-          {/* Dual Role Selector Tabs */}
-          <div className="grid grid-cols-2 border-b border-slate-200 bg-slate-100/70 p-1.5 gap-1.5">
-            <button
-              type="button"
-              onClick={() => {
-                setRole("student");
-                setMessage("");
-              }}
-              className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition-all ${
-                !isAdminTab
-                  ? "bg-white text-blue-900 shadow-sm ring-1 ring-slate-200"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
-              }`}
-            >
-              <span>👨‍🎓</span>
-              <span>Student Login</span>
-            </button>
+          {/* Header Area based on Role */}
+          <div className={`p-6 sm:p-8 pb-0 ${isAdminTab ? "bg-slate-900 text-white pb-6" : ""}`}>
+            <div className="flex items-center justify-between">
+              <span
+                className={`rounded-md px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+                  isAdminTab
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "bg-blue-50 text-blue-800 border border-blue-200"
+                }`}
+              >
+                {isAdminTab ? "🛡️ ADMINISTRATOR ACCESS" : "👨‍🎓 STUDENT ENTRANCE PORTAL"}
+              </span>
 
-            <button
-              type="button"
-              onClick={() => {
-                setRole("admin");
-                setMessage("");
-              }}
-              className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition-all ${
-                isAdminTab
-                  ? "bg-slate-900 text-teal-300 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
-              }`}
-            >
-              <span>🛡️</span>
-              <span>Admin Portal</span>
-            </button>
+              {/* Discreet Switcher Link */}
+              <button
+                type="button"
+                onClick={() => {
+                  setRole(isAdminTab ? "student" : "admin");
+                  setMessage("");
+                }}
+                className={`text-xs font-bold transition-colors ${
+                  isAdminTab
+                    ? "text-sky-300 hover:text-white"
+                    : "text-slate-500 hover:text-blue-700"
+                }`}
+              >
+                {isAdminTab ? "Student Login &rarr;" : "Admin Portal &rarr;"}
+              </button>
+            </div>
+
+            <h1 className={`mt-3 text-2xl sm:text-3xl font-extrabold tracking-tight ${isAdminTab ? "text-white" : "text-slate-900"}`}>
+              {isAdminTab ? "Admin Portal Sign In" : "Student Sign In"}
+            </h1>
+
+            <p className={`mt-1.5 text-xs leading-relaxed ${isAdminTab ? "text-slate-300" : "text-slate-500"}`}>
+              {isAdminTab
+                ? "Sign in with verified administrator credentials to author questions, verify answer keys, and manage mock tests."
+                : "Sign in to access real-time timed mock tests across Maths, Physics, Chemistry, and Aptitude."}
+            </p>
           </div>
 
           {/* Form Area */}
-          <form className="p-6 sm:p-8 space-y-5" onSubmit={handleSubmit}>
-            {/* Header info */}
-            <div>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`rounded-md px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${
-                    isAdminTab
-                      ? "bg-teal-50 text-teal-900 border border-teal-200"
-                      : "bg-blue-50 text-blue-800 border border-blue-200"
-                  }`}
-                >
-                  {isAdminTab ? "AUTHORIZATION REQUIRED" : "ENTRANCE ASPIRANT"}
-                </span>
-              </div>
-
-              <h1 className="mt-2 text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                {isAdminTab ? "Admin Control Sign In" : "Student Sign In"}
-              </h1>
-
-              <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-                {isAdminTab
-                  ? "Sign in with verified administrator credentials to author questions and manage mock tests."
-                  : "Sign in to access real-time mock tests, practice by subject, and view your scorecards."}
-              </p>
-            </div>
+          <form className="p-6 sm:p-8 pt-4 space-y-5" onSubmit={handleSubmit}>
 
             {/* Error Message */}
             {message && (
