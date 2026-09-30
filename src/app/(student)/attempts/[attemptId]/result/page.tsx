@@ -23,7 +23,17 @@ export default async function AttemptResultPage({ params }: PageProps) {
     notFound();
   }
 
-  const { attempt, test, accuracy_percentage, section_results } = result;
+  const {
+    attempt,
+    test,
+    accuracy_percentage,
+    attempted_count,
+    unattempted_count,
+    subject_results,
+    section_results,
+  } = result;
+
+  const totalQuestions = attempt.total_questions || attempted_count + unattempted_count;
   const isPassingScore = attempt.score > 0 && attempt.score >= attempt.max_score * 0.4;
 
   const submittedDate = attempt.submitted_at
@@ -38,158 +48,236 @@ export default async function AttemptResultPage({ params }: PageProps) {
     : "Recently";
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-12">
+    <main className="mx-auto max-w-6xl px-3 py-6 sm:px-6 sm:py-8 lg:px-8 font-sans">
       {/* Breadcrumbs */}
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-        <Link href="/attempts" className="hover:text-teal-800">My Attempts</Link>
+      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+        <Link href="/dashboard" className="hover:text-blue-700">Dashboard</Link>
         <span>/</span>
-        <span className="text-teal-700">Result Scorecard</span>
+        <Link href="/attempts" className="hover:text-blue-700">My Attempts</Link>
+        <span>/</span>
+        <span className="text-blue-700 font-extrabold">Scorecard & Analysis</span>
       </div>
 
-      {/* Header */}
-      <div className="mt-4 border-b border-slate-200 pb-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      {/* Header Banner */}
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 sm:p-8 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-5">
           <div>
-            <span className="rounded bg-teal-50 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-teal-800">
-              Test Completed
-            </span>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+            <div className="flex items-center gap-2.5">
+              <span className="rounded-md bg-emerald-50 px-3 py-1 text-xs font-black uppercase tracking-wider text-emerald-800 border border-emerald-200">
+                Exam Successfully Submitted
+              </span>
+              <span className="rounded bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-800 border border-blue-200">
+                {test.exam?.name || "IIITH Entrance"}
+              </span>
+            </div>
+            <h1 className="mt-3 text-2xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
               {test.name}
             </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Submitted on {submittedDate}
+            <p className="mt-1 text-xs sm:text-sm text-slate-500">
+              Completed on <strong className="text-slate-700">{submittedDate}</strong> &bull; Server Evaluated
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Link
               href={`/attempts/${attempt.id}/review`}
-              className="rounded-md bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-teal-800"
+              className="rounded-xl bg-blue-700 px-6 py-3 text-xs sm:text-sm font-bold text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 transition-all flex items-center gap-2"
             >
-              Review Answers & Explanations &rarr;
+              <span>Review Solutions & Explanations</span>
+              <span>&rarr;</span>
             </Link>
           </div>
         </div>
       </div>
 
-      {/* Primary Scorecard Grid */}
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Total Score */}
-        <div className="border border-slate-200 bg-white p-6 shadow-xs">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Score</p>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className={`text-3xl font-extrabold ${isPassingScore ? "text-teal-800" : "text-slate-900"}`}>
+      {/* Primary KPI Grid: Attempted vs Not Attempted vs Accuracy vs Score (2 Cols on Mobile, 4 on Desktop) */}
+      <div className="mt-6 sm:mt-8 grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+        {/* Attempted Questions Card */}
+        <div className="rounded-2xl border border-blue-200 bg-white p-4 sm:p-6 shadow-xs relative overflow-hidden">
+          <div className="absolute top-0 right-0 h-1.5 w-full bg-blue-600"></div>
+          <p className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-blue-900">
+            Total Attempted
+          </p>
+          <div className="mt-2.5 flex items-baseline gap-1.5">
+            <span className="text-3xl sm:text-4xl font-black text-blue-950">{attempted_count}</span>
+            <span className="text-xs sm:text-sm font-semibold text-slate-400">/ {totalQuestions}</span>
+          </div>
+          <p className="mt-1.5 text-[11px] font-bold text-blue-700">
+            {((attempted_count / (totalQuestions || 1)) * 100).toFixed(0)}% of questions
+          </p>
+        </div>
+
+        {/* Not Attempted / Skipped Card */}
+        <div className="rounded-2xl border border-amber-200 bg-white p-4 sm:p-6 shadow-xs relative overflow-hidden">
+          <div className="absolute top-0 right-0 h-1.5 w-full bg-amber-500"></div>
+          <p className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-amber-900">
+            Not Attempted
+          </p>
+          <div className="mt-2.5 flex items-baseline gap-1.5">
+            <span className="text-3xl sm:text-4xl font-black text-amber-900">{unattempted_count}</span>
+            <span className="text-xs sm:text-sm font-semibold text-slate-400">/ {totalQuestions}</span>
+          </div>
+          <p className="mt-1.5 text-[11px] font-bold text-amber-600">
+            {((unattempted_count / (totalQuestions || 1)) * 100).toFixed(0)}% left blank
+          </p>
+        </div>
+
+        {/* Final Score */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-xs relative overflow-hidden">
+          <div className="absolute top-0 right-0 h-1.5 w-full bg-slate-700"></div>
+          <p className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-slate-600">
+            Final Test Score
+          </p>
+          <div className="mt-2.5 flex items-baseline gap-1.5">
+            <span className={`text-3xl sm:text-4xl font-black ${isPassingScore ? "text-emerald-700" : "text-slate-900"}`}>
               {attempt.score.toFixed(2)}
             </span>
-            <span className="text-base font-medium text-slate-400">/ {attempt.max_score.toFixed(2)}</span>
+            <span className="text-xs sm:text-sm font-semibold text-slate-400">/ {attempt.max_score.toFixed(2)}</span>
           </div>
-          <p className="mt-1 text-xs text-slate-500">
-            {((attempt.score / (attempt.max_score || 1)) * 100).toFixed(1)}% of maximum marks
+          <p className="mt-1.5 text-[11px] text-slate-500 font-medium">
+            {((attempt.score / (attempt.max_score || 1)) * 100).toFixed(1)}% Marks
           </p>
         </div>
 
         {/* Accuracy */}
-        <div className="border border-slate-200 bg-white p-6 shadow-xs">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Accuracy</p>
-          <p className="mt-2 text-3xl font-extrabold text-slate-900">
-            {accuracy_percentage.toFixed(1)}%
+        <div className="rounded-2xl border border-indigo-200 bg-white p-4 sm:p-6 shadow-xs relative overflow-hidden">
+          <div className="absolute top-0 right-0 h-1.5 w-full bg-indigo-600"></div>
+          <p className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-indigo-900">
+            Accuracy Rate
           </p>
-          <p className="mt-1 text-xs text-slate-500">
-            On attempted questions
-          </p>
-        </div>
-
-        {/* Correct Answers */}
-        <div className="border border-emerald-100 bg-emerald-50/40 p-6 shadow-xs">
-          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-800">Correct</p>
-          <p className="mt-2 text-3xl font-extrabold text-emerald-700">
-            {attempt.correct_count}
-          </p>
-          <p className="mt-1 text-xs text-emerald-600">
-            +{attempt.correct_count} marks awarded
-          </p>
-        </div>
-
-        {/* Incorrect & Unanswered */}
-        <div className="border border-slate-200 bg-white p-6 shadow-xs">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Incorrect / Skipped</p>
-          <div className="mt-2 flex items-baseline gap-3">
-            <span className="text-2xl font-bold text-rose-600">
-              {attempt.incorrect_count} <span className="text-xs font-normal text-slate-500">wrong</span>
-            </span>
-            <span className="text-2xl font-bold text-slate-600">
-              {attempt.unanswered_count} <span className="text-xs font-normal text-slate-500">skipped</span>
-            </span>
+          <div className="mt-2.5 flex items-baseline gap-1.5">
+            <span className="text-3xl sm:text-4xl font-black text-indigo-950">{accuracy_percentage.toFixed(1)}%</span>
           </div>
-          <p className="mt-1 text-xs text-slate-500">
-            {attempt.total_questions} total questions
-          </p>
+          <div className="mt-1.5 flex items-center gap-2 text-[11px]">
+            <span className="text-emerald-700 font-bold">✓ {attempt.correct_count} correct</span>
+            <span className="text-rose-600 font-bold">✗ {attempt.incorrect_count} wrong</span>
+          </div>
         </div>
       </div>
 
-      {/* Section Performance Breakdown */}
-      {section_results && section_results.length > 0 && (
-        <section className="mt-10">
-          <h2 className="text-xl font-semibold text-slate-900">Section-Wise Performance</h2>
-          <div className="mt-4 overflow-hidden border border-slate-200 bg-white shadow-xs">
-            <table className="w-full text-left text-sm text-slate-600">
-              <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
-                <tr>
-                  <th className="px-6 py-3">Section</th>
-                  <th className="px-6 py-3">Questions</th>
-                  <th className="px-6 py-3 text-emerald-700">Correct</th>
-                  <th className="px-6 py-3 text-rose-700">Incorrect</th>
-                  <th className="px-6 py-3">Unanswered</th>
-                  <th className="px-6 py-3 text-right">Score</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {section_results.map((sec, idx) => (
-                  <tr key={idx}>
-                    <td className="px-6 py-4 font-semibold text-slate-900">
-                      {sec.section_name}
-                    </td>
-                    <td className="px-6 py-4">
-                      {sec.total_questions}
-                    </td>
-                    <td className="px-6 py-4 font-semibold text-emerald-700">
-                      {sec.correct_count}
-                    </td>
-                    <td className="px-6 py-4 font-semibold text-rose-600">
-                      {sec.incorrect_count}
-                    </td>
-                    <td className="px-6 py-4 text-slate-500">
-                      {sec.unanswered_count}
-                    </td>
-                    <td className="px-6 py-4 text-right font-bold text-slate-900">
-                      {sec.score.toFixed(2)} / {sec.max_score.toFixed(2)}
-                    </td>
+      {/* 4 Subjects Performance Breakdown */}
+      {subject_results && subject_results.length > 0 && (
+        <section className="mt-8 sm:mt-10">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900">
+                Subject-Wise Performance Breakdown
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Comparison of attempted vs. not attempted questions across Mathematics, Physics, Chemistry, and Aptitude.
+              </p>
+            </div>
+            <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-800 border border-blue-200">
+              4 Core Subjects
+            </span>
+          </div>
+
+          <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs sm:text-sm text-slate-600">
+                <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-black uppercase tracking-wider text-slate-700">
+                  <tr>
+                    <th className="px-5 py-3.5">Subject</th>
+                    <th className="px-4 py-3.5 text-center">Questions</th>
+                    <th className="px-4 py-3.5 text-center text-blue-800">Attempted</th>
+                    <th className="px-4 py-3.5 text-center text-amber-700">Skipped</th>
+                    <th className="px-4 py-3.5 text-center text-emerald-700">Correct</th>
+                    <th className="px-4 py-3.5 text-center text-rose-600">Wrong</th>
+                    <th className="px-5 py-3.5 text-right">Score</th>
+                    <th className="px-5 py-3.5 text-right">Accuracy</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {subject_results.map((sub, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="px-5 py-3.5 font-bold text-slate-900 whitespace-nowrap">
+                        {sub.subject_name}
+                      </td>
+                      <td className="px-4 py-3.5 text-center font-semibold text-slate-800">
+                        {sub.total_questions}
+                      </td>
+                      <td className="px-4 py-3.5 text-center font-bold text-blue-800 bg-blue-50/40">
+                        {sub.attempted_count}
+                      </td>
+                      <td className="px-4 py-3.5 text-center font-bold text-amber-700 bg-amber-50/40">
+                        {sub.unattempted_count}
+                      </td>
+                      <td className="px-4 py-3.5 text-center font-bold text-emerald-700">
+                        {sub.correct_count}
+                      </td>
+                      <td className="px-4 py-3.5 text-center font-bold text-rose-600">
+                        {sub.incorrect_count}
+                      </td>
+                      <td className="px-5 py-3.5 text-right font-extrabold text-slate-900 whitespace-nowrap">
+                        {sub.score.toFixed(2)} <span className="text-[10px] font-normal text-slate-400">/ {sub.max_score.toFixed(2)}</span>
+                      </td>
+                      <td className="px-5 py-3.5 text-right font-bold text-indigo-700">
+                        {sub.accuracy.toFixed(1)}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </section>
       )}
 
-      {/* Action Footer */}
-      <div className="mt-12 flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-6">
+      {/* Section Results (if multiple sections exist) */}
+      {section_results && section_results.length > 1 && (
+        <section className="mt-8">
+          <h2 className="text-base font-bold text-slate-900">Official Exam Sections</h2>
+          <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs sm:text-sm text-slate-600">
+                <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold uppercase text-slate-500">
+                  <tr>
+                    <th className="px-5 py-3">Section</th>
+                    <th className="px-4 py-3 text-center">Questions</th>
+                    <th className="px-4 py-3 text-center text-emerald-700">Correct</th>
+                    <th className="px-4 py-3 text-center text-rose-700">Incorrect</th>
+                    <th className="px-4 py-3 text-center">Unanswered</th>
+                    <th className="px-5 py-3 text-right">Score</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {section_results.map((sec, idx) => (
+                    <tr key={idx}>
+                      <td className="px-5 py-3 font-semibold text-slate-900">{sec.section_name}</td>
+                      <td className="px-4 py-3 text-center">{sec.total_questions}</td>
+                      <td className="px-4 py-3 text-center font-semibold text-emerald-700">{sec.correct_count}</td>
+                      <td className="px-4 py-3 text-center font-semibold text-rose-600">{sec.incorrect_count}</td>
+                      <td className="px-4 py-3 text-center text-slate-500">{sec.unanswered_count}</td>
+                      <td className="px-5 py-3 text-right font-bold text-slate-900">
+                        {sec.score.toFixed(2)} / {sec.max_score.toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Bottom Actions Footer */}
+      <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-6">
         <Link
-          href="/attempts"
-          className="text-sm font-semibold text-slate-600 hover:text-slate-900"
+          href="/dashboard"
+          className="text-xs font-bold uppercase text-slate-600 hover:text-slate-900"
         >
-          &larr; View All My Attempts
+          &larr; Back to Dashboard
         </Link>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Link
             href="/tests"
-            className="rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-xs font-bold uppercase text-slate-700 hover:bg-slate-50 transition-all"
           >
-            Explore More Tests
+            Take Another Mock Test
           </Link>
           <Link
             href={`/attempts/${attempt.id}/review`}
-            className="rounded-md bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-teal-800"
+            className="rounded-xl bg-blue-700 px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 transition-all"
           >
             Review Detailed Solutions &rarr;
           </Link>
@@ -198,4 +286,3 @@ export default async function AttemptResultPage({ params }: PageProps) {
     </main>
   );
 }
-

@@ -4,7 +4,9 @@ import type {
   AttemptQuestionTaking,
   AttemptResult,
   AttemptReview,
+  AttemptReviewQuestion,
   AttemptSectionResult,
+  AttemptSubjectResult,
   TestAttempt,
   TestWithDetails,
 } from "@/types/content";
@@ -86,7 +88,9 @@ export async function getAttemptForTaking(attemptId: string): Promise<AttemptFor
       question:questions(
         id,
         question_text,
-        difficulty
+        difficulty,
+        subject_id,
+        subject:subjects(id, name, slug)
       )
     `)
     .eq("attempt_id", attemptId)
@@ -112,7 +116,13 @@ export async function getAttemptForTaking(attemptId: string): Promise<AttemptFor
   });
 
   const formattedQuestions: AttemptQuestionTaking[] = attemptQuestions.map((aq) => {
-    const qObj = aq.question as unknown as { id: string; question_text: string; difficulty: "easy" | "medium" | "hard" };
+    const qObj = aq.question as unknown as {
+      id: string;
+      question_text: string;
+      difficulty: "easy" | "medium" | "hard";
+      subject_id?: string;
+      subject?: { id: string; name: string; slug: string } | null;
+    };
     const secObj = aq.section as unknown as { name: string } | null;
     return {
       id: aq.id,
@@ -120,6 +130,9 @@ export async function getAttemptForTaking(attemptId: string): Promise<AttemptFor
       question_id: aq.question_id,
       section_id: aq.section_id,
       section_name: secObj?.name || "General",
+      subject_id: qObj?.subject_id || qObj?.subject?.id || null,
+      subject_name: qObj?.subject?.name || "General",
+      subject_slug: qObj?.subject?.slug || "general",
       display_order: aq.display_order,
       selected_option_id: aq.selected_option_id,
       status: aq.status,
@@ -167,13 +180,16 @@ export async function getAttemptResult(attemptId: string): Promise<AttemptResult
 
   const { data: test } = await supabase
     .from("tests")
-    .select("*")
+    .select(`
+      *,
+      exam:exams(id, slug, name, description)
+    `)
     .eq("id", attempt.test_id)
     .single();
 
   if (!test) return null;
 
-  // Fetch section breakdown
+  // Fetch section and subject breakdown
   const { data: attemptQuestions } = await supabase
     .from("attempt_questions")
     .select(`
@@ -184,19 +200,29 @@ export async function getAttemptResult(attemptId: string): Promise<AttemptResult
       section:exam_sections(name),
       question:questions(
         id,
+        subject:subjects(id, name, slug),
         answer_key:question_answer_keys(correct_option_id)
       )
     `)
     .eq("attempt_id", attemptId);
 
   const sectionMap = new Map<string, AttemptSectionResult>();
+  const subjectMap = new Map<string, AttemptSubjectResult>();
+
+  let calculatedAttempted = 0;
+  let calculatedUnattempted = 0;
 
   (attemptQuestions || []).forEach((aq) => {
     const secId = aq.section_id || "general";
     const secName = (aq.section as unknown as { name: string } | null)?.name || "General Section";
-    const q = aq.question as unknown as { id: string; answer_key: { correct_option_id: string }[] | null } | null;
+    const q = aq.question as unknown as {
+      id: string;
+      subject?: { id: string; name: string; slug: string } | null;
+      answer_key: { correct_option_id: string }[] | null;
+    } | null;
     const correctOptId = q?.answer_key?.[0]?.correct_option_id;
 
+    // Section calculations
     const current = sectionMap.get(secId) || {
       section_id: secId,
       section_name: secName,
@@ -211,20 +237,55 @@ export async function getAttemptResult(attemptId: string): Promise<AttemptResult
     current.total_questions += 1;
     current.max_score += Number(aq.marks || 1);
 
+    // Subject calculations
+    const subId = q?.subject?.id || "general";
+    const subName = q?.subject?.name || "General Subject";
+    const curSub = subjectMap.get(subId) || {
+      subject_id: subId,
+      subject_name: subName,
+      total_questions: 0,
+      attempted_count: 0,
+      unattempted_count: 0,
+      correct_count: 0,
+      incorrect_count: 0,
+      score: 0,
+      max_score: 0,
+      accuracy: 0,
+    };
+
+    curSub.total_questions += 1;
+    curSub.max_score += Number(aq.marks || 1);
+
     if (!aq.selected_option_id) {
       current.unanswered_count += 1;
-    } else if (correctOptId && aq.selected_option_id === correctOptId) {
-      current.correct_count += 1;
-      current.score += Number(aq.marks || 1);
+      curSub.unattempted_count += 1;
+      calculatedUnattempted += 1;
     } else {
-      current.incorrect_count += 1;
-      current.score -= Number(aq.negative_marks || 0);
+      calculatedAttempted += 1;
+      curSub.attempted_count += 1;
+      if (correctOptId && aq.selected_option_id === correctOptId) {
+        current.correct_count += 1;
+        current.score += Number(aq.marks || 1);
+        curSub.correct_count += 1;
+        curSub.score += Number(aq.marks || 1);
+      } else {
+        current.incorrect_count += 1;
+        current.score -= Number(aq.negative_marks || 0);
+        curSub.incorrect_count += 1;
+        curSub.score -= Number(aq.negative_marks || 0);
+      }
     }
 
+    curSub.accuracy = curSub.attempted_count > 0
+      ? Number(((curSub.correct_count / curSub.attempted_count) * 100).toFixed(1))
+      : 0;
+
     sectionMap.set(secId, current);
+    subjectMap.set(subId, curSub);
   });
 
-  const attemptedCount = attempt.correct_count + attempt.incorrect_count;
+  const attemptedCount = calculatedAttempted;
+  const unattemptedCount = calculatedUnattempted;
   const accuracy = attemptedCount > 0
     ? (attempt.correct_count / attemptedCount) * 100
     : 0;
@@ -237,7 +298,10 @@ export async function getAttemptResult(attemptId: string): Promise<AttemptResult
     },
     test,
     accuracy_percentage: Number(accuracy.toFixed(1)),
+    attempted_count: attemptedCount,
+    unattempted_count: unattemptedCount,
     section_results: Array.from(sectionMap.values()),
+    subject_results: Array.from(subjectMap.values()),
   };
 }
 
@@ -250,31 +314,7 @@ export async function getAttemptReview(attemptId: string): Promise<AttemptReview
 
   if (!user) return null;
 
-  // Try RPC first (which has strict server-side submission check)
-  const { data: rpcData, error: rpcErr } = await supabase.rpc("get_attempt_review_data", {
-    p_attempt_id: attemptId,
-  });
-
-  if (!rpcErr && rpcData) {
-    const data = rpcData as {
-      attempt: TestAttempt;
-      test: AttemptReview["test"];
-      questions: AttemptReview["questions"];
-      section_results: AttemptReview["section_results"];
-    };
-    return {
-      attempt: {
-        ...data.attempt,
-        score: Number(data.attempt.score),
-        max_score: Number(data.attempt.max_score),
-      },
-      test: data.test,
-      questions: data.questions,
-      section_results: data.section_results,
-    };
-  }
-
-  // Fallback direct server-side query with submitted guard
+  // Direct server-side query with submitted guard
   const { data: attempt } = await supabase
     .from("test_attempts")
     .select("*")
@@ -314,6 +354,7 @@ export async function getAttemptReview(attemptId: string): Promise<AttemptReview
         question_text,
         difficulty,
         explanation,
+        subject:subjects(id, name, slug),
         options:question_options(*),
         answer_key:question_answer_keys(correct_option_id)
       )
@@ -321,12 +362,17 @@ export async function getAttemptReview(attemptId: string): Promise<AttemptReview
     .eq("attempt_id", attemptId)
     .order("display_order", { ascending: true });
 
-  const formattedQuestions = (attemptQuestions || []).map((aq) => {
+  const subjectMap = new Map<string, AttemptSubjectResult>();
+  let calculatedAttempted = 0;
+  let calculatedUnattempted = 0;
+
+  const formattedQuestions: AttemptReviewQuestion[] = (attemptQuestions || []).map((aq) => {
     const q = aq.question as unknown as {
       id: string;
       question_text: string;
       difficulty: "easy" | "medium" | "hard";
       explanation: string | null;
+      subject?: { id: string; name: string; slug: string } | null;
       options: { id: string; question_id: string; option_label: string; option_text: string; display_order: number; created_at: string }[];
       answer_key: { correct_option_id: string }[] | null;
     };
@@ -342,11 +388,51 @@ export async function getAttemptReview(attemptId: string): Promise<AttemptReview
       scoreAwarded = -Number(aq.negative_marks);
     }
 
+    const subId = q?.subject?.id || "general";
+    const subName = q?.subject?.name || "General Subject";
+    const curSub = subjectMap.get(subId) || {
+      subject_id: subId,
+      subject_name: subName,
+      total_questions: 0,
+      attempted_count: 0,
+      unattempted_count: 0,
+      correct_count: 0,
+      incorrect_count: 0,
+      score: 0,
+      max_score: 0,
+      accuracy: 0,
+    };
+
+    curSub.total_questions += 1;
+    curSub.max_score += Number(aq.marks || 1);
+
+    if (isUnanswered) {
+      curSub.unattempted_count += 1;
+      calculatedUnattempted += 1;
+    } else {
+      curSub.attempted_count += 1;
+      calculatedAttempted += 1;
+      if (isCorrect) {
+        curSub.correct_count += 1;
+        curSub.score += Number(aq.marks || 1);
+      } else {
+        curSub.incorrect_count += 1;
+        curSub.score -= Number(aq.negative_marks || 0);
+      }
+    }
+    curSub.accuracy = curSub.attempted_count > 0
+      ? Number(((curSub.correct_count / curSub.attempted_count) * 100).toFixed(1))
+      : 0;
+    subjectMap.set(subId, curSub);
+
     return {
       id: aq.id,
       question_id: aq.question_id,
       section_id: aq.section_id,
       section_name: sec?.name || "General",
+      subject_id: q?.subject?.id || null,
+      subject_name: q?.subject?.name || "General",
+      subject_slug: q?.subject?.slug || "general",
       display_order: aq.display_order,
       question_text: q?.question_text || "",
       difficulty: q?.difficulty || "medium",
@@ -369,8 +455,11 @@ export async function getAttemptReview(attemptId: string): Promise<AttemptReview
       max_score: Number(attempt.max_score),
     },
     test,
+    attempted_count: calculatedAttempted,
+    unattempted_count: calculatedUnattempted,
     questions: formattedQuestions,
     section_results: [],
+    subject_results: Array.from(subjectMap.values()),
   };
 }
 
