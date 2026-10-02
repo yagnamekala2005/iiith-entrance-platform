@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useTransition, useMemo } from "react";
+import Link from "next/link";
 import {
   createAdminQuestion,
   deleteAdminQuestion,
@@ -8,6 +9,11 @@ import {
   createAdminMockTest,
   deleteAdminMockTest,
   publishAdminMockTest,
+  cleanAllOldMockTests,
+  createAdminChapter,
+  deleteAdminChapter,
+  createAdminTopic,
+  deleteAdminTopic,
 } from "@/lib/admin/actions";
 import { createClient } from "@/lib/supabase/client";
 
@@ -79,13 +85,27 @@ export function AdminPanel({
   initialQuestions,
   adminUsersList,
 }: AdminPanelProps) {
-  // Primary workflow: Mock Tests first -> Add Question -> Question Bank -> Admin Roles
-  const [activeTab, setActiveTab] = useState<"tests" | "create" | "list" | "admins">("tests");
+  const OLD_TEST_IDS = useMemo(
+    () =>
+      new Set([
+        "587d3e0d-da6e-4b20-bc98-5339ae1f1f1e",
+        "64a2c6a7-77eb-426e-bc3f-c492865aac77",
+        "c0d075f7-3af9-4aee-8b9a-7321b2885ead",
+      ]),
+    []
+  );
+
+  // Primary workflow: Mock Tests first -> Add Question -> My Learning -> Question Bank -> Admin Roles
+  const [activeTab, setActiveTab] = useState<"tests" | "create" | "learning" | "list" | "admins">("tests");
   const [isPending, startTransition] = useTransition();
 
-  // Mock Tests State
-  const [mockTests, setMockTests] = useState<TestItem[]>(tests);
-  const [selectedTargetTestId, setSelectedTargetTestId] = useState<string>(tests[0]?.id || "");
+  // Mock Tests State (filter out old sample tests and archived tests)
+  const [mockTests, setMockTests] = useState<TestItem[]>(() =>
+    tests.filter((t) => !OLD_TEST_IDS.has(t.id) && t.status !== "archived")
+  );
+  const [selectedTargetTestId, setSelectedTargetTestId] = useState<string>(
+    tests.filter((t) => !OLD_TEST_IDS.has(t.id) && t.status !== "archived")[0]?.id || ""
+  );
   const [isCreatingMockTest, setIsCreatingMockTest] = useState<boolean>(false);
   const [newTestName, setNewTestName] = useState<string>("");
   const [newTestExamId, setNewTestExamId] = useState<string>(exams[0]?.id || "");
@@ -93,6 +113,16 @@ export function AdminPanel({
   const [newTestDescription, setNewTestDescription] = useState<string>("");
   const [testSuccessMessage, setTestSuccessMessage] = useState<string>("");
   const [testErrorMessage, setTestErrorMessage] = useState<string>("");
+
+  // My Learning State (Subjects, Chapters, Subtopics)
+  const [adminChapters, setAdminChapters] = useState<ChapterItem[]>(chapters);
+  const [adminTopics, setAdminTopics] = useState<TopicItem[]>(topics);
+  const [selectedLearningSubjectId, setSelectedLearningSubjectId] = useState<string>(subjects[0]?.id || "");
+  const [newChapterName, setNewChapterName] = useState<string>("");
+  const [newTopicName, setNewTopicName] = useState<string>("");
+  const [targetChapterIdForTopic, setTargetChapterIdForTopic] = useState<string>("");
+  const [learningSuccessMessage, setLearningSuccessMessage] = useState<string>("");
+  const [learningErrorMessage, setLearningErrorMessage] = useState<string>("");
 
   // Create Question Form State
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(subjects[0]?.id || "");
@@ -379,6 +409,29 @@ export function AdminPanel({
     });
   };
 
+  // Handler: Clean All Old Mock Tests (Remove useless dummy data)
+  const handleCleanAllOldTests = async () => {
+    if (
+      !confirm(
+        "Are you sure you want to remove all existing mock tests and useless test data?\n\nThis will remove the current sample mock tests so you can add new mock tests and author clean questions."
+      )
+    ) {
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await cleanAllOldMockTests();
+      if (res.success) {
+        setMockTests([]);
+        setSelectedTargetTestId("");
+        setQuestions([]);
+        setTestSuccessMessage("🧹 All old mock tests and useless test data removed successfully! You can now create fresh mock tests.");
+      } else {
+        setTestErrorMessage(res.error || "Failed to remove old mock tests.");
+      }
+    });
+  };
+
   // Delete Question
   const handleDeleteQuestion = async (questionId: string) => {
     if (!confirm("Are you sure you want to delete this question?")) return;
@@ -389,6 +442,87 @@ export function AdminPanel({
         setQuestions((prev) => prev.filter((q) => q.id !== questionId));
       } else {
         alert(res.error || "Failed to delete question.");
+      }
+    });
+  };
+
+  // Learning Handler: Create Chapter
+  const handleCreateChapter = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLearningErrorMessage("");
+    setLearningSuccessMessage("");
+    if (!newChapterName.trim()) {
+      setLearningErrorMessage("Please enter a chapter name.");
+      return;
+    }
+    if (!selectedLearningSubjectId) {
+      setLearningErrorMessage("Please select a subject.");
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await createAdminChapter(selectedLearningSubjectId, newChapterName.trim());
+      if (res.success && res.chapter) {
+        setAdminChapters((prev) => [...prev, res.chapter]);
+        setNewChapterName("");
+        setLearningSuccessMessage(`✅ Chapter "${res.chapter.name}" created and synced to Student My Learning!`);
+      } else {
+        setLearningErrorMessage(res.error || "Failed to create chapter.");
+      }
+    });
+  };
+
+  // Learning Handler: Delete Chapter
+  const handleDeleteChapter = async (chapterId: string, chapterName: string) => {
+    if (!confirm(`Are you sure you want to delete chapter "${chapterName}" and all its subtopics?`)) {
+      return;
+    }
+    startTransition(async () => {
+      const res = await deleteAdminChapter(chapterId);
+      if (res.success) {
+        setAdminChapters((prev) => prev.filter((c) => c.id !== chapterId));
+        setAdminTopics((prev) => prev.filter((t) => t.chapter_id !== chapterId));
+        setLearningSuccessMessage(`🗑️ Chapter "${chapterName}" and its subtopics were deleted.`);
+      } else {
+        setLearningErrorMessage(res.error || "Failed to delete chapter.");
+      }
+    });
+  };
+
+  // Learning Handler: Create Topic
+  const handleCreateTopic = async (chapterId: string) => {
+    setLearningErrorMessage("");
+    setLearningSuccessMessage("");
+    if (!newTopicName.trim()) {
+      setLearningErrorMessage("Please enter a subtopic name.");
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await createAdminTopic(chapterId, newTopicName.trim());
+      if (res.success && res.topic) {
+        setAdminTopics((prev) => [...prev, res.topic]);
+        setNewTopicName("");
+        setTargetChapterIdForTopic("");
+        setLearningSuccessMessage(`✅ Subtopic "${res.topic.name}" added and synced to Student My Learning!`);
+      } else {
+        setLearningErrorMessage(res.error || "Failed to create subtopic.");
+      }
+    });
+  };
+
+  // Learning Handler: Delete Topic
+  const handleDeleteTopic = async (topicId: string, topicName: string) => {
+    if (!confirm(`Are you sure you want to delete subtopic "${topicName}"?`)) {
+      return;
+    }
+    startTransition(async () => {
+      const res = await deleteAdminTopic(topicId);
+      if (res.success) {
+        setAdminTopics((prev) => prev.filter((t) => t.id !== topicId));
+        setLearningSuccessMessage(`🗑️ Subtopic "${topicName}" was deleted.`);
+      } else {
+        setLearningErrorMessage(res.error || "Failed to delete subtopic.");
       }
     });
   };
@@ -425,7 +559,7 @@ export function AdminPanel({
   });
 
   return (
-    <div className="min-h-screen bg-[#f1f5f9] flex flex-col font-sans">
+    <div className="min-h-screen bg-[#f1f5f9] flex flex-col font-sans relative overflow-x-hidden w-full max-w-full">
       {/* Admin Top Navigation Bar */}
       <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-900 text-white px-4 sm:px-8 py-3.5 shadow-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
@@ -498,6 +632,21 @@ export function AdminPanel({
 
             <button
               type="button"
+              onClick={() => setActiveTab("learning")}
+              className={`rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
+                activeTab === "learning"
+                  ? "bg-blue-700 text-white shadow-md shadow-blue-700/20"
+                  : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              <span>📖 My Learning</span>
+              <span className="rounded-full bg-blue-100 text-blue-900 px-2 py-0.2 text-[10px] hidden sm:inline">
+                {adminChapters.length} Chap / {adminTopics.length} Topics
+              </span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveTab("list")}
               className={`rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
                 activeTab === "list"
@@ -544,13 +693,28 @@ export function AdminPanel({
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setIsCreatingMockTest(!isCreatingMockTest)}
-                  className="rounded-xl bg-blue-700 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 transition-all flex items-center gap-2"
-                >
-                  <span>{isCreatingMockTest ? "✕ Cancel" : "➕ Create New Mock Test"}</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {mockTests.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleCleanAllOldTests}
+                      disabled={isPending}
+                      className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-rose-800 hover:bg-rose-100 hover:border-rose-400 active:scale-95 transition-all flex items-center gap-1.5 shadow-xs"
+                      title="Remove old / unused mock tests to author fresh ones"
+                    >
+                      <span>🧹</span>
+                      <span>Remove Old Mock Tests ({mockTests.length})</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setIsCreatingMockTest(!isCreatingMockTest)}
+                    className="rounded-xl bg-blue-700 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 transition-all flex items-center gap-2"
+                  >
+                    <span>{isCreatingMockTest ? "✕ Cancel" : "➕ Create New Mock Test"}</span>
+                  </button>
+                </div>
               </div>
 
               {/* Status messages for Mock Tests */}
@@ -1094,6 +1258,247 @@ export function AdminPanel({
                   </div>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2.5: MY LEARNING (Admin Curriculum Authoring) */}
+        {activeTab === "learning" && (
+          <div className="mt-6 space-y-6">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs">
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                <div>
+                  <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-black uppercase tracking-wider text-blue-800 border border-blue-200">
+                    📖 Curriculum &amp; Learning Studio
+                  </span>
+                  <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900">
+                    My Learning: Subjects, Chapters &amp; Subtopics
+                  </h2>
+                  <p className="mt-1 text-xs sm:text-sm text-slate-500 max-w-2xl">
+                    Configure the official syllabus across Mathematics, Physics, Chemistry, and Aptitude. Every chapter and subtopic added or modified here is immediately synchronized to the Student &quot;My Learning&quot; portal.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Link
+                    href="/learning"
+                    target="_blank"
+                    className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 active:scale-95 transition-all flex items-center gap-1.5 shadow-xs"
+                    title="Open the student My Learning page in a new tab"
+                  >
+                    <span>View Student Portal</span>
+                    <span>↗</span>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Status alerts */}
+              {learningSuccessMessage && (
+                <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-semibold text-emerald-800 flex items-center justify-between animate-in fade-in">
+                  <span>{learningSuccessMessage}</span>
+                  <button
+                    type="button"
+                    onClick={() => setLearningSuccessMessage("")}
+                    className="text-emerald-700 hover:text-emerald-900 text-sm font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+              {learningErrorMessage && (
+                <div className="mt-5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs font-semibold text-rose-800 flex items-center justify-between animate-in fade-in">
+                  <span>⚠️ {learningErrorMessage}</span>
+                  <button
+                    type="button"
+                    onClick={() => setLearningErrorMessage("")}
+                    className="text-rose-700 hover:text-rose-900 text-sm font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              {/* Subject Selector Pills */}
+              <div className="mt-6">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  Select Subject to Manage:
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {subjects.map((sub) => {
+                    const isSelected = sub.id === selectedLearningSubjectId;
+                    const subChapters = adminChapters.filter((c) => c.subject_id === sub.id);
+                    const subTopicsCount = subChapters.reduce(
+                      (acc, c) => acc + adminTopics.filter((t) => t.chapter_id === c.id).length,
+                      0
+                    );
+
+                    return (
+                      <button
+                        key={sub.id}
+                        type="button"
+                        onClick={() => setSelectedLearningSubjectId(sub.id)}
+                        className={`rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
+                          isSelected
+                            ? "bg-blue-700 text-white shadow-md shadow-blue-700/20"
+                            : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        <span>{sub.name}</span>
+                        <span
+                          className={`rounded-full px-2 py-0.2 text-[10px] font-black ${
+                            isSelected ? "bg-blue-900 text-blue-200" : "bg-slate-100 text-slate-600"
+                          }`}
+                        >
+                          {subChapters.length} chap &bull; {subTopicsCount} topics
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Create New Chapter for Selected Subject */}
+              <div className="mt-8 rounded-2xl border border-blue-200 bg-blue-50/40 p-5 sm:p-6">
+                <h3 className="text-sm font-extrabold uppercase tracking-wider text-blue-900">
+                  ➕ Add New Chapter to {subjects.find((s) => s.id === selectedLearningSubjectId)?.name || "Subject"}
+                </h3>
+                <p className="mt-1 text-xs text-slate-600">
+                  Enter chapter title (e.g. &quot;Coordinate Geometry&quot;, &quot;Thermodynamics&quot;, &quot;Electrochemistry&quot;).
+                </p>
+
+                <form onSubmit={handleCreateChapter} className="mt-4 flex flex-col sm:flex-row gap-3">
+                  <input
+                    type="text"
+                    value={newChapterName}
+                    onChange={(e) => setNewChapterName(e.target.value)}
+                    placeholder="Enter chapter name..."
+                    className="flex-1 rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-900 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                    required
+                  />
+                  <button
+                    type="submit"
+                    disabled={isPending}
+                    className="rounded-xl bg-blue-700 px-6 py-3 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 disabled:opacity-50 transition-all whitespace-nowrap"
+                  >
+                    {isPending ? "Adding..." : "+ Add Chapter"}
+                  </button>
+                </form>
+              </div>
+
+              {/* Chapters & Subtopics List */}
+              <div className="mt-8 space-y-5">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    Chapters &amp; Subtopics in {subjects.find((s) => s.id === selectedLearningSubjectId)?.name || "Subject"}
+                  </h3>
+                  <span className="text-xs text-slate-500 font-semibold">
+                    {adminChapters.filter((c) => c.subject_id === selectedLearningSubjectId).length} Chapters Total
+                  </span>
+                </div>
+
+                {adminChapters.filter((c) => c.subject_id === selectedLearningSubjectId).length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center bg-slate-50">
+                    <p className="text-sm font-semibold text-slate-600">No chapters added yet for this subject.</p>
+                    <p className="mt-1 text-xs text-slate-400">Use the form above to add your first chapter.</p>
+                  </div>
+                ) : (
+                  adminChapters
+                    .filter((c) => c.subject_id === selectedLearningSubjectId)
+                    .map((chapter, chapIdx) => {
+                      const chapterTopics = adminTopics.filter((t) => t.chapter_id === chapter.id);
+
+                      return (
+                        <div
+                          key={chapter.id}
+                          className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5 sm:p-6 transition-all hover:border-slate-300 hover:bg-white hover:shadow-xs"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 pb-3">
+                            <div className="flex items-center gap-2.5">
+                              <span className="rounded-lg bg-blue-700 px-2.5 py-1 text-xs font-black text-white">
+                                Chapter {chapIdx + 1}
+                              </span>
+                              <h4 className="text-base font-extrabold text-slate-900">
+                                {chapter.name}
+                              </h4>
+                              <span className="rounded-full bg-slate-200 text-slate-700 px-2 py-0.5 text-[10px] font-bold">
+                                {chapterTopics.length} Subtopics
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteChapter(chapter.id, chapter.name)}
+                              disabled={isPending}
+                              className="rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-50 hover:border-rose-300 active:scale-95 transition-all flex items-center gap-1"
+                              title="Delete chapter and all its subtopics"
+                            >
+                              <span>🗑️</span>
+                              <span>Delete Chapter</span>
+                            </button>
+                          </div>
+
+                          {/* Subtopics Chips List */}
+                          <div className="mt-4">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                              Subtopics / Topics:
+                            </p>
+                            {chapterTopics.length === 0 ? (
+                              <p className="text-xs text-slate-400 italic">No subtopics added under this chapter yet.</p>
+                            ) : (
+                              <div className="flex flex-wrap gap-2">
+                                {chapterTopics.map((topic) => (
+                                  <span
+                                    key={topic.id}
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 shadow-2xs font-medium"
+                                  >
+                                    <span>&bull;</span>
+                                    <span>{topic.name}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteTopic(topic.id, topic.name)}
+                                      disabled={isPending}
+                                      className="ml-1 text-slate-400 hover:text-rose-600 font-bold text-xs"
+                                      title="Remove subtopic"
+                                    >
+                                      ✕
+                                    </button>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Inline Add Subtopic Form */}
+                          <div className="mt-4 pt-3 border-t border-slate-200/60 flex flex-wrap items-center gap-2">
+                            <input
+                              type="text"
+                              placeholder={`Add subtopic to ${chapter.name}...`}
+                              value={targetChapterIdForTopic === chapter.id ? newTopicName : ""}
+                              onFocus={() => setTargetChapterIdForTopic(chapter.id)}
+                              onChange={(e) => {
+                                setTargetChapterIdForTopic(chapter.id);
+                                setNewTopicName(e.target.value);
+                              }}
+                              className="flex-1 min-w-[200px] rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-blue-600"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (targetChapterIdForTopic === chapter.id) {
+                                  handleCreateTopic(chapter.id);
+                                }
+                              }}
+                              disabled={isPending || targetChapterIdForTopic !== chapter.id || !newTopicName.trim()}
+                              className="rounded-lg bg-blue-700 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-800 active:scale-95 disabled:opacity-40 transition-all"
+                            >
+                              + Add Subtopic
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                )}
+              </div>
             </div>
           </div>
         )}

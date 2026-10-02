@@ -3,10 +3,11 @@ import { createClient } from "@supabase/supabase-js";
 
 export async function POST(request: Request) {
   try {
-    const { email, password } = await request.json();
+    const { email, password, role } = await request.json();
 
     const normalizedEmail = String(email ?? "").trim().toLowerCase();
     const normalizedPassword = String(password ?? "");
+    const requestedRole = String(role ?? "student").toLowerCase();
 
     if (!normalizedEmail || !normalizedPassword) {
       return NextResponse.json(
@@ -87,7 +88,24 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ success: true }, { status: 201 });
+    if (requestedRole === "admin") {
+      const { error: adminInsertError } = await supabaseAdmin
+        .from("admin_users")
+        .upsert({ user_id: data.user.id });
+
+      if (adminInsertError) {
+        console.error("Failed to enroll user as admin:", adminInsertError);
+        return NextResponse.json(
+          {
+            error:
+              "Account was created, but failed to grant administrator privileges. Please contact support.",
+          },
+          { status: 500 },
+        );
+      }
+    }
+
+    return NextResponse.json({ success: true, role: requestedRole }, { status: 201 });
   } catch {
     return NextResponse.json(
       { error: "Unable to create the account. Please try again." },

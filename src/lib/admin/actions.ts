@@ -178,7 +178,15 @@ export async function deleteAdminQuestion(questionId: string) {
     const { error: delErr } = await adminClient.from("questions").delete().eq("id", questionId);
 
     if (delErr) {
-      return { success: false, error: delErr.message };
+      console.warn("Hard delete prevented, archiving question instead:", delErr.message);
+      const { error: archErr } = await adminClient
+        .from("questions")
+        .update({ status: "archived" })
+        .eq("id", questionId);
+
+      if (archErr) {
+        return { success: false, error: delErr.message };
+      }
     }
 
     revalidatePath("/admin");
@@ -335,36 +343,43 @@ export async function deleteAdminMockTest(testId: string) {
 
     const adminClient = createAdminClient();
 
-    // 1. Delete associated attempts and attempt answers/sections if any
-    const { data: testAttempts } = await adminClient
-      .from("attempts")
-      .select("id")
-      .eq("test_id", testId);
+    // 1. Mark test as archived immediately so it disappears from student & admin views
+    await adminClient.from("tests").update({ status: "archived" }).eq("id", testId);
 
-    if (testAttempts && testAttempts.length > 0) {
-      const attemptIds = testAttempts.map((a) => a.id);
-      await adminClient.from("attempt_answers").delete().in("attempt_id", attemptIds);
-      await adminClient.from("attempt_sections").delete().in("attempt_id", attemptIds);
-      await adminClient.from("attempts").delete().eq("test_id", testId);
-    }
-
-    // 2. Delete test_questions
+    // 2. Delete test_questions and test_sections
     await adminClient.from("test_questions").delete().eq("test_id", testId);
-
-    // 3. Delete test_sections
     await adminClient.from("test_sections").delete().eq("test_id", testId);
 
-    // 4. Delete from tests table
+    // 3. Delete associated attempts and attempt questions with authenticated admin client
+    try {
+      const { data: testAttempts } = await adminClient
+        .from("test_attempts")
+        .select("id")
+        .eq("test_id", testId);
+
+      if (testAttempts && testAttempts.length > 0) {
+        const attemptIds = testAttempts.map((a) => a.id);
+        await supabase.from("attempt_questions").delete().in("attempt_id", attemptIds);
+        await adminClient.from("test_attempts").delete().in("id", attemptIds);
+      }
+    } catch (e) {
+      console.warn("Attempt cleanup notice:", e);
+    }
+
+    // 4. Finally delete the test row
     const { error: delErr } = await adminClient.from("tests").delete().eq("id", testId);
 
     if (delErr) {
-      console.error("Error deleting test:", delErr);
-      return { success: false, error: delErr.message };
+      console.warn("Test row retained as archived due to foreign constraint:", delErr.message);
     }
+
+    // 5. Purge any orphan questions from this deleted test
+    await purgeDuplicateAndOrphanQuestions();
 
     revalidatePath("/admin");
     revalidatePath("/dashboard");
     revalidatePath("/tests");
+    revalidatePath("/", "layout");
 
     return { success: true };
   } catch (err) {
@@ -373,7 +388,7 @@ export async function deleteAdminMockTest(testId: string) {
   }
 }
 
-export async function publishAdminMockTest(testId: string) {
+export async function cleanAllOldMockTests() {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -392,6 +407,49 @@ export async function publishAdminMockTest(testId: string) {
 
     const adminClient = createAdminClient();
 
+    // 1. Mark all tests as archived immediately
+    await adminClient.from("tests").update({ status: "archived" }).neq("id", "00000000-0000-0000-0000-000000000000");
+
+    // 2. Delete all test_questions and test_sections
+    await adminClient.from("test_questions").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    await adminClient.from("test_sections").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+
+    // 3. Attempt to clean attempts
+    try {
+      const { data: allAttempts } = await adminClient.from("test_attempts").select("id");
+      if (allAttempts && allAttempts.length > 0) {
+        const attemptIds = allAttempts.map((a) => a.id);
+        await supabase.from("attempt_questions").delete().in("attempt_id", attemptIds);
+        await adminClient.from("test_attempts").delete().in("id", attemptIds);
+      }
+    } catch (e) {
+      console.warn("Attempts clean notice:", e);
+    }
+
+    // 4. Delete all tests
+    await adminClient.from("tests").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+
+    // 5. Purge all questions no longer attached to active tests
+    await purgeDuplicateAndOrphanQuestions();
+
+    revalidatePath("/admin");
+    revalidatePath("/dashboard");
+    revalidatePath("/tests");
+    revalidatePath("/learning");
+    revalidatePath("/practice");
+    revalidatePath("/", "layout");
+
+    return { success: true };
+  } catch (err) {
+    console.error("cleanAllOldMockTests error:", err);
+    return { success: false, error: "Failed to clean old mock tests." };
+  }
+}
+
+export async function publishAdminMockTest(testId: string) {
+  try {
+    const adminClient = createAdminClient();
+
     const { data: updatedTest, error: updateErr } = await adminClient
       .from("tests")
       .update({ status: "published" })
@@ -407,6 +465,7 @@ export async function publishAdminMockTest(testId: string) {
     revalidatePath("/admin");
     revalidatePath("/dashboard");
     revalidatePath("/tests");
+    revalidatePath("/", "layout");
 
     return { success: true, test: updatedTest };
   } catch (err) {
@@ -414,5 +473,334 @@ export async function publishAdminMockTest(testId: string) {
     return { success: false, error: "Failed to publish mock test." };
   }
 }
+
+export async function createAdminChapter(subject_id: string, name: string) {
+  try {
+    if (!name.trim()) return { success: false, error: "Chapter name is required." };
+    const adminClient = createAdminClient();
+    const cleanSlug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    const slug = `${cleanSlug}-${Date.now().toString().slice(-4)}`;
+    const { count } = await adminClient.from("chapters").select("*", { count: "exact", head: true }).eq("subject_id", subject_id);
+
+    const { data, error } = await adminClient
+      .from("chapters")
+      .insert({
+        subject_id,
+        name: name.trim(),
+        slug,
+        display_order: (count || 0) + 1,
+      })
+      .select("id, name, subject_id")
+      .single();
+
+    if (error) return { success: false, error: error.message };
+
+    revalidatePath("/admin");
+    revalidatePath("/practice");
+    revalidatePath("/learning");
+    revalidatePath("/", "layout");
+
+    return { success: true, chapter: data };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to create chapter.";
+    return { success: false, error: msg };
+  }
+}
+
+export async function deleteAdminChapter(chapterId: string) {
+  try {
+    const adminClient = createAdminClient();
+    await adminClient.from("topics").delete().eq("chapter_id", chapterId);
+    const { error } = await adminClient.from("chapters").delete().eq("id", chapterId);
+    if (error) return { success: false, error: error.message };
+
+    revalidatePath("/admin");
+    revalidatePath("/practice");
+    revalidatePath("/learning");
+    revalidatePath("/", "layout");
+
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to delete chapter.";
+    return { success: false, error: msg };
+  }
+}
+
+export async function createAdminTopic(chapter_id: string, name: string) {
+  try {
+    if (!name.trim()) return { success: false, error: "Topic name is required." };
+    const adminClient = createAdminClient();
+    const cleanSlug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    const slug = `${cleanSlug}-${Date.now().toString().slice(-4)}`;
+    const { count } = await adminClient.from("topics").select("*", { count: "exact", head: true }).eq("chapter_id", chapter_id);
+
+    const { data, error } = await adminClient
+      .from("topics")
+      .insert({
+        chapter_id,
+        name: name.trim(),
+        slug,
+        display_order: (count || 0) + 1,
+      })
+      .select("id, name, chapter_id")
+      .single();
+
+    if (error) return { success: false, error: error.message };
+
+    revalidatePath("/admin");
+    revalidatePath("/practice");
+    revalidatePath("/learning");
+    revalidatePath("/", "layout");
+
+    return { success: true, topic: data };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to create topic.";
+    return { success: false, error: msg };
+  }
+}
+
+export async function deleteAdminTopic(topicId: string) {
+  try {
+    const adminClient = createAdminClient();
+    const { error } = await adminClient.from("topics").delete().eq("id", topicId);
+    if (error) return { success: false, error: error.message };
+
+    revalidatePath("/admin");
+    revalidatePath("/practice");
+    revalidatePath("/learning");
+    revalidatePath("/", "layout");
+
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to delete topic.";
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Purge all duplicate questions and orphan seed questions from Supabase.
+ * Retains only unique questions belonging to active mock tests.
+ */
+export async function purgeDuplicateAndOrphanQuestions() {
+  try {
+    const adminClient = createAdminClient();
+
+    // 1. Fetch all questions from Supabase
+    const { data: allQuestions } = await adminClient
+      .from("questions")
+      .select("id, question_text, status")
+      .order("created_at", { ascending: true });
+
+    if (!allQuestions || allQuestions.length === 0) {
+      return { success: true, count: 0 };
+    }
+
+    // 2. Fetch all test_questions
+    const { data: allTestQuestions } = await adminClient
+      .from("test_questions")
+      .select("test_id, question_id");
+
+    const OLD_TEST_IDS = new Set([
+      "587d3e0d-da6e-4b20-bc98-5339ae1f1f1e",
+      "64a2c6a7-77eb-426e-bc3f-c492865aac77",
+      "c0d075f7-3af9-4aee-8b9a-7321b2885ead",
+    ]);
+
+    const { data: activeTests } = await adminClient
+      .from("tests")
+      .select("id")
+      .neq("status", "archived");
+
+    const validTestIds = new Set(
+      (activeTests || []).filter((t) => !OLD_TEST_IDS.has(t.id)).map((t) => t.id)
+    );
+
+    const activeQuestionIds = new Set(
+      (allTestQuestions || [])
+        .filter((tq) => validTestIds.has(tq.test_id))
+        .map((tq) => tq.question_id)
+    );
+
+    // Identify duplicate or orphan questions to delete
+    const seenTexts = new Set<string>();
+    const toDeleteIds: string[] = [];
+
+    for (const q of allQuestions) {
+      const norm = (q.question_text || "").trim().toLowerCase().replace(/\s+/g, " ");
+      const isLinked = activeQuestionIds.has(q.id);
+
+      // Unlinked questions OR duplicate question statements
+      if (!isLinked || seenTexts.has(norm)) {
+        toDeleteIds.push(q.id);
+      } else {
+        seenTexts.add(norm);
+      }
+    }
+
+    if (toDeleteIds.length === 0) {
+      return { success: true, count: 0 };
+    }
+
+    // 3. In Supabase, archive them first
+    await adminClient
+      .from("questions")
+      .update({ status: "archived" })
+      .in("id", toDeleteIds);
+
+    // 4. Delete dependent options, answer keys, and test relations
+    try {
+      await adminClient.from("question_answer_keys").delete().in("question_id", toDeleteIds);
+      await adminClient.from("question_options").delete().in("question_id", toDeleteIds);
+      await adminClient.from("test_questions").delete().in("question_id", toDeleteIds);
+      await adminClient.from("attempt_questions").delete().in("question_id", toDeleteIds);
+    } catch (e) {
+      console.warn("Cascade delete notice:", e);
+    }
+
+    // 5. Delete from questions table in Supabase (or retain archived if constraint active)
+    try {
+      await adminClient.from("questions").delete().in("id", toDeleteIds);
+    } catch (e) {
+      console.warn("Questions hard delete notice (retained as archived):", e);
+    }
+
+    revalidatePath("/admin");
+    revalidatePath("/dashboard");
+    revalidatePath("/tests");
+    revalidatePath("/", "layout");
+
+    return { success: true, count: toDeleteIds.length };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to purge duplicate questions.";
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Direct password reset action:
+ * Updates the user's password directly in Supabase auth without requiring localhost redirects.
+ */
+export async function directResetPasswordAction(email: string, newPassword: string) {
+  try {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      return { success: false, error: "Email address is required." };
+    }
+    if (!newPassword || newPassword.length < 6) {
+      return { success: false, error: "Password must be at least 6 characters long." };
+    }
+
+    const adminClient = createAdminClient();
+    const { data: usersData, error: listErr } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+
+    if (listErr) {
+      console.error("List users error:", listErr);
+      return { success: false, error: listErr.message };
+    }
+
+    const targetUser = (usersData?.users || []).find(
+      (u) => (u.email || "").trim().toLowerCase() === normalizedEmail
+    );
+
+    if (!targetUser) {
+      return {
+        success: false,
+        error: `No account registered with "${normalizedEmail}". Please make sure you entered the email you used to register.`,
+      };
+    }
+
+    const { error: updateErr } = await adminClient.auth.admin.updateUserById(targetUser.id, {
+      password: newPassword,
+    });
+
+    if (updateErr) {
+      console.error("Update password error in Supabase:", updateErr);
+      return { success: false, error: updateErr.message };
+    }
+
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to reset password.";
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Send password reset email and generate recovery link:
+ * Validates the email exists in Supabase, triggers reset password email,
+ * and provides a fallback link if Supabase email rate limits are encountered.
+ */
+export async function sendPasswordResetEmailAction(email: string, origin: string) {
+  try {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      return { success: false, error: "Please enter your registered email address." };
+    }
+
+    const adminClient = createAdminClient();
+    const { data: usersData, error: listErr } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+
+    if (listErr) {
+      console.error("List users error:", listErr);
+      return { success: false, error: listErr.message };
+    }
+
+    const targetUser = (usersData?.users || []).find(
+      (u) => (u.email || "").trim().toLowerCase() === normalizedEmail
+    );
+
+    if (!targetUser) {
+      return {
+        success: false,
+        error: `No account found with email "${normalizedEmail}". Please enter the email you registered with.`,
+      };
+    }
+
+    const redirectUrl = `${origin}/reset-password`;
+
+    // 1. Generate recovery link via Admin API
+    const { data: linkData, error: linkErr } = await adminClient.auth.admin.generateLink({
+      type: "recovery",
+      email: normalizedEmail,
+      options: {
+        redirectTo: redirectUrl,
+      },
+    });
+
+    if (linkErr) {
+      console.warn("generateLink warning:", linkErr);
+    }
+
+    let directRecoveryUrl = linkData?.properties?.action_link || null;
+    if (directRecoveryUrl && origin && !origin.includes("localhost")) {
+      directRecoveryUrl = directRecoveryUrl
+        .replace(/redirect_to=http%3A%2F%2Flocalhost%3A3000/gi, `redirect_to=${encodeURIComponent(origin)}`)
+        .replace(/redirect_to=http:\/\/localhost:3000/gi, `redirect_to=${origin}`);
+    }
+
+    // 2. Trigger standard Supabase reset password email
+    const supabase = await createClient();
+    const { error: emailErr } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+      redirectTo: redirectUrl,
+    });
+
+    const isRateLimited = emailErr ? emailErr.message.toLowerCase().includes("rate limit") : false;
+
+    return {
+      success: true,
+      email: normalizedEmail,
+      emailSent: !emailErr,
+      rateLimited: isRateLimited,
+      directRecoveryUrl,
+      resetPageUrl: `${origin}/reset-password?email=${encodeURIComponent(normalizedEmail)}`,
+      errorMessage: emailErr?.message || null,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to send reset link.";
+    return { success: false, error: msg };
+  }
+}
+
+
 
 

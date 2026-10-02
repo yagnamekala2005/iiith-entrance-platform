@@ -3,7 +3,7 @@ import { InteractiveExamPreview } from "@/components/landing/interactive-preview
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col font-sans selection:bg-blue-600 selection:text-white relative overflow-x-hidden w-full max-w-full">
       {/* Top Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white text-center py-2 px-4 text-xs font-semibold tracking-wide border-b border-blue-900/40">
         <span className="inline-flex items-center gap-2">

@@ -25,9 +25,76 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState<boolean>(false);
   const [isMobilePaletteOpen, setIsMobilePaletteOpen] = useState<boolean>(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState<boolean>(false);
+  const [isExitModalOpen, setIsExitModalOpen] = useState<boolean>(false);
   const [, startTransition] = useTransition();
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [autoSubmitTriggered, setAutoSubmitTriggered] = useState<boolean>(false);
+
+  // Unified Step-Back Handler (Navigates 1 step back instead of exiting app)
+  const handleStepBack = () => {
+    // 1. If Scientific Calculator is open, close it (1 step back)
+    if (isCalculatorOpen) {
+      setIsCalculatorOpen(false);
+      return;
+    }
+    // 2. If Question Palette drawer is open, close it (1 step back)
+    if (isMobilePaletteOpen) {
+      setIsMobilePaletteOpen(false);
+      return;
+    }
+    // 3. If Submit Modal is open, close it (1 step back)
+    if (isSubmitModalOpen) {
+      setIsSubmitModalOpen(false);
+      return;
+    }
+    // 4. If Exit Modal is open, close it (1 step back)
+    if (isExitModalOpen) {
+      setIsExitModalOpen(false);
+      return;
+    }
+    // 5. If on Question N (where N > 0), move back to Question N - 1 (1 step back)
+    if (currentIndex > 0) {
+      setCurrentIndex((prev) => prev - 1);
+      return;
+    }
+    // 6. If on the very first question, prompt with safe Pause & Exit modal
+    setIsExitModalOpen(true);
+  };
+
+  // Keep handleStepBackRef updated to latest closure without triggering history pushes
+  const handleStepBackRef = useRef(handleStepBack);
+  handleStepBackRef.current = handleStepBack;
+
+  // Prevent app exit on mobile back button/gesture by intercepting popstate once
+  useEffect(() => {
+    // Push dummy history entry so back button doesn't close the browser/app
+    window.history.pushState({ cbtTaking: true }, "");
+
+    const onPopState = () => {
+      // Re-push state so user remains inside the app
+      window.history.pushState({ cbtTaking: true }, "");
+      handleStepBackRef.current();
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, []);
+
+  // Protect against accidental browser/tab closure
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!isSubmitting) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [isSubmitting]);
 
   // Total test duration in seconds (default 3 hours = 10800s)
   const totalDurationSeconds = data.test.duration_seconds || 10800;
@@ -262,13 +329,24 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
       {/* Top CBT Real-Time Navigation Bar */}
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md shadow-xs">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3.5">
-          {/* Left: Test Info */}
+          {/* Left: 1-Step Back Navigation & Test Info */}
           <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={handleStepBack}
+              className="flex items-center gap-1 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 active:scale-95 px-2.5 py-1.5 text-xs font-bold text-slate-800 transition-all shadow-xs"
+              title="Go back one step (Previous question or close dialog)"
+              aria-label="Back one step"
+            >
+              <span className="text-sm font-black leading-none">‹</span>
+              <span className="text-[11px] font-bold">Back</span>
+            </button>
+
             <span className="rounded-lg bg-blue-700 px-2 sm:px-2.5 py-1 text-[10px] sm:text-xs font-black tracking-widest text-white uppercase shadow-xs">
               CBT
             </span>
             <div>
-              <h1 className="text-xs sm:text-base font-extrabold text-slate-900 truncate max-w-[150px] sm:max-w-xs md:max-w-md">
+              <h1 className="text-xs sm:text-base font-extrabold text-slate-900 truncate max-w-[130px] sm:max-w-xs md:max-w-md">
                 {data.test.name}
               </h1>
               <p className="text-[10px] text-slate-500 hidden sm:block">
@@ -460,12 +538,12 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
             </div>
 
             {/* Bottom Real-Time Actions Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-4 shadow-xs">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-4 shadow-xs">
+              <div className="flex items-center justify-between sm:justify-start gap-2">
                 <button
                   type="button"
                   onClick={handleToggleMark}
-                  className={`rounded-xl border px-3 sm:px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all ${
+                  className={`flex-1 sm:flex-none rounded-xl border px-3 sm:px-4 py-2.5 sm:py-2 text-xs font-bold uppercase tracking-wider transition-all text-center ${
                     currentQuestion?.marked_for_review
                       ? "border-purple-600 bg-purple-50 text-purple-700"
                       : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
@@ -478,7 +556,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                   <button
                     type="button"
                     onClick={handleClearAnswer}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 sm:py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-800"
                   >
                     Clear
                   </button>
@@ -490,7 +568,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                   type="button"
                   disabled={currentIndex === 0}
                   onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
-                  className="rounded-xl border border-slate-300 bg-white px-3.5 sm:px-4 py-2 text-xs font-bold uppercase text-slate-700 hover:bg-slate-50 disabled:opacity-30 disabled:hover:bg-white"
+                  className="flex-1 sm:flex-none rounded-xl border border-slate-300 bg-white px-3.5 sm:px-4 py-2.5 sm:py-2 text-xs font-bold uppercase text-slate-700 hover:bg-slate-50 disabled:opacity-30 disabled:hover:bg-white text-center"
                 >
                   &larr; Prev
                 </button>
@@ -507,7 +585,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                   <button
                     type="button"
                     onClick={handleSaveAndNext}
-                    className="rounded-xl bg-blue-700 px-4 sm:px-5 py-2 text-xs font-bold uppercase text-white shadow-xs hover:bg-blue-800 active:scale-95 transition-all"
+                    className="flex-1 sm:flex-none rounded-xl bg-blue-700 px-4 sm:px-5 py-2.5 sm:py-2 text-xs font-bold uppercase text-white shadow-xs hover:bg-blue-800 active:scale-95 transition-all text-center"
                   >
                     Save & Next &rarr;
                   </button>
@@ -515,7 +593,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                   <button
                     type="button"
                     onClick={() => setIsSubmitModalOpen(true)}
-                    className="rounded-xl bg-emerald-600 px-4 sm:px-5 py-2 text-xs font-bold uppercase text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all"
+                    className="flex-1 sm:flex-none rounded-xl bg-emerald-600 px-4 sm:px-5 py-2.5 sm:py-2 text-xs font-bold uppercase text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all text-center"
                   >
                     Submit Exam &rarr;
                   </button>
@@ -598,6 +676,42 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
         questions={questions}
         timeRemainingFormatted={formatTime(secondsRemaining)}
       />
+
+      {/* Safe Exit Confirmation Modal (1 Step Back from Exam) */}
+      {isExitModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 sm:p-7 shadow-2xl text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-2xl">
+              ⏸️
+            </div>
+            <h3 className="mt-4 text-xl font-extrabold text-slate-900">
+              Pause & Exit Mock Test?
+            </h3>
+            <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
+              Your answered questions and remaining time are saved in real-time. You can resume this exam whenever you return.
+            </p>
+            <div className="mt-6 flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={() => setIsExitModalOpen(false)}
+                className="flex-1 rounded-xl bg-blue-700 py-3 text-xs font-bold uppercase tracking-wider text-white hover:bg-blue-800 shadow-md shadow-blue-700/20 active:scale-95 transition-all"
+              >
+                Keep Writing Exam
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsExitModalOpen(false);
+                  router.push("/dashboard");
+                }}
+                className="flex-1 rounded-xl border border-slate-300 bg-slate-100 py-3 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-200 active:scale-95 transition-all"
+              >
+                Exit to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

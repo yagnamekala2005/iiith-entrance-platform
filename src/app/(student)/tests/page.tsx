@@ -2,22 +2,32 @@ import Link from "next/link";
 import { getPublishedTests, getPublishedExams } from "@/lib/content/queries";
 import { StartAttemptButton } from "@/components/attempts/start-attempt-button";
 
+export const dynamic = "force-dynamic";
+
+const OLD_TEST_IDS = new Set([
+  "587d3e0d-da6e-4b20-bc98-5339ae1f1f1e",
+  "64a2c6a7-77eb-426e-bc3f-c492865aac77",
+  "c0d075f7-3af9-4aee-8b9a-7321b2885ead",
+]);
+
 interface PageProps {
   searchParams: Promise<{ exam?: string }>;
 }
 
 export default async function TestsDirectoryPage({ searchParams }: PageProps) {
   const { exam: examFilter } = await searchParams;
-  const [tests, exams] = await Promise.all([
+  const [rawTests, exams] = await Promise.all([
     getPublishedTests(examFilter),
     getPublishedExams(),
   ]);
+
+  const tests = rawTests.filter((t) => !OLD_TEST_IDS.has(t.id));
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 font-sans">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-        <Link href="/dashboard" className="hover:text-blue-700">Dashboard</Link>
+        <Link href="/dashboard" prefetch={true} className="hover:text-blue-700">Dashboard</Link>
         <span>/</span>
         <span className="text-blue-700">Mock Tests</span>
       </div>
@@ -37,6 +47,7 @@ export default async function TestsDirectoryPage({ searchParams }: PageProps) {
           </div>
           <Link
             href="/attempts"
+            prefetch={true}
             className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition-all shadow-xs"
           >
             My Past Scorecards &rarr;
@@ -47,6 +58,7 @@ export default async function TestsDirectoryPage({ searchParams }: PageProps) {
         <div className="mt-6 flex flex-wrap items-center gap-2">
           <Link
             href="/tests"
+            prefetch={true}
             className={`rounded-full px-4 py-2 text-xs font-bold transition-all shadow-xs ${
               !examFilter
                 ? "bg-blue-700 text-white shadow-blue-700/20"
@@ -61,6 +73,7 @@ export default async function TestsDirectoryPage({ searchParams }: PageProps) {
               <Link
                 key={exam.id}
                 href={`/tests?exam=${exam.slug}`}
+                prefetch={true}
                 className={`rounded-full px-4 py-2 text-xs font-bold transition-all shadow-xs ${
                   isSelected
                     ? "bg-blue-700 text-white shadow-blue-700/20"

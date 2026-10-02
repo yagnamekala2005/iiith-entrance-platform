@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type {
   Exam,
@@ -17,95 +18,162 @@ export interface SubjectWithHierarchy extends Subject {
   })[];
 }
 
-/**
- * Fetch all published exams
- */
-export async function getPublishedExams(): Promise<Exam[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("exams")
-    .select("*")
-    .eq("published", true)
-    .order("name", { ascending: true });
+const DEFAULT_FALLBACK_EXAMS: Exam[] = [
+  {
+    id: "e0000000-0000-0000-0000-000000000001",
+    slug: "ugee",
+    name: "IIITH UGEE (Dual Degree)",
+    description: "Undergraduate Engineering Entrance Examination for Dual Degree programs with SUPR and REAP sections.",
+    negative_marking_ratio: 0.25,
+    published: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "e0000000-0000-0000-0000-000000000002",
+    slug: "spec",
+    name: "IIITH SPEC (Special Channel of Admission)",
+    description: "Special Channel of Admission evaluating Mathematics, Physics, Chemistry, and Aptitude.",
+    negative_marking_ratio: 0.25,
+    published: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
 
-  if (error) {
-    console.error("Error fetching exams:", error);
-    return [];
+/**
+ * Fetch all published exams (memoized with React cache)
+ */
+export const getPublishedExams = cache(async (): Promise<Exam[]> => {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("exams")
+      .select("*")
+      .eq("published", true)
+      .order("name", { ascending: true });
+
+    if (error || !data || data.length === 0) {
+      return DEFAULT_FALLBACK_EXAMS;
+    }
+    return data;
+  } catch {
+    return DEFAULT_FALLBACK_EXAMS;
   }
-  return data || [];
-}
+});
 
 /**
- * Fetch a single published exam by slug along with its published sections
+ * Fetch a single published exam by slug along with its published sections (memoized)
  */
-export async function getExamBySlug(slug: string): Promise<(Exam & { sections: ExamSection[] }) | null> {
-  const supabase = await createClient();
-  const { data: exam, error: examError } = await supabase
-    .from("exams")
-    .select("*")
-    .eq("slug", slug)
-    .eq("published", true)
-    .maybeSingle();
+export const getExamBySlug = cache(async (slug: string): Promise<(Exam & { sections: ExamSection[] }) | null> => {
+  try {
+    const supabase = await createClient();
+    const { data: exam, error: examError } = await supabase
+      .from("exams")
+      .select("*")
+      .eq("slug", slug)
+      .eq("published", true)
+      .maybeSingle();
 
-  if (examError || !exam) {
+    if (examError || !exam) {
+      const fallback = DEFAULT_FALLBACK_EXAMS.find((e) => e.slug === slug);
+      if (fallback) {
+        return {
+          ...fallback,
+          sections: [
+            {
+              id: `sec-${slug}-1`,
+              exam_id: fallback.id,
+              slug: slug === "ugee" ? "supr" : "proficiency",
+              name: slug === "ugee" ? "SUPR (Subject Proficiency)" : "Subject Proficiency",
+              description: "Core science questions in Mathematics, Physics, and Chemistry.",
+              default_duration_seconds: 3600,
+              display_order: 1,
+              published: true,
+              created_at: fallback.created_at,
+              updated_at: fallback.updated_at,
+            },
+            {
+              id: `sec-${slug}-2`,
+              exam_id: fallback.id,
+              slug: slug === "ugee" ? "reap" : "aptitude",
+              name: slug === "ugee" ? "REAP (Research Aptitude)" : "Aptitude & Reasoning",
+              description: "Critical thinking, data interpretation, and problem solving.",
+              default_duration_seconds: 7200,
+              display_order: 2,
+              published: true,
+              created_at: fallback.created_at,
+              updated_at: fallback.updated_at,
+            },
+          ],
+        };
+      }
+      return null;
+    }
+
+    const { data: sections } = await supabase
+      .from("exam_sections")
+      .select("*")
+      .eq("exam_id", exam.id)
+      .eq("published", true)
+      .order("display_order", { ascending: true });
+
+    return {
+      ...exam,
+      sections: sections || [],
+    };
+  } catch {
+    const fallback = DEFAULT_FALLBACK_EXAMS.find((e) => e.slug === slug);
+    if (fallback) {
+      return {
+        ...fallback,
+        sections: [],
+      };
+    }
     return null;
   }
-
-  const { data: sections } = await supabase
-    .from("exam_sections")
-    .select("*")
-    .eq("exam_id", exam.id)
-    .eq("published", true)
-    .order("display_order", { ascending: true });
-
-  return {
-    ...exam,
-    sections: sections || [],
-  };
-}
+});
 
 /**
- * Fetch exam sections by exam ID
+ * Fetch exam sections by exam ID (memoized)
  */
-export async function getExamSections(examId: string): Promise<ExamSection[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("exam_sections")
-    .select("*")
-    .eq("exam_id", examId)
-    .eq("published", true)
-    .order("display_order", { ascending: true });
+export const getExamSections = cache(async (examId: string): Promise<ExamSection[]> => {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("exam_sections")
+      .select("*")
+      .eq("exam_id", examId)
+      .eq("published", true)
+      .order("display_order", { ascending: true });
 
-  if (error) {
-    console.error("Error fetching exam sections:", error);
+    if (error || !data) {
+      return [];
+    }
+    return data;
+  } catch {
     return [];
   }
-  return data || [];
-}
+});
 
 /**
- * Fetch full subject hierarchy: Subject -> Chapters -> Topics
+ * Fetch full subject hierarchy: Subject -> Chapters -> Topics (memoized)
  */
-export async function getSubjectsWithHierarchy(): Promise<SubjectWithHierarchy[]> {
+export const getSubjectsWithHierarchy = cache(async (): Promise<SubjectWithHierarchy[]> => {
   const supabase = await createClient();
-  const { data: subjects, error: subError } = await supabase
-    .from("subjects")
-    .select("*")
-    .order("display_order", { ascending: true });
+  const [
+    { data: subjects, error: subError },
+    { data: chapters },
+    { data: topics },
+  ] = await Promise.all([
+    supabase.from("subjects").select("*").order("display_order", { ascending: true }),
+    supabase.from("chapters").select("*").order("display_order", { ascending: true }),
+    supabase.from("topics").select("*").order("display_order", { ascending: true }),
+  ]);
 
   if (subError || !subjects) {
     return [];
   }
-
-  const { data: chapters } = await supabase
-    .from("chapters")
-    .select("*")
-    .order("display_order", { ascending: true });
-
-  const { data: topics } = await supabase
-    .from("topics")
-    .select("*")
-    .order("display_order", { ascending: true });
 
   const chaptersMap = new Map<string, (Chapter & { topics: Topic[] })[]>();
 
@@ -120,7 +188,7 @@ export async function getSubjectsWithHierarchy(): Promise<SubjectWithHierarchy[]
     ...sub,
     chapters: chaptersMap.get(sub.id) || [],
   }));
-}
+});
 
 /**
  * Fetch a single topic with its chapter, subject, and question count
@@ -174,11 +242,48 @@ export interface QuestionFilters {
   offset?: number;
 }
 
+const OLD_TEST_IDS = new Set([
+  "587d3e0d-da6e-4b20-bc98-5339ae1f1f1e",
+  "64a2c6a7-77eb-426e-bc3f-c492865aac77",
+  "c0d075f7-3af9-4aee-8b9a-7321b2885ead",
+]);
+
 /**
- * Fetch published questions with their options (Security: Answer keys are NEVER queried or returned)
+ * Fetch published questions linked to active mock tests (Security: Answer keys are NEVER queried or returned).
+ * Deduplicates questions by text and ensures only questions from active published mock tests are visible.
  */
 export async function getPublishedQuestions(filters: QuestionFilters = {}): Promise<QuestionWithDetails[]> {
   const supabase = await createClient();
+
+  // 1. Find all active published tests (excluding legacy sample tests)
+  const { data: publishedTests } = await supabase
+    .from("tests")
+    .select("id")
+    .eq("status", "published");
+
+  const validTestIds = (publishedTests || [])
+    .map((t) => t.id)
+    .filter((id) => !OLD_TEST_IDS.has(id));
+
+  // If no published mock test exists, return empty array immediately (no duplicate / orphan questions)
+  if (validTestIds.length === 0) {
+    return [];
+  }
+
+  // 2. Get questions linked to active published tests
+  const { data: testQuestions } = await supabase
+    .from("test_questions")
+    .select("question_id")
+    .in("test_id", validTestIds);
+
+  if (!testQuestions || testQuestions.length === 0) {
+    return [];
+  }
+
+  const linkedQuestionIds = Array.from(new Set(testQuestions.map((tq) => tq.question_id)));
+  if (linkedQuestionIds.length === 0) {
+    return [];
+  }
 
   let query = supabase
     .from("questions")
@@ -190,6 +295,7 @@ export async function getPublishedQuestions(filters: QuestionFilters = {}): Prom
       chapter:chapters(id, slug, name),
       topic:topics(id, slug, name)
     `)
+    .in("id", linkedQuestionIds)
     .eq("status", "published")
     .order("created_at", { ascending: true });
 
@@ -205,13 +311,22 @@ export async function getPublishedQuestions(filters: QuestionFilters = {}): Prom
     query = query.range(filters.offset, filters.offset + (filters.limit || 20) - 1);
   }
 
-  const { data: questions, error } = await query;
+  const { data: rawQuestions, error } = await query;
 
-  if (error || !questions || questions.length === 0) {
+  if (error || !rawQuestions || rawQuestions.length === 0) {
     return [];
   }
 
-  const questionIds = questions.map((q) => q.id);
+  // 3. Deduplicate questions by normalized question_text
+  const seenTexts = new Set<string>();
+  const uniqueQuestions = rawQuestions.filter((q) => {
+    const norm = (q.question_text || "").trim().toLowerCase();
+    if (seenTexts.has(norm)) return false;
+    seenTexts.add(norm);
+    return true;
+  });
+
+  const questionIds = uniqueQuestions.map((q) => q.id);
 
   const { data: options } = await supabase
     .from("question_options")
@@ -226,7 +341,7 @@ export async function getPublishedQuestions(filters: QuestionFilters = {}): Prom
     optionsMap.set(opt.question_id, list);
   });
 
-  return questions.map((q) => ({
+  return uniqueQuestions.map((q) => ({
     ...q,
     options: optionsMap.get(q.id) || [],
   })) as QuestionWithDetails[];
@@ -247,28 +362,30 @@ export async function getPublishedTests(examSlug?: string): Promise<TestWithDeta
     .eq("status", "published")
     .order("created_at", { ascending: true });
 
-  const { data: tests, error } = await testQuery;
+  const { data: rawTests, error } = await testQuery;
 
-  if (error || !tests) {
+  if (error || !rawTests) {
     return [];
   }
 
+  const tests = rawTests.filter((t) => !OLD_TEST_IDS.has(t.id));
   const testIds = tests.map((t) => t.id);
   if (testIds.length === 0) return [];
 
-  const { data: testSections } = await supabase
-    .from("test_sections")
-    .select(`
-      *,
-      section:exam_sections(*)
-    `)
-    .in("test_id", testIds)
-    .order("display_order", { ascending: true });
-
-  const { data: testQuestions } = await supabase
-    .from("test_questions")
-    .select("test_id, marks")
-    .in("test_id", testIds);
+  const [{ data: testSections }, { data: testQuestions }] = await Promise.all([
+    supabase
+      .from("test_sections")
+      .select(`
+        *,
+        section:exam_sections(*)
+      `)
+      .in("test_id", testIds)
+      .order("display_order", { ascending: true }),
+    supabase
+      .from("test_questions")
+      .select("test_id, marks")
+      .in("test_id", testIds),
+  ]);
 
   const sectionsByTest = new Map<string, (TestSection & { section: ExamSection })[]>();
   (testSections || []).forEach((ts) => {
