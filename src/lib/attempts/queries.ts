@@ -40,28 +40,57 @@ export async function getAttemptForTaking(attemptId: string): Promise<AttemptFor
     if (!isAdmin) return null;
   }
 
-  // 2. Fetch test details
-  const { data: test, error: testErr } = await supabase
-    .from("tests")
-    .select(`
-      *,
-      exam:exams(id, slug, name, description)
-    `)
-    .eq("id", attempt.test_id)
-    .maybeSingle();
+  // 2. Fetch test, sections, and attempt questions in parallel
+  const [
+    { data: test, error: testErr },
+    { data: testSections },
+    { data: attemptQuestions, error: aqErr },
+  ] = await Promise.all([
+    supabase
+      .from("tests")
+      .select(`
+        *,
+        exam:exams(id, slug, name, description)
+      `)
+      .eq("id", attempt.test_id)
+      .maybeSingle(),
+    supabase
+      .from("test_sections")
+      .select(`
+        *,
+        section:exam_sections(*)
+      `)
+      .eq("test_id", attempt.test_id)
+      .order("display_order", { ascending: true }),
+    supabase
+      .from("attempt_questions")
+      .select(`
+        id,
+        attempt_id,
+        question_id,
+        section_id,
+        display_order,
+        selected_option_id,
+        status,
+        marked_for_review,
+        marks,
+        negative_marks,
+        section:exam_sections(name),
+        question:questions(
+          id,
+          question_text,
+          difficulty,
+          subject_id,
+          subject:subjects(id, name, slug)
+        )
+      `)
+      .eq("attempt_id", attemptId)
+      .order("display_order", { ascending: true }),
+  ]);
 
   if (testErr || !test) {
     return null;
   }
-
-  const { data: testSections } = await supabase
-    .from("test_sections")
-    .select(`
-      *,
-      section:exam_sections(*)
-    `)
-    .eq("test_id", test.id)
-    .order("display_order", { ascending: true });
 
   const fullTest: TestWithDetails = {
     ...test,
@@ -69,32 +98,6 @@ export async function getAttemptForTaking(attemptId: string): Promise<AttemptFor
     total_questions: attempt.total_questions,
     total_marks: attempt.max_score,
   };
-
-  // 3. Fetch attempt questions (safe payload: no answer keys, no explanations)
-  const { data: attemptQuestions, error: aqErr } = await supabase
-    .from("attempt_questions")
-    .select(`
-      id,
-      attempt_id,
-      question_id,
-      section_id,
-      display_order,
-      selected_option_id,
-      status,
-      marked_for_review,
-      marks,
-      negative_marks,
-      section:exam_sections(name),
-      question:questions(
-        id,
-        question_text,
-        difficulty,
-        subject_id,
-        subject:subjects(id, name, slug)
-      )
-    `)
-    .eq("attempt_id", attemptId)
-    .order("display_order", { ascending: true });
 
   if (aqErr || !attemptQuestions || attemptQuestions.length === 0) {
     return null;
@@ -466,11 +469,16 @@ export async function getAttemptReview(attemptId: string): Promise<AttemptReview
 /**
  * Fetch all attempts for the current student
  */
-export async function getUserAttempts(): Promise<TestAttempt[]> {
+export async function getUserAttempts(passedUserId?: string): Promise<TestAttempt[]> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  let userId = passedUserId;
 
-  if (!user) return [];
+  if (!userId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    userId = user?.id;
+  }
+
+  if (!userId) return [];
 
   const { data: attempts, error } = await supabase
     .from("test_attempts")
@@ -491,7 +499,7 @@ export async function getUserAttempts(): Promise<TestAttempt[]> {
         exam:exams(id, slug, name, description)
       )
     `)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   if (error || !attempts) {

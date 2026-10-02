@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { FormEvent, useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 function LoginFormContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const initialRole = searchParams.get("role") === "admin" ? "admin" : "student";
   const nextUrl = searchParams.get("next");
@@ -51,7 +52,7 @@ function LoginFormContent() {
       return;
     }
 
-    // Role-based routing and verification
+    // Role-based routing and verification with instant SPA redirect
     if (role === "admin") {
       const { data: adminMembership } = await supabase
         .from("admin_users")
@@ -67,16 +68,18 @@ function LoginFormContent() {
         return;
       }
 
-      window.location.href = nextUrl || "/admin";
+      router.push(nextUrl || "/admin");
+      router.refresh();
     } else {
-      window.location.href = nextUrl || "/dashboard";
+      router.push(nextUrl || "/dashboard");
+      router.refresh();
     }
   }
 
   const isAdminTab = role === "admin";
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 flex items-center justify-center p-4 sm:p-6 lg:p-8 font-sans selection:bg-blue-600 selection:text-white">
+    <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 flex items-center justify-center p-4 sm:p-6 lg:p-8 font-sans selection:bg-blue-600 selection:text-white relative overflow-x-hidden w-full max-w-full">
       {/* Background glow */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 h-96 w-96 rounded-full bg-blue-600/10 blur-[100px] pointer-events-none"></div>
 
@@ -106,21 +109,19 @@ function LoginFormContent() {
                 {isAdminTab ? "🛡️ ADMINISTRATOR ACCESS" : "👨‍🎓 STUDENT ENTRANCE PORTAL"}
               </span>
 
-              {/* Discreet Switcher Link */}
-              <button
-                type="button"
-                onClick={() => {
-                  setRole(isAdminTab ? "student" : "admin");
-                  setMessage("");
-                }}
-                className={`text-xs font-bold transition-colors ${
-                  isAdminTab
-                    ? "text-sky-300 hover:text-white"
-                    : "text-slate-500 hover:text-blue-700"
-                }`}
-              >
-                {isAdminTab ? "Student Login &rarr;" : "Admin Portal &rarr;"}
-              </button>
+              {/* Discreet Switcher Link - only visible from student portal */}
+              {!isAdminTab && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRole("admin");
+                    setMessage("");
+                  }}
+                  className="text-xs font-bold text-slate-500 hover:text-blue-700 transition-colors"
+                >
+                  Admin Portal &rarr;
+                </button>
+              )}
             </div>
 
             <h1 className={`mt-3 text-2xl sm:text-3xl font-extrabold tracking-tight ${isAdminTab ? "text-white" : "text-slate-900"}`}>
@@ -171,7 +172,7 @@ function LoginFormContent() {
                 </label>
                 <Link
                   className="text-xs font-semibold text-blue-700 hover:text-blue-900"
-                  href="/forgot-password"
+                  href={email.trim() ? `/forgot-password?email=${encodeURIComponent(email.trim())}` : "/forgot-password"}
                 >
                   Forgot password?
                 </Link>
@@ -218,10 +219,21 @@ function LoginFormContent() {
 
             {/* Register link */}
             <div className="pt-2 text-center text-xs text-slate-500 border-t border-slate-100">
-              New aspirant?{" "}
-              <Link className="font-bold text-blue-700 hover:text-blue-900" href="/register">
-                Create a student account
-              </Link>
+              {isAdminTab ? (
+                <>
+                  Need an administrator account?{" "}
+                  <Link className="font-bold text-sky-700 hover:text-sky-900" href="/register?role=admin">
+                    Create Admin Account &rarr;
+                  </Link>
+                </>
+              ) : (
+                <>
+                  New aspirant?{" "}
+                  <Link className="font-bold text-blue-700 hover:text-blue-900" href="/register">
+                    Create a student account &rarr;
+                  </Link>
+                </>
+              )}
             </div>
           </form>
         </div>

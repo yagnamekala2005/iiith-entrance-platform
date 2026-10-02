@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { startTestAttempt } from "@/lib/attempts/actions";
 
@@ -20,19 +20,26 @@ export function StartAttemptButton({
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
+  useEffect(() => {
+    if (hasActiveAttempt && activeAttemptId) {
+      router.prefetch(`/attempts/${activeAttemptId}`);
+    }
+  }, [hasActiveAttempt, activeAttemptId, router]);
+
   const handleStartOrResume = async () => {
     if (hasActiveAttempt && activeAttemptId) {
+      setIsLoading(true);
       router.push(`/attempts/${activeAttemptId}`);
       return;
     }
 
     setIsLoading(true);
     const res = await startTestAttempt(testId);
-    setIsLoading(false);
 
     if (res.success && res.data) {
       router.push(`/attempts/${res.data.attemptId}`);
     } else {
+      setIsLoading(false);
       alert(res.error || "Failed to start attempt. Please log in and try again.");
     }
   };
@@ -49,13 +56,18 @@ export function StartAttemptButton({
       type="button"
       disabled={isLoading}
       onClick={handleStartOrResume}
-      className={`rounded-xl bg-blue-700 text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 disabled:opacity-50 transition-all uppercase tracking-wider ${sizeClasses}`}
+      className={`rounded-xl bg-blue-700 text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 disabled:opacity-50 transition-all uppercase tracking-wider flex items-center justify-center gap-2 ${sizeClasses}`}
     >
-      {isLoading
-        ? "Initializing CBT Session..."
-        : hasActiveAttempt
-        ? "Resume Live Exam &rarr;"
-        : "Start Mock Exam &rarr;"}
+      {isLoading ? (
+        <>
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+          <span>{hasActiveAttempt ? "Opening Exam..." : "Launching Exam..."}</span>
+        </>
+      ) : hasActiveAttempt ? (
+        "Resume Live Exam →"
+      ) : (
+        "Start Mock Exam →"
+      )}
     </button>
   );
 }

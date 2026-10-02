@@ -40,6 +40,31 @@ export function DashboardQuestionTabs({ questions }: DashboardQuestionTabsProps)
     }));
   };
 
+  if (questions.length === 0) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-2xl">
+          📝
+        </div>
+        <h3 className="mt-4 text-xl font-bold text-slate-900">
+          Interactive Practice Questions
+        </h3>
+        <p className="mt-2 text-xs sm:text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
+          Questions will appear here automatically when an administrator authors and publishes a mock test.
+        </p>
+        <div className="mt-5">
+          <Link
+            href="/tests"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-blue-700 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 transition-all"
+          >
+            <span>View Available Mock Tests</span>
+            <span>&rarr;</span>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-8 shadow-xs">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-5">
