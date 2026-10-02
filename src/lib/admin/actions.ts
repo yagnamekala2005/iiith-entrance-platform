@@ -118,6 +118,20 @@ export async function createAdminQuestion(input: CreateQuestionInput) {
     // 4. Optionally link question to specified active tests
     if (input.add_to_test_ids && input.add_to_test_ids.length > 0) {
       for (const testId of input.add_to_test_ids) {
+        // Check test current status
+        const { data: currentTest } = await adminClient
+          .from("tests")
+          .select("id, status")
+          .eq("id", testId)
+          .maybeSingle();
+
+        const wasPublished = currentTest?.status === "published";
+
+        // If published, temporarily switch to draft to allow linking questions
+        if (wasPublished) {
+          await adminClient.from("tests").update({ status: "draft" }).eq("id", testId);
+        }
+
         // Find highest display order in test
         const { count } = await adminClient
           .from("test_questions")
@@ -126,14 +140,34 @@ export async function createAdminQuestion(input: CreateQuestionInput) {
 
         const newOrder = (count || 0) + 1;
 
-        await adminClient.from("test_questions").insert({
+        // Ensure valid section_id from test_sections
+        let targetSectionId = input.section_id || null;
+        if (!targetSectionId) {
+          const { data: testSections } = await adminClient
+            .from("test_sections")
+            .select("section_id")
+            .eq("test_id", testId)
+            .limit(1);
+          targetSectionId = testSections?.[0]?.section_id || null;
+        }
+
+        const { error: linkErr } = await adminClient.from("test_questions").insert({
           test_id: testId,
           question_id: newQ.id,
-          section_id: input.section_id || null,
+          section_id: targetSectionId,
           display_order: newOrder,
           marks: input.marks || 1,
           negative_marks: input.negative_marks || 0.25,
         });
+
+        if (linkErr) {
+          console.error("Error linking question to test:", linkErr);
+        }
+
+        // Restore published status if it was published
+        if (wasPublished) {
+          await adminClient.from("tests").update({ status: "published" }).eq("id", testId);
+        }
       }
     }
 
@@ -168,13 +202,44 @@ export async function deleteAdminQuestion(questionId: string) {
 
     const adminClient = createAdminClient();
 
-    // Delete test_questions link first
+    // 1. Find tests linked to this question
+    const { data: linkedTests } = await adminClient
+      .from("test_questions")
+      .select("test_id")
+      .eq("question_id", questionId);
+
+    const testIds = Array.from(new Set((linkedTests || []).map((t) => t.test_id)));
+
+    // For any published tests, temporarily set status to draft to allow question removal
+    const publishedTestIds: string[] = [];
+    if (testIds.length > 0) {
+      const { data: pubTests } = await adminClient
+        .from("tests")
+        .select("id")
+        .in("id", testIds)
+        .eq("status", "published");
+
+      if (pubTests && pubTests.length > 0) {
+        for (const pt of pubTests) {
+          publishedTestIds.push(pt.id);
+        }
+        await adminClient.from("tests").update({ status: "draft" }).in("id", publishedTestIds);
+      }
+    }
+
+    // 2. Delete test_questions link
     await adminClient.from("test_questions").delete().eq("question_id", questionId);
-    // Delete answer key
+
+    // 3. Restore published status on tests
+    if (publishedTestIds.length > 0) {
+      await adminClient.from("tests").update({ status: "published" }).in("id", publishedTestIds);
+    }
+
+    // 4. Delete answer key
     await adminClient.from("question_answer_keys").delete().eq("question_id", questionId);
-    // Delete options
+    // 5. Delete options
     await adminClient.from("question_options").delete().eq("question_id", questionId);
-    // Delete question
+    // 6. Delete question from questions table in Supabase
     const { error: delErr } = await adminClient.from("questions").delete().eq("id", questionId);
 
     if (delErr) {
@@ -285,9 +350,9 @@ export async function createAdminMockTest(input: CreateMockTestInput) {
         test_type: input.test_type || "mock",
         duration_seconds: durationSeconds,
         description: input.description?.trim() || `Official CBT mock examination for IIITH entrance.`,
-        status: "published",
+        status: "draft",
       })
-      .select("id, name, slug, duration_seconds, test_type, exam_id")
+      .select("id, name, slug, duration_seconds, test_type, exam_id, status")
       .single();
 
     if (testErr || !newTest) {
@@ -350,7 +415,7 @@ export async function deleteAdminMockTest(testId: string) {
     await adminClient.from("test_questions").delete().eq("test_id", testId);
     await adminClient.from("test_sections").delete().eq("test_id", testId);
 
-    // 3. Delete associated attempts and attempt questions with authenticated admin client
+    // 3. Delete associated attempts and attempt questions with admin client
     try {
       const { data: testAttempts } = await adminClient
         .from("test_attempts")
@@ -359,14 +424,14 @@ export async function deleteAdminMockTest(testId: string) {
 
       if (testAttempts && testAttempts.length > 0) {
         const attemptIds = testAttempts.map((a) => a.id);
-        await supabase.from("attempt_questions").delete().in("attempt_id", attemptIds);
+        await adminClient.from("attempt_questions").delete().in("attempt_id", attemptIds);
         await adminClient.from("test_attempts").delete().in("id", attemptIds);
       }
     } catch (e) {
       console.warn("Attempt cleanup notice:", e);
     }
 
-    // 4. Finally delete the test row
+    // 4. Finally delete the test row from tests table in Supabase
     const { error: delErr } = await adminClient.from("tests").delete().eq("id", testId);
 
     if (delErr) {
@@ -419,7 +484,7 @@ export async function cleanAllOldMockTests() {
       const { data: allAttempts } = await adminClient.from("test_attempts").select("id");
       if (allAttempts && allAttempts.length > 0) {
         const attemptIds = allAttempts.map((a) => a.id);
-        await supabase.from("attempt_questions").delete().in("attempt_id", attemptIds);
+        await adminClient.from("attempt_questions").delete().in("attempt_id", attemptIds);
         await adminClient.from("test_attempts").delete().in("id", attemptIds);
       }
     } catch (e) {
@@ -573,6 +638,170 @@ export async function deleteAdminTopic(topicId: string) {
     return { success: true };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Failed to delete topic.";
+    return { success: false, error: msg };
+  }
+}
+
+export interface TopicLearningContentInput {
+  name?: string;
+  summary?: string;
+  explanation?: string;
+  formulas?: string;
+  resources?: {
+    title: string;
+    url: string;
+    type: "pdf" | "book" | "formula_sheet" | "notes" | "link";
+  }[];
+}
+
+export async function updateTopicLearningContent(
+  topicId: string,
+  content: TopicLearningContentInput
+) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { success: false, error: "Authentication required." };
+
+    const { data: adminMembership } = await supabase
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!adminMembership) {
+      return { success: false, error: "Admin authorization required." };
+    }
+
+    const adminClient = createAdminClient();
+
+    const payload = JSON.stringify({
+      summary: content.summary || "",
+      explanation: content.explanation || "",
+      formulas: content.formulas || "",
+      resources: content.resources || [],
+    });
+
+    const updateObj: Record<string, unknown> = {
+      description: payload,
+    };
+
+    if (content.name && content.name.trim()) {
+      updateObj.name = content.name.trim();
+    }
+
+    const { data, error } = await adminClient
+      .from("topics")
+      .update(updateObj)
+      .eq("id", topicId)
+      .select("id, name, description, chapter_id")
+      .single();
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath("/admin");
+    revalidatePath("/learning");
+    revalidatePath("/practice");
+    revalidatePath("/", "layout");
+
+    return { success: true, topic: data };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to update learning content.";
+    return { success: false, error: msg };
+  }
+}
+
+export async function updateAdminQuestion(
+  questionId: string,
+  input: CreateQuestionInput
+) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { success: false, error: "Authentication required." };
+
+    const { data: adminMembership } = await supabase
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!adminMembership) {
+      return { success: false, error: "Admin authorization required." };
+    }
+
+    const adminClient = createAdminClient();
+
+    // 1. Update basic question fields
+    const { error: qErr } = await adminClient
+      .from("questions")
+      .update({
+        subject_id: input.subject_id,
+        chapter_id: input.chapter_id || null,
+        topic_id: input.topic_id || null,
+        exam_id: input.exam_id || null,
+        section_id: input.section_id || null,
+        question_text: input.question_text.trim(),
+        difficulty: input.difficulty,
+        explanation: input.explanation ? input.explanation.trim() : null,
+        marks: input.marks || 1,
+        negative_marks: input.negative_marks || 0.25,
+      })
+      .eq("id", questionId);
+
+    if (qErr) {
+      return { success: false, error: qErr.message };
+    }
+
+    // 2. Update options: delete existing and reinsert
+    await adminClient.from("question_answer_keys").delete().eq("question_id", questionId);
+    await adminClient.from("question_options").delete().eq("question_id", questionId);
+
+    const optionsPayload = input.options.map((opt, idx) => ({
+      question_id: questionId,
+      option_label: opt.label.toUpperCase(),
+      option_text: opt.text.trim(),
+      display_order: idx + 1,
+    }));
+
+    const { data: insertedOptions, error: optErr } = await adminClient
+      .from("question_options")
+      .insert(optionsPayload)
+      .select("id, option_label");
+
+    if (optErr || !insertedOptions) {
+      return { success: false, error: "Failed to update options." };
+    }
+
+    // 3. Set answer key
+    const correctOpt = insertedOptions.find(
+      (o) => o.option_label === input.correct_option_label.toUpperCase()
+    );
+
+    if (correctOpt) {
+      await adminClient.from("question_answer_keys").insert({
+        question_id: questionId,
+        correct_option_id: correctOpt.id,
+      });
+    }
+
+    // 4. Update marks in test_questions if linked
+    await adminClient.from("test_questions").update({
+      marks: input.marks || 1,
+      negative_marks: input.negative_marks || 0.25,
+    }).eq("question_id", questionId);
+
+    revalidatePath("/admin");
+    revalidatePath("/dashboard");
+    revalidatePath("/tests");
+
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to update question.";
     return { success: false, error: msg };
   }
 }

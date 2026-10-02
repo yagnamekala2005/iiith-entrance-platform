@@ -64,3 +64,33 @@ body {
     linear-gradient(to right, rgba(226, 232, 240, 0.6) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(226, 232, 240, 0.6) 1px, transparent 1px);
 }
+
+/* ========================================================================= */
+/* ANTI-SCREENSHOT & EXAM INTEGRITY PROTECTIONS */
+/* ========================================================================= */
+
+/* Block printing and save to PDF completely */
+@media print {
+  html, body, main, div, header, aside, section {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+  }
+}
+
+/* Disable text selection and mobile long-press callouts across app */
+body, .no-screenshot, .cbt-exam-container {
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  -khtml-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+}
+
+/* Allow text editing inside form inputs so users and admins can type */
+input, textarea, select {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+}
+

@@ -49,6 +49,19 @@ export default async function AttemptResultPage({ params }: PageProps) {
 
   return (
     <main className="mx-auto max-w-6xl px-3 py-6 sm:px-6 sm:py-8 lg:px-8 font-sans">
+      {/* 1-Step Back Navigation */}
+      <div className="mb-3">
+        <Link
+          href="/attempts"
+          prefetch={true}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 active:scale-95 px-3 py-1.5 text-xs font-bold text-slate-700 transition-all shadow-2xs"
+          title="Return to My Attempts"
+        >
+          <span className="text-sm font-black leading-none">‹</span>
+          <span>Back to My Attempts</span>
+        </Link>
+      </div>
+
       {/* Breadcrumbs */}
       <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
         <Link href="/dashboard" className="hover:text-blue-700">Dashboard</Link>
