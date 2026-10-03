@@ -6,6 +6,7 @@ import type { AttemptForTaking, AttemptQuestionTaking } from "@/types/content";
 import { QuestionPalette } from "./question-palette";
 import { SubmitModal } from "./submit-modal";
 import { ScientificCalculator } from "@/components/calculator/scientific-calculator";
+import { AntiScreenshotShield } from "@/components/security/anti-screenshot-shield";
 import {
   saveAttemptAnswer,
   clearAttemptAnswer,
@@ -30,7 +31,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [autoSubmitTriggered, setAutoSubmitTriggered] = useState<boolean>(false);
 
-  // Unified Step-Back Handler (Navigates 1 step back instead of exiting app)
+  // Unified Step-Back Handler (Navigates 1 step back to previous page instead of exiting app)
   const handleStepBack = () => {
     // 1. If Scientific Calculator is open, close it (1 step back)
     if (isCalculatorOpen) {
@@ -47,17 +48,13 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
       setIsSubmitModalOpen(false);
       return;
     }
-    // 4. If Exit Modal is open, close it (1 step back)
+    // 4. If Exit Modal is open, safely return to tests page (1 step back)
     if (isExitModalOpen) {
       setIsExitModalOpen(false);
+      router.push("/tests");
       return;
     }
-    // 5. If on Question N (where N > 0), move back to Question N - 1 (1 step back)
-    if (currentIndex > 0) {
-      setCurrentIndex((prev) => prev - 1);
-      return;
-    }
-    // 6. If on the very first question, prompt with safe Pause & Exit modal
+    // 5. Open safe Pause & Return to Previous Page dialog
     setIsExitModalOpen(true);
   };
 
@@ -304,7 +301,10 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
   const canUseCalculator = !isAptitudeSubject;
 
   return (
-    <div className="min-h-screen bg-[#f1f5f9] flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-[#f1f5f9] flex flex-col font-sans selection:bg-blue-600 selection:text-white cbt-exam-container no-screenshot">
+      {/* Strict Anti-Screenshot & Screen Capture Protection Shield */}
+      <AntiScreenshotShield strictExamMode={true} />
+
       {/* Auto-Submit Expiration Modal */}
       {autoSubmitTriggered && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-in fade-in">
@@ -334,12 +334,12 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
             <button
               type="button"
               onClick={handleStepBack}
-              className="flex items-center gap-1 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 active:scale-95 px-2.5 py-1.5 text-xs font-bold text-slate-800 transition-all shadow-xs"
-              title="Go back one step (Previous question or close dialog)"
-              aria-label="Back one step"
+              className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 active:scale-95 px-3 py-1.5 text-xs font-bold text-slate-800 transition-all shadow-xs"
+              title="Pause and return to previous page"
+              aria-label="Return to previous page"
             >
               <span className="text-sm font-black leading-none">‹</span>
-              <span className="text-[11px] font-bold">Back</span>
+              <span className="text-xs font-bold">Return to Tests</span>
             </button>
 
             <span className="rounded-lg bg-blue-700 px-2 sm:px-2.5 py-1 text-[10px] sm:text-xs font-black tracking-widest text-white uppercase shadow-xs">
@@ -685,10 +685,10 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
               ⏸️
             </div>
             <h3 className="mt-4 text-xl font-extrabold text-slate-900">
-              Pause & Exit Mock Test?
+              Return to Previous Page?
             </h3>
             <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
-              Your answered questions and remaining time are saved in real-time. You can resume this exam whenever you return.
+              Your test is safely paused. All answered questions and remaining time are preserved in real-time. You can resume this exam at any time.
             </p>
             <div className="mt-6 flex flex-col sm:flex-row gap-3">
               <button
@@ -702,11 +702,11 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                 type="button"
                 onClick={() => {
                   setIsExitModalOpen(false);
-                  router.push("/dashboard");
+                  router.push("/tests");
                 }}
                 className="flex-1 rounded-xl border border-slate-300 bg-slate-100 py-3 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-200 active:scale-95 transition-all"
               >
-                Exit to Dashboard
+                ← Return to Tests
               </button>
             </div>
           </div>

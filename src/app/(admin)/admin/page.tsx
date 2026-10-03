@@ -44,7 +44,7 @@ export default async function AdminPage() {
   ] = await Promise.all([
     adminClient.from("subjects").select("id, name, slug").order("display_order", { ascending: true }),
     adminClient.from("chapters").select("id, name, subject_id").order("display_order", { ascending: true }),
-    adminClient.from("topics").select("id, name, chapter_id").order("display_order", { ascending: true }),
+    adminClient.from("topics").select("id, name, chapter_id, description").order("display_order", { ascending: true }),
     adminClient.from("exams").select("id, name, slug"),
     adminClient.from("tests").select("id, name, slug, duration_seconds, test_type, exam_id, description, status").neq("status", "archived").order("created_at", { ascending: false }),
     adminClient.auth.admin.listUsers(),
@@ -55,56 +55,55 @@ export default async function AdminPage() {
   const tests = (rawTests || []).filter((t) => !oldTestIdSet.has(t.id));
   const validTestIds = tests.map((t) => t.id);
 
-  // Fetch only questions belonging to active mock tests (and deduplicate them)
+  // Fetch questions from Supabase linked to active mock tests or authored
   type AdminQuestionItem = {
     id: string;
+    subject_id?: string;
+    chapter_id?: string | null;
+    topic_id?: string | null;
+    exam_id?: string | null;
     question_text: string;
     difficulty: string;
     marks: number;
     negative_marks: number;
     explanation: string | null;
     subject: { id: string; name: string } | null;
-    options: { id: string; option_label: string; option_text: string }[];
+    options: { id: string; option_label: string; option_text: string; display_order?: number }[];
     answer_key: { correct_option_id: string }[] | null;
+    test_questions?: { test_id: string; display_order: number }[];
   };
   let initialQuestions: AdminQuestionItem[] = [];
 
-  if (validTestIds.length > 0) {
-    const { data: testQuestions } = await adminClient
-      .from("test_questions")
-      .select("question_id")
-      .in("test_id", validTestIds);
+  const { data: rawQuestions } = await adminClient
+    .from("questions")
+    .select(`
+      id,
+      subject_id,
+      chapter_id,
+      topic_id,
+      exam_id,
+      question_text,
+      difficulty,
+      marks,
+      negative_marks,
+      explanation,
+      created_at,
+      subject:subjects(id, name),
+      options:question_options(id, option_label, option_text, display_order),
+      answer_key:question_answer_keys(correct_option_id),
+      test_questions:test_questions(test_id, display_order)
+    `)
+    .neq("status", "archived")
+    .order("created_at", { ascending: true });
 
-    const linkedQuestionIds = Array.from(new Set((testQuestions || []).map((tq) => tq.question_id)));
-
-    if (linkedQuestionIds.length > 0) {
-      const { data: rawQuestions } = await adminClient
-        .from("questions")
-        .select(`
-          id,
-          question_text,
-          difficulty,
-          marks,
-          negative_marks,
-          explanation,
-          subject:subjects(id, name),
-          options:question_options(id, option_label, option_text),
-          answer_key:question_answer_keys(correct_option_id)
-        `)
-        .in("id", linkedQuestionIds)
-        .neq("status", "archived")
-        .order("created_at", { ascending: false });
-
-      // Deduplicate by normalized question text
-      const seenTexts = new Set<string>();
-      initialQuestions = ((rawQuestions as unknown as AdminQuestionItem[]) || []).filter((q) => {
-        const norm = (q.question_text || "").trim().toLowerCase();
-        if (seenTexts.has(norm)) return false;
-        seenTexts.add(norm);
-        return true;
-      });
-    }
-  }
+  // Deduplicate by normalized question text so duplicate seed questions are not shown
+  const seenTexts = new Set<string>();
+  initialQuestions = ((rawQuestions as unknown as AdminQuestionItem[]) || []).filter((q) => {
+    const norm = (q.question_text || "").trim().toLowerCase();
+    if (seenTexts.has(norm)) return false;
+    seenTexts.add(norm);
+    return true;
+  });
 
   const userEmailMap = new Map<string, string>();
   (usersList?.users || []).forEach((u) => {

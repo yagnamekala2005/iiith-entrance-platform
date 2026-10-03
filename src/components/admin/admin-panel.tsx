@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useTransition, useMemo } from "react";
+import React, { useState, useTransition, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   createAdminQuestion,
+  updateAdminQuestion,
   deleteAdminQuestion,
   addAdminUserByEmail,
   createAdminMockTest,
@@ -14,7 +15,12 @@ import {
   deleteAdminChapter,
   createAdminTopic,
   deleteAdminTopic,
+  updateTopicLearningContent,
 } from "@/lib/admin/actions";
+import {
+  parseTopicLearningContent,
+  type LearningResource,
+} from "@/lib/learning/topic-content";
 import { createClient } from "@/lib/supabase/client";
 
 interface SubjectItem {
@@ -33,6 +39,7 @@ interface TopicItem {
   id: string;
   name: string;
   chapter_id: string;
+  description?: string | null;
 }
 
 interface ExamItem {
@@ -54,14 +61,19 @@ interface TestItem {
 
 interface QuestionAdminItem {
   id: string;
+  subject_id?: string;
+  chapter_id?: string | null;
+  topic_id?: string | null;
+  exam_id?: string | null;
   question_text: string;
   difficulty: string;
   marks: number;
   negative_marks: number;
   explanation: string | null;
   subject?: { id: string; name: string } | null;
-  options: { id: string; option_label: string; option_text: string }[];
+  options: { id: string; option_label: string; option_text: string; display_order?: number }[];
   answer_key?: { correct_option_id: string }[] | null;
+  test_questions?: { test_id: string; display_order?: number }[];
 }
 
 interface AdminPanelProps {
@@ -95,11 +107,11 @@ export function AdminPanel({
     []
   );
 
-  // Primary workflow: Mock Tests first -> Add Question -> My Learning -> Question Bank -> Admin Roles
-  const [activeTab, setActiveTab] = useState<"tests" | "create" | "learning" | "list" | "admins">("tests");
+  // Primary navigation: Mock Tests -> Add Question -> My Learning -> Admin Roles (Question Bank removed)
+  const [activeTab, setActiveTab] = useState<"tests" | "create" | "learning" | "admins">("tests");
   const [isPending, startTransition] = useTransition();
 
-  // Mock Tests State (filter out old sample tests and archived tests)
+  // Mock Tests State
   const [mockTests, setMockTests] = useState<TestItem[]>(() =>
     tests.filter((t) => !OLD_TEST_IDS.has(t.id) && t.status !== "archived")
   );
@@ -124,7 +136,86 @@ export function AdminPanel({
   const [learningSuccessMessage, setLearningSuccessMessage] = useState<string>("");
   const [learningErrorMessage, setLearningErrorMessage] = useState<string>("");
 
-  // Create Question Form State
+  // Topic Rich Learning Content Editor Modal state
+  const [editingTopic, setEditingTopic] = useState<TopicItem | null>(null);
+  const [editTopicName, setEditTopicName] = useState<string>("");
+  const [editExplanation, setEditExplanation] = useState<string>("");
+  const [editFormulas, setEditFormulas] = useState<string>("");
+  const [editResources, setEditResources] = useState<LearningResource[]>([]);
+  const [isSavingTopicContent, setIsSavingTopicContent] = useState<boolean>(false);
+
+  // References to keep event handlers current without re-attaching listeners
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+
+  const editingTopicRef = useRef(editingTopic);
+  editingTopicRef.current = editingTopic;
+
+  const isCreatingMockTestRef = useRef(isCreatingMockTest);
+  isCreatingMockTestRef.current = isCreatingMockTest;
+
+  // Intercept back navigation so mobile phone gestures / back buttons come back 1 step instead of exiting app
+  useEffect(() => {
+    // Push an initial admin history state so mobile back gesture is intercepted
+    window.history.pushState({ adminStudio: true, tab: "tests" }, "");
+
+    const onPopState = () => {
+      // 1. If Topic Learning Content Editor modal is open, close it (1 step back)
+      if (editingTopicRef.current) {
+        setEditingTopic(null);
+        window.history.pushState({ adminStudio: true, tab: activeTabRef.current }, "");
+        return;
+      }
+
+      // 2. If New Mock Test form is open, close it (1 step back)
+      if (isCreatingMockTestRef.current) {
+        setIsCreatingMockTest(false);
+        window.history.pushState({ adminStudio: true, tab: "tests" }, "");
+        return;
+      }
+
+      // 3. If on a subtab ("learning", "create", "admins"), return to "tests" tab (1 step back)
+      if (activeTabRef.current !== "tests") {
+        setActiveTab("tests");
+        window.history.pushState({ adminStudio: true, tab: "tests" }, "");
+        return;
+      }
+
+      // 4. If already on the root "tests" tab, safely navigate back to dashboard instead of exiting app!
+      window.location.href = "/dashboard";
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, []);
+
+  const switchTab = (tab: "tests" | "create" | "learning" | "admins") => {
+    setActiveTab(tab);
+    window.history.pushState({ adminStudio: true, tab }, "");
+  };
+
+  // All questions in database
+  const [questions, setQuestions] = useState<QuestionAdminItem[]>(initialQuestions);
+
+  // Questions belonging to the currently selected mock test
+  const currentTestQuestions = useMemo(() => {
+    if (!selectedTargetTestId) return [];
+    return questions.filter((q) =>
+      q.test_questions?.some((tq) => tq.test_id === selectedTargetTestId)
+    );
+  }, [questions, selectedTargetTestId]);
+
+  // Selected mock test details
+  const currentTargetTest = mockTests.find((t) => t.id === selectedTargetTestId) || mockTests[0];
+
+  // Carousel & Question Index State
+  // When activeQuestionIndex < currentTestQuestions.length -> viewing/editing existing question
+  // When activeQuestionIndex >= currentTestQuestions.length -> authoring a new question
+  const [activeQuestionIndex, setActiveQuestionIndex] = useState<number>(0);
+
+  // Question Form State
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(subjects[0]?.id || "");
   const [selectedChapterId, setSelectedChapterId] = useState<string>("");
   const [selectedTopicId, setSelectedTopicId] = useState<string>("");
@@ -141,27 +232,125 @@ export function AdminPanel({
   const [successMessage, setSuccessMessage] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
 
-  // Questions List State
-  const [questions, setQuestions] = useState<QuestionAdminItem[]>(initialQuestions);
-  const [subjectFilter, setSubjectFilter] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState<string>("");
-
   // Admin enrollment
   const [newAdminEmail, setNewAdminEmail] = useState<string>("");
   const [adminEnrollMsg, setAdminEnrollMsg] = useState<string>("");
 
-  // Filtered chapters & topics
-  const filteredChapters = chapters.filter((c) => c.subject_id === selectedSubjectId);
-  const filteredTopics = topics.filter((t) => t.chapter_id === selectedChapterId);
+  // Filtered chapters & topics for question creator
+  const filteredChapters = adminChapters.filter((c) => c.subject_id === selectedSubjectId);
+  const filteredTopics = adminTopics.filter((t) => t.chapter_id === selectedChapterId);
 
-  // Selected mock test details
-  const currentTargetTest = mockTests.find((t) => t.id === selectedTargetTestId) || mockTests[0];
+  // Current editing state
+  const isEditingExisting = activeQuestionIndex < currentTestQuestions.length;
+  const currentEditingQuestion = isEditingExisting ? currentTestQuestions[activeQuestionIndex] : null;
 
   // Sign out handler
   const handleSignOut = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
     window.location.href = "/login?role=admin";
+  };
+
+  // Populate form with question data
+  const populateFormWithQuestion = (q: QuestionAdminItem) => {
+    setQuestionText(q.question_text || "");
+    setDifficulty((q.difficulty as "easy" | "medium" | "hard") || "medium");
+    setMarks(q.marks ?? 1);
+    setNegativeMarks(q.negative_marks ?? 0.25);
+    setExplanation(q.explanation || "");
+    setSelectedSubjectId(q.subject_id || q.subject?.id || subjects[0]?.id || "");
+    setSelectedChapterId(q.chapter_id || "");
+    setSelectedTopicId(q.topic_id || "");
+    setSelectedExamId(q.exam_id || currentTargetTest?.exam_id || exams[0]?.id || "");
+
+    const sortedOpts = [...(q.options || [])].sort((a, b) =>
+      a.option_label.localeCompare(b.option_label)
+    );
+    const optA = sortedOpts.find((o) => o.option_label === "A")?.option_text || "";
+    const optB = sortedOpts.find((o) => o.option_label === "B")?.option_text || "";
+    const optC = sortedOpts.find((o) => o.option_label === "C")?.option_text || "";
+    const optD = sortedOpts.find((o) => o.option_label === "D")?.option_text || "";
+    setOptions([optA, optB, optC, optD]);
+
+    const correctOptId = q.answer_key?.[0]?.correct_option_id;
+    const correctOpt = sortedOpts.find((o) => o.id === correctOptId || o.option_label === correctOptId);
+    setCorrectOptionLabel(correctOpt?.option_label || "A");
+  };
+
+  // Reset form for authoring a new question
+  const resetFormForNewQuestion = () => {
+    setQuestionText("");
+    setOptions(["", "", "", ""]);
+    setExplanation("");
+    setCorrectOptionLabel("A");
+    setMarks(1);
+    setNegativeMarks(0.25);
+    setErrorMessage("");
+  };
+
+  // Synchronize form when selectedTargetTestId changes
+  const handleSelectTargetTest = (testId: string) => {
+    setSelectedTargetTestId(testId);
+    const qs = questions.filter((q) => q.test_questions?.some((tq) => tq.test_id === testId));
+    if (qs.length > 0) {
+      setActiveQuestionIndex(0);
+      populateFormWithQuestion(qs[0]);
+    } else {
+      setActiveQuestionIndex(0);
+      resetFormForNewQuestion();
+    }
+    setSuccessMessage("");
+    setErrorMessage("");
+  };
+
+  // Carousel Navigation: Previous
+  const handlePrevQuestion = () => {
+    if (activeQuestionIndex > 0) {
+      const prevIdx = activeQuestionIndex - 1;
+      setActiveQuestionIndex(prevIdx);
+      if (currentTestQuestions[prevIdx]) {
+        populateFormWithQuestion(currentTestQuestions[prevIdx]);
+      }
+      setSuccessMessage("");
+      setErrorMessage("");
+    }
+  };
+
+  // Carousel Navigation: Next
+  const handleNextQuestion = () => {
+    if (activeQuestionIndex < currentTestQuestions.length - 1) {
+      const nextIdx = activeQuestionIndex + 1;
+      setActiveQuestionIndex(nextIdx);
+      populateFormWithQuestion(currentTestQuestions[nextIdx]);
+      setSuccessMessage("");
+      setErrorMessage("");
+    } else if (activeQuestionIndex === currentTestQuestions.length - 1) {
+      // Advance to "New Question" mode
+      setActiveQuestionIndex(currentTestQuestions.length);
+      resetFormForNewQuestion();
+      setSuccessMessage(`✍️ Ready to add Question #${currentTestQuestions.length + 1}.`);
+      setErrorMessage("");
+    }
+  };
+
+  // Carousel: Jump to + New Question
+  const handleNewQuestionClick = () => {
+    setActiveQuestionIndex(currentTestQuestions.length);
+    resetFormForNewQuestion();
+    setSuccessMessage(`✍️ Ready to author new Question #${currentTestQuestions.length + 1}.`);
+    setErrorMessage("");
+  };
+
+  // Jump directly to an existing question by index
+  const handleJumpToQuestion = (idx: number) => {
+    if (idx >= 0 && idx < currentTestQuestions.length) {
+      setActiveQuestionIndex(idx);
+      populateFormWithQuestion(currentTestQuestions[idx]);
+      setSuccessMessage("");
+      setErrorMessage("");
+    } else if (idx === currentTestQuestions.length) {
+      handleNewQuestionClick();
+    }
   };
 
   // Handle Option change
@@ -200,6 +389,7 @@ export function AdminPanel({
           test_type: res.test.test_type,
           exam_id: res.test.exam_id,
           description: newTestDescription.trim(),
+          status: "draft",
         };
         setMockTests((prev) => [created, ...prev]);
         setSelectedTargetTestId(res.test.id);
@@ -212,8 +402,8 @@ export function AdminPanel({
     });
   };
 
-  // Handler: Submit Question Creation
-  const handleCreateQuestion = async (e: React.FormEvent) => {
+  // Handler: Save or Update Question (connected to carousel & mock test)
+  const handleSaveQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
     setSuccessMessage("");
@@ -234,74 +424,145 @@ export function AdminPanel({
     }
 
     if (!selectedTargetTestId) {
-      setErrorMessage("Please select a target mock test to add this question to.");
+      setErrorMessage("Please select a target mock test to link this question to.");
       return;
     }
 
+    const payload = {
+      subject_id: selectedSubjectId,
+      chapter_id: selectedChapterId || null,
+      topic_id: selectedTopicId || null,
+      exam_id: selectedExamId || null,
+      question_text: questionText.trim(),
+      difficulty,
+      explanation: explanation.trim(),
+      marks: Number(marks),
+      negative_marks: Number(negativeMarks),
+      options: [
+        { label: "A", text: options[0].trim() },
+        { label: "B", text: options[1].trim() },
+        { label: "C", text: options[2].trim() },
+        { label: "D", text: options[3].trim() },
+      ],
+      correct_option_label: correctOptionLabel,
+      add_to_test_ids: [selectedTargetTestId],
+    };
+
     startTransition(async () => {
-      const payload = {
-        subject_id: selectedSubjectId,
-        chapter_id: selectedChapterId || null,
-        topic_id: selectedTopicId || null,
-        exam_id: selectedExamId || null,
-        question_text: questionText.trim(),
-        difficulty,
-        explanation: explanation.trim(),
-        marks: Number(marks),
-        negative_marks: Number(negativeMarks),
-        options: [
-          { label: "A", text: options[0].trim() },
-          { label: "B", text: options[1].trim() },
-          { label: "C", text: options[2].trim() },
-          { label: "D", text: options[3].trim() },
-        ],
-        correct_option_label: correctOptionLabel,
-        add_to_test_ids: [selectedTargetTestId],
-      };
+      if (isEditingExisting && currentEditingQuestion) {
+        // Updating existing question in Supabase
+        const res = await updateAdminQuestion(currentEditingQuestion.id, payload);
+        if (res.success) {
+          setSuccessMessage(
+            `✅ Question #${activeQuestionIndex + 1} updated successfully in Supabase!`
+          );
 
-      const res = await createAdminQuestion(payload);
-
-      if (res.success) {
-        setSuccessMessage(
-          `✅ Question saved successfully into "${currentTargetTest?.name || "Mock Test"}"! Click "➕ Add Question" to enter another, or "🚀 Publish" to finalize.`
-        );
-        setQuestionText("");
-        setOptions(["", "", "", ""]);
-        setExplanation("");
-
-        // Optimistically add to questions list
-        const newQItem: QuestionAdminItem = {
-          id: res.questionId || String(Date.now()),
-          question_text: payload.question_text,
-          difficulty: payload.difficulty,
-          marks: payload.marks,
-          negative_marks: payload.negative_marks,
-          explanation: payload.explanation,
-          subject: subjects.find((s) => s.id === payload.subject_id),
-          options: payload.options.map((o) => ({ id: o.label, option_label: o.label, option_text: o.text })),
-        };
-        setQuestions((prev) => [newQItem, ...prev]);
+          // Update question in local state
+          setQuestions((prev) =>
+            prev.map((q) => {
+              if (q.id === currentEditingQuestion.id) {
+                return {
+                  ...q,
+                  question_text: payload.question_text,
+                  difficulty: payload.difficulty,
+                  marks: payload.marks,
+                  negative_marks: payload.negative_marks,
+                  explanation: payload.explanation,
+                  subject_id: payload.subject_id,
+                  chapter_id: payload.chapter_id,
+                  topic_id: payload.topic_id,
+                  exam_id: payload.exam_id,
+                  subject: subjects.find((s) => s.id === payload.subject_id),
+                  options: payload.options.map((o) => ({
+                    id: o.label,
+                    option_label: o.label,
+                    option_text: o.text,
+                  })),
+                  answer_key: [{ correct_option_id: payload.correct_option_label }],
+                };
+              }
+              return q;
+            })
+          );
+        } else {
+          setErrorMessage(res.error || "Failed to update question in Supabase.");
+        }
       } else {
-        setErrorMessage(res.error || "Failed to create question.");
+        // Authoring and inserting new question in Supabase
+        const res = await createAdminQuestion(payload);
+        if (res.success && res.questionId) {
+          const newNumber = currentTestQuestions.length + 1;
+          const newQItem: QuestionAdminItem = {
+            id: res.questionId,
+            question_text: payload.question_text,
+            difficulty: payload.difficulty,
+            marks: payload.marks,
+            negative_marks: payload.negative_marks,
+            explanation: payload.explanation,
+            subject_id: payload.subject_id,
+            chapter_id: payload.chapter_id,
+            topic_id: payload.topic_id,
+            exam_id: payload.exam_id,
+            subject: subjects.find((s) => s.id === payload.subject_id),
+            options: payload.options.map((o) => ({
+              id: o.label,
+              option_label: o.label,
+              option_text: o.text,
+            })),
+            answer_key: [{ correct_option_id: payload.correct_option_label }],
+            test_questions: [
+              {
+                test_id: selectedTargetTestId,
+                display_order: newNumber,
+              },
+            ],
+          };
+
+          setQuestions((prev) => [...prev, newQItem]);
+          setSuccessMessage(
+            `✅ Question #${newNumber} saved to Supabase! Now ready for Question #${newNumber + 1}.`
+          );
+
+          // Clear form and advance active index to new authoring slot
+          resetFormForNewQuestion();
+          setActiveQuestionIndex(newNumber);
+        } else {
+          setErrorMessage(res.error || "Failed to create question in Supabase.");
+        }
       }
     });
   };
 
-  // Handler: Add Question (clear/reset inputs for next question)
-  const handleResetForNewQuestion = () => {
-    if (questionText.trim() && !confirm("Clear question form to start authoring a new question?")) {
+  // Handler: Delete Active Question in Carousel
+  const handleDeleteActiveQuestion = async () => {
+    if (!isEditingExisting || !currentEditingQuestion) return;
+    if (
+      !confirm(
+        `Are you sure you want to delete Question #${activeQuestionIndex + 1} from Supabase?`
+      )
+    ) {
       return;
     }
-    setQuestionText("");
-    setOptions(["", "", "", ""]);
-    setExplanation("");
-    setCorrectOptionLabel("A");
-    setMarks(1);
-    setNegativeMarks(0.25);
-    setErrorMessage("");
-    setSuccessMessage(
-      `✨ Ready to author a new question for "${currentTargetTest?.name || "Mock Test"}". Enter details and click "Save".`
-    );
+
+    startTransition(async () => {
+      const res = await deleteAdminQuestion(currentEditingQuestion.id);
+      if (res.success) {
+        setQuestions((prev) => prev.filter((q) => q.id !== currentEditingQuestion.id));
+        setSuccessMessage(`🗑️ Question #${activeQuestionIndex + 1} deleted from Supabase.`);
+
+        const remaining = currentTestQuestions.filter((q) => q.id !== currentEditingQuestion.id);
+        if (remaining.length > 0) {
+          const newIdx = Math.max(0, Math.min(activeQuestionIndex, remaining.length - 1));
+          setActiveQuestionIndex(newIdx);
+          populateFormWithQuestion(remaining[newIdx]);
+        } else {
+          setActiveQuestionIndex(0);
+          resetFormForNewQuestion();
+        }
+      } else {
+        setErrorMessage(res.error || "Failed to delete question from Supabase.");
+      }
+    });
   };
 
   // Handler: Publish Mock Test
@@ -315,66 +576,13 @@ export function AdminPanel({
     const testName = testToPublish?.name || "Mock Test";
 
     startTransition(async () => {
-      // If user currently has question text typed in, save it first before publishing
-      if (questionText.trim()) {
-        if (options.some((opt) => !opt.trim())) {
-          setErrorMessage("Please fill all 4 options before publishing, or clear question fields.");
-          return;
-        }
-        if (!explanation.trim()) {
-          setErrorMessage("Please provide explanation before saving & publishing, or clear question fields.");
-          return;
-        }
-
-        const payload = {
-          subject_id: selectedSubjectId,
-          chapter_id: selectedChapterId || null,
-          topic_id: selectedTopicId || null,
-          exam_id: selectedExamId || null,
-          question_text: questionText.trim(),
-          difficulty,
-          explanation: explanation.trim(),
-          marks: Number(marks),
-          negative_marks: Number(negativeMarks),
-          options: [
-            { label: "A", text: options[0].trim() },
-            { label: "B", text: options[1].trim() },
-            { label: "C", text: options[2].trim() },
-            { label: "D", text: options[3].trim() },
-          ],
-          correct_option_label: correctOptionLabel,
-          add_to_test_ids: [selectedTargetTestId],
-        };
-
-        const qRes = await createAdminQuestion(payload);
-        if (!qRes.success) {
-          setErrorMessage(qRes.error || "Failed to save question before publishing.");
-          return;
-        }
-
-        const newQItem: QuestionAdminItem = {
-          id: qRes.questionId || String(Date.now()),
-          question_text: payload.question_text,
-          difficulty: payload.difficulty,
-          marks: payload.marks,
-          negative_marks: payload.negative_marks,
-          explanation: payload.explanation,
-          subject: subjects.find((s) => s.id === payload.subject_id),
-          options: payload.options.map((o) => ({ id: o.label, option_label: o.label, option_text: o.text })),
-        };
-        setQuestions((prev) => [newQItem, ...prev]);
-        setQuestionText("");
-        setOptions(["", "", "", ""]);
-        setExplanation("");
-      }
-
       const res = await publishAdminMockTest(selectedTargetTestId);
       if (res.success) {
         setMockTests((prev) =>
           prev.map((t) => (t.id === selectedTargetTestId ? { ...t, status: "published" } : t))
         );
         setSuccessMessage(
-          `🚀 Mock Test "${testName}" has been successfully PUBLISHED and is now live for students to take!`
+          `🚀 Mock Test "${testName}" has been successfully PUBLISHED! It is now live for all students to take.`
         );
       } else {
         setErrorMessage(res.error || "Failed to publish mock test.");
@@ -386,7 +594,7 @@ export function AdminPanel({
   const handleDeleteMockTest = async (testId: string, testName: string) => {
     if (
       !confirm(
-        `Are you sure you want to delete mock test "${testName}"?\n\nThis will remove the mock test, its questions association, and test sections.`
+        `Are you sure you want to delete mock test "${testName}"?\n\nThis will remove the mock test, its question associations, and test sections.`
       )
     ) {
       return;
@@ -399,7 +607,8 @@ export function AdminPanel({
         setMockTests((prev) => {
           const remaining = prev.filter((t) => t.id !== testId);
           if (selectedTargetTestId === testId) {
-            setSelectedTargetTestId(remaining[0]?.id || "");
+            const nextId = remaining[0]?.id || "";
+            setSelectedTargetTestId(nextId);
           }
           return remaining;
         });
@@ -409,11 +618,11 @@ export function AdminPanel({
     });
   };
 
-  // Handler: Clean All Old Mock Tests (Remove useless dummy data)
+  // Handler: Clean All Old Mock Tests
   const handleCleanAllOldTests = async () => {
     if (
       !confirm(
-        "Are you sure you want to remove all existing mock tests and useless test data?\n\nThis will remove the current sample mock tests so you can add new mock tests and author clean questions."
+        "Are you sure you want to remove all existing mock tests and useless test data?\n\nThis will remove the current sample mock tests so you can author fresh mock tests and questions."
       )
     ) {
       return;
@@ -425,23 +634,9 @@ export function AdminPanel({
         setMockTests([]);
         setSelectedTargetTestId("");
         setQuestions([]);
-        setTestSuccessMessage("🧹 All old mock tests and useless test data removed successfully! You can now create fresh mock tests.");
+        setTestSuccessMessage("🧹 All old mock tests and useless test data removed successfully!");
       } else {
         setTestErrorMessage(res.error || "Failed to remove old mock tests.");
-      }
-    });
-  };
-
-  // Delete Question
-  const handleDeleteQuestion = async (questionId: string) => {
-    if (!confirm("Are you sure you want to delete this question?")) return;
-
-    startTransition(async () => {
-      const res = await deleteAdminQuestion(questionId);
-      if (res.success) {
-        setQuestions((prev) => prev.filter((q) => q.id !== questionId));
-      } else {
-        alert(res.error || "Failed to delete question.");
       }
     });
   };
@@ -451,12 +646,9 @@ export function AdminPanel({
     e.preventDefault();
     setLearningErrorMessage("");
     setLearningSuccessMessage("");
+
     if (!newChapterName.trim()) {
       setLearningErrorMessage("Please enter a chapter name.");
-      return;
-    }
-    if (!selectedLearningSubjectId) {
-      setLearningErrorMessage("Please select a subject.");
       return;
     }
 
@@ -465,7 +657,7 @@ export function AdminPanel({
       if (res.success && res.chapter) {
         setAdminChapters((prev) => [...prev, res.chapter]);
         setNewChapterName("");
-        setLearningSuccessMessage(`✅ Chapter "${res.chapter.name}" created and synced to Student My Learning!`);
+        setLearningSuccessMessage(`✅ Chapter "${res.chapter.name}" added and synced to Student My Learning!`);
       } else {
         setLearningErrorMessage(res.error || "Failed to create chapter.");
       }
@@ -474,15 +666,20 @@ export function AdminPanel({
 
   // Learning Handler: Delete Chapter
   const handleDeleteChapter = async (chapterId: string, chapterName: string) => {
-    if (!confirm(`Are you sure you want to delete chapter "${chapterName}" and all its subtopics?`)) {
+    if (
+      !confirm(
+        `Are you sure you want to delete chapter "${chapterName}" and all its subtopics?\n\nThis will remove it from the Student My Learning portal.`
+      )
+    ) {
       return;
     }
+
     startTransition(async () => {
       const res = await deleteAdminChapter(chapterId);
       if (res.success) {
         setAdminChapters((prev) => prev.filter((c) => c.id !== chapterId));
         setAdminTopics((prev) => prev.filter((t) => t.chapter_id !== chapterId));
-        setLearningSuccessMessage(`🗑️ Chapter "${chapterName}" and its subtopics were deleted.`);
+        setLearningSuccessMessage(`🗑️ Chapter "${chapterName}" was deleted.`);
       } else {
         setLearningErrorMessage(res.error || "Failed to delete chapter.");
       }
@@ -493,6 +690,7 @@ export function AdminPanel({
   const handleCreateTopic = async (chapterId: string) => {
     setLearningErrorMessage("");
     setLearningSuccessMessage("");
+
     if (!newTopicName.trim()) {
       setLearningErrorMessage("Please enter a subtopic name.");
       return;
@@ -527,6 +725,74 @@ export function AdminPanel({
     });
   };
 
+  // Open Topic Learning Content Editor Modal
+  const handleOpenTopicEditor = (topic: TopicItem) => {
+    setEditingTopic(topic);
+    setEditTopicName(topic.name);
+    const content = parseTopicLearningContent(topic.description);
+    setEditExplanation(content.explanation || "");
+    setEditFormulas(content.formulas || "");
+    setEditResources(content.resources && content.resources.length > 0 ? content.resources : []);
+    window.history.pushState({ adminStudio: true, modal: "topic" }, "");
+  };
+
+  // Add Resource Row in Topic Editor Modal
+  const handleAddResourceRow = () => {
+    setEditResources((prev) => [
+      ...prev,
+      { title: "", url: "", type: "pdf" },
+    ]);
+  };
+
+  // Update Resource Row
+  const handleUpdateResourceRow = (
+    idx: number,
+    field: keyof LearningResource,
+    val: string
+  ) => {
+    setEditResources((prev) => {
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], [field]: val };
+      return copy;
+    });
+  };
+
+  // Remove Resource Row
+  const handleRemoveResourceRow = (idx: number) => {
+    setEditResources((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  // Save Topic Rich Learning Content to Supabase
+  const handleSaveTopicContent = async () => {
+    if (!editingTopic) return;
+    setIsSavingTopicContent(true);
+
+    const validResources = editResources.filter(
+      (r) => r.title.trim() && r.url.trim()
+    );
+
+    const res = await updateTopicLearningContent(editingTopic.id, {
+      name: editTopicName.trim(),
+      explanation: editExplanation.trim(),
+      formulas: editFormulas.trim(),
+      resources: validResources,
+    });
+
+    setIsSavingTopicContent(false);
+
+    if (res.success && res.topic) {
+      setAdminTopics((prev) =>
+        prev.map((t) => (t.id === editingTopic.id ? { ...t, ...res.topic } : t))
+      );
+      setLearningSuccessMessage(
+        `✅ Subtopic "${editTopicName}" learning material (notes, formulas, ${validResources.length} materials) saved to Supabase & synced to Student My Learning!`
+      );
+      setEditingTopic(null);
+    } else {
+      setLearningErrorMessage(res.error || "Failed to update subtopic learning content.");
+    }
+  };
+
   // Add new admin user
   const handleEnrollAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -542,21 +808,6 @@ export function AdminPanel({
       }
     });
   };
-
-  // Filter questions in question bank
-  const displayedQuestions = questions.filter((q) => {
-    if (subjectFilter !== "all" && q.subject?.id !== subjectFilter) {
-      return false;
-    }
-    if (searchQuery.trim()) {
-      const qLower = searchQuery.toLowerCase();
-      return (
-        q.question_text.toLowerCase().includes(qLower) ||
-        (q.explanation && q.explanation.toLowerCase().includes(qLower))
-      );
-    }
-    return true;
-  });
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] flex flex-col font-sans relative overflow-x-hidden w-full max-w-full">
@@ -578,11 +829,21 @@ export function AdminPanel({
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Top Back to Dashboard Button (1 Step Back) */}
+            <Link
+              href="/dashboard"
+              prefetch={true}
+              className="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/90 hover:bg-slate-700 active:scale-95 px-3 py-1.5 text-xs font-bold text-slate-200 transition-all shadow-xs"
+              title="Return to Student Dashboard"
+            >
+              <span className="text-sm font-black leading-none">‹</span>
+              <span>Back to Dashboard</span>
+            </Link>
+
             <span className="text-xs text-slate-300 hidden md:block">
               Logged in: <strong className="text-sky-300">{currentAdminEmail}</strong>
             </span>
 
-            {/* Small Sign Out Button (Requirement 3) */}
             <button
               type="button"
               onClick={handleSignOut}
@@ -598,12 +859,12 @@ export function AdminPanel({
 
       {/* Main Admin Workspace */}
       <main className="mx-auto max-w-7xl w-full flex-1 px-4 py-8 sm:px-6">
-        {/* Navigation Tabs: Mock Tests -> Add Question -> Question Bank -> Admin Roles */}
+        {/* Navigation Tabs: Mock Tests -> Add Question -> My Learning -> Admin Roles (Question Bank completely removed) */}
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setActiveTab("tests")}
+              onClick={() => switchTab("tests")}
               className={`rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
                 activeTab === "tests"
                   ? "bg-blue-700 text-white shadow-md shadow-blue-700/20"
@@ -615,7 +876,7 @@ export function AdminPanel({
 
             <button
               type="button"
-              onClick={() => setActiveTab("create")}
+              onClick={() => switchTab("create")}
               className={`rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
                 activeTab === "create"
                   ? "bg-blue-700 text-white shadow-md shadow-blue-700/20"
@@ -624,15 +885,15 @@ export function AdminPanel({
             >
               <span>➕ Add Question</span>
               {currentTargetTest && (
-                <span className="rounded-full bg-blue-100 text-blue-900 px-2 py-0.2 text-[10px] hidden sm:inline">
-                  {currentTargetTest.name.slice(0, 18)}...
+                <span className="rounded-full bg-blue-100 text-blue-900 px-2 py-0.5 text-[10px] hidden sm:inline">
+                  {currentTestQuestions.length} Qs in {currentTargetTest.name.slice(0, 15)}...
                 </span>
               )}
             </button>
 
             <button
               type="button"
-              onClick={() => setActiveTab("learning")}
+              onClick={() => switchTab("learning")}
               className={`rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
                 activeTab === "learning"
                   ? "bg-blue-700 text-white shadow-md shadow-blue-700/20"
@@ -640,26 +901,14 @@ export function AdminPanel({
               }`}
             >
               <span>📖 My Learning</span>
-              <span className="rounded-full bg-blue-100 text-blue-900 px-2 py-0.2 text-[10px] hidden sm:inline">
+              <span className="rounded-full bg-blue-100 text-blue-900 px-2 py-0.5 text-[10px] hidden sm:inline">
                 {adminChapters.length} Chap / {adminTopics.length} Topics
               </span>
             </button>
 
             <button
               type="button"
-              onClick={() => setActiveTab("list")}
-              className={`rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
-                activeTab === "list"
-                  ? "bg-blue-700 text-white shadow-md shadow-blue-700/20"
-                  : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
-              }`}
-            >
-              <span>📚 Question Bank ({questions.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("admins")}
+              onClick={() => switchTab("admins")}
               className={`rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
                 activeTab === "admins"
                   ? "bg-blue-700 text-white shadow-md shadow-blue-700/20"
@@ -671,12 +920,12 @@ export function AdminPanel({
           </div>
 
           <div className="flex items-center gap-2 text-xs text-slate-500">
-            <span className="font-semibold">4 Subjects:</span>
+            <span className="font-semibold">Curriculum Disciplines:</span>
             <span>Maths, Physics, Chem, Aptitude</span>
           </div>
         </div>
 
-        {/* TAB 1: MOCK TESTS WORKFLOW (Requirement 2) */}
+        {/* TAB 1: MOCK TESTS WORKFLOW */}
         {activeTab === "tests" && (
           <div className="mt-6 space-y-6">
             <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs">
@@ -754,40 +1003,34 @@ export function AdminPanel({
 
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                        Target Entrance Program *
+                        Exam Track *
                       </label>
                       <select
                         value={newTestExamId}
                         onChange={(e) => setNewTestExamId(e.target.value)}
-                        className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-600 shadow-xs"
-                        required
+                        className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-600 shadow-xs"
                       >
                         {exams.map((ex) => (
                           <option key={ex.id} value={ex.id}>
-                            {ex.name} ({ex.slug.toUpperCase()})
+                            {ex.name}
                           </option>
                         ))}
                       </select>
                     </div>
-                  </div>
 
-                  <div className="grid gap-4 sm:grid-cols-3">
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                        Exam Duration (Minutes) *
+                        Duration (Minutes)
                       </label>
                       <input
                         type="number"
                         min="10"
-                        step="5"
+                        max="360"
                         value={newTestDuration}
                         onChange={(e) => setNewTestDuration(Number(e.target.value))}
                         className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-600 shadow-xs"
                         required
                       />
-                      <span className="text-[11px] text-slate-500 mt-0.5 block">
-                        {(newTestDuration / 60).toFixed(1)} hours (auto-submits on expiry)
-                      </span>
                     </div>
 
                     <div className="sm:col-span-2">
@@ -798,165 +1041,183 @@ export function AdminPanel({
                         type="text"
                         value={newTestDescription}
                         onChange={(e) => setNewTestDescription(e.target.value)}
-                        placeholder="Comprehensive 4-subject entrance simulation with official timings..."
-                        className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-800 outline-none focus:border-blue-600 shadow-xs"
+                        placeholder="e.g. Complete 3-hour mock test with SUPR and REAP sections."
+                        className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-600 shadow-xs"
                       />
                     </div>
                   </div>
 
-                  <div className="flex justify-end gap-3 pt-2">
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-blue-100">
                     <button
                       type="button"
                       onClick={() => setIsCreatingMockTest(false)}
-                      className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold uppercase text-slate-700 hover:bg-slate-50"
+                      className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition-all"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={isPending}
-                      className="rounded-xl bg-blue-700 px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 disabled:opacity-50"
+                      className="rounded-xl bg-blue-700 px-6 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 disabled:opacity-50 transition-all"
                     >
-                      {isPending ? "Creating Mock Test..." : "Save Mock Test & Continue →"}
+                      {isPending ? "Creating..." : "Save Mock Test"}
                     </button>
                   </div>
                 </form>
               )}
 
-              {/* Grid of Existing Mock Tests */}
+              {/* Mock Tests List */}
               <div className="mt-8">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">
-                  Existing Mock Tests (Click &quot;Add Question&quot; to author questions):
-                </h3>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  {mockTests.length === 0 ? (
+                    <div className="col-span-full rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/50 p-12 text-center">
+                      <span className="text-3xl">📝</span>
+                      <h4 className="mt-2 text-base font-bold text-slate-800">No mock tests available</h4>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Click &quot;➕ Create New Mock Test&quot; above to create your first mock test and start adding questions.
+                      </p>
+                    </div>
+                  ) : (
+                    mockTests.map((t) => {
+                      const countInThisTest = questions.filter((q) =>
+                        q.test_questions?.some((tq) => tq.test_id === t.id)
+                      ).length;
+                      const isSelected = selectedTargetTestId === t.id;
 
-                <div className="grid gap-6 md:grid-cols-2">
-                  {mockTests.map((t) => {
-                    const durationMins = Math.round((t.duration_seconds || 10800) / 60);
-                    const exam = exams.find((e) => e.id === t.exam_id);
-                    const isSelected = selectedTargetTestId === t.id;
-
-                    return (
-                      <div
-                        key={t.id}
-                        className={`flex flex-col justify-between rounded-2xl border p-6 transition-all ${
-                          isSelected
-                            ? "border-blue-600 bg-blue-50/30 ring-2 ring-blue-600/30 shadow-sm"
-                            : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs"
-                        }`}
-                      >
-                        <div>
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                              <span className="rounded-md bg-blue-50 px-2.5 py-0.5 text-xs font-black uppercase tracking-wider text-blue-800 border border-blue-200">
-                                {exam?.name || "ENTRANCE MOCK"} &bull; {t.test_type?.toUpperCase() || "MOCK"}
-                              </span>
-                              {t.status === "published" && (
-                                <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
-                                  ● Live
+                      return (
+                        <div
+                          key={t.id}
+                          className={`relative flex flex-col justify-between rounded-2xl border p-6 transition-all shadow-xs ${
+                            isSelected
+                              ? "border-blue-600 bg-blue-50/20 ring-2 ring-blue-600/20"
+                              : "border-slate-200 bg-white hover:border-slate-300"
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="rounded-md bg-blue-100 px-2.5 py-0.5 text-[11px] font-bold text-blue-800">
+                                  {Math.round((t.duration_seconds || 10800) / 60)} Mins
                                 </span>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-2.5">
-                              <span className="text-xs font-semibold text-slate-500">
-                                ⏱️ {durationMins} Mins
-                              </span>
-
-                              {/* Delete symbol at the edge of the mock test box */}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteMockTest(t.id, t.name);
-                                }}
-                                disabled={isPending}
-                                className="rounded-lg p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-all active:scale-90"
-                                title={`Delete Mock Test "${t.name}"`}
-                                aria-label={`Delete Mock Test ${t.name}`}
-                              >
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  className="h-4 w-4"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                  strokeWidth={2}
+                                <span
+                                  className={`rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider ${
+                                    t.status === "published"
+                                      ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                      : "bg-amber-100 text-amber-800 border border-amber-300"
+                                  }`}
                                 >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                  />
-                                </svg>
-                              </button>
+                                  {t.status === "published" ? "● Live / Published" : "○ Draft Mode"}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteMockTest(t.id, t.name)}
+                                  disabled={isPending}
+                                  className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                                  title="Delete mock test"
+                                >
+                                  <svg
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                    />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+
+                            <h4 className="mt-3 text-xl font-black text-slate-900">{t.name}</h4>
+                            <p className="mt-1 text-xs text-slate-600 leading-relaxed line-clamp-2">
+                              {t.description || "Official IIITH CBT entrance mock test simulation."}
+                            </p>
+
+                            <div className="mt-3 flex items-center gap-2">
+                              <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-800">
+                                📊 Questions in test: <strong className="text-blue-700">{countInThisTest}</strong>
+                              </span>
+                            </div>
+
+                            {/* 4 Subjects tested */}
+                            <div className="mt-3 flex flex-wrap gap-1.5">
+                              <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-800 border border-blue-200">
+                                📐 Mathematics
+                              </span>
+                              <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-200">
+                                ⚡ Physics
+                              </span>
+                              <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
+                                🧪 Chemistry
+                              </span>
+                              <span className="rounded-md bg-purple-50 px-2 py-0.5 text-[10px] font-bold text-purple-800 border border-purple-200">
+                                🧠 Aptitude
+                              </span>
                             </div>
                           </div>
 
-                          <h4 className="mt-3 text-xl font-black text-slate-900">{t.name}</h4>
-                          <p className="mt-1 text-xs text-slate-600 leading-relaxed line-clamp-2">
-                            {t.description || "Official IIITH CBT mock test simulation."}
-                          </p>
+                          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                            <span className="text-xs text-slate-500 font-medium">
+                              {t.status === "published" ? "Available in Student Portal" : "Draft — ready for questions"}
+                            </span>
 
-                          {/* 4 Subjects tested */}
-                          <div className="mt-4 flex flex-wrap gap-1.5">
-                            <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-800 border border-blue-200">
-                              📐 Mathematics
-                            </span>
-                            <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-200">
-                              ⚡ Physics
-                            </span>
-                            <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
-                              🧪 Chemistry
-                            </span>
-                            <span className="rounded-md bg-purple-50 px-2 py-0.5 text-[10px] font-bold text-purple-800 border border-purple-200">
-                              🧠 Aptitude
-                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleSelectTargetTest(t.id);
+                                setActiveTab("create");
+                              }}
+                              className="rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 transition-all flex items-center gap-1.5"
+                            >
+                              <span>➕ Manage &amp; Add Questions</span>
+                              <span>&rarr;</span>
+                            </button>
                           </div>
                         </div>
-
-                        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-                          <span className="text-xs text-slate-500 font-medium">
-                            Auto-submits on timer expiry
-                          </span>
-
-                          {/* Prominent "+ Add Question to this Test" action (Requirement 2) */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedTargetTestId(t.id);
-                              setActiveTab("create");
-                            }}
-                            className="rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 transition-all flex items-center gap-1.5"
-                          >
-                            <span>➕ Add Question to this Test</span>
-                            <span>&rarr;</span>
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* TAB 2: ADD QUESTION STUDIO (Connected to Mock Test) */}
+        {/* TAB 2: ADD QUESTION STUDIO WITH QUESTION CAROUSEL & ARROW NAVIGATION */}
         {activeTab === "create" && (
-          <div className="mt-6">
+          <div className="mt-6 space-y-4">
+            {/* Step-Back Navigation: Return to Mock Tests */}
+            <button
+              type="button"
+              onClick={() => switchTab("tests")}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 active:scale-95 px-3.5 py-2 text-xs font-bold text-slate-700 transition-all shadow-2xs"
+              title="Go back to Mock Tests (1 step back)"
+            >
+              <span className="text-sm font-black leading-none">‹</span>
+              <span>Back to Mock Tests</span>
+            </button>
+
             <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs">
+              {/* Studio Header & Target Mock Test Picker */}
               <div className="border-b border-slate-100 pb-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-black uppercase tracking-wider text-blue-800 border border-blue-200">
-                    Question Authoring Studio
+                    Step 2: Question Authoring &amp; Carousel Navigation
                   </span>
 
-                  {/* Target Mock Test Indicator & Selector */}
+                  {/* Target Mock Test Selector */}
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-slate-500">Target Mock Test:</span>
                     <select
                       value={selectedTargetTestId}
-                      onChange={(e) => setSelectedTargetTestId(e.target.value)}
+                      onChange={(e) => handleSelectTargetTest(e.target.value)}
                       className="rounded-xl border border-blue-300 bg-blue-50/70 px-3 py-1.5 text-xs font-bold text-blue-950 outline-none focus:border-blue-600"
                     >
                       {mockTests.map((t) => (
@@ -969,27 +1230,155 @@ export function AdminPanel({
                 </div>
 
                 <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
-                  Add Question, 4 Options & Detailed Explanation
+                  Question Studio: Author &amp; Navigate Questions
                 </h2>
                 <p className="mt-1 text-xs sm:text-sm text-slate-500">
-                  Questions added here will be immediately linked to <strong className="text-slate-800">{currentTargetTest?.name || "the selected mock test"}</strong> with verified answers and solutions.
+                  Add new questions or use the arrow buttons to review, inspect, and update existing questions in{" "}
+                  <strong className="text-slate-800">{currentTargetTest?.name || "Selected Test"}</strong>.
                 </p>
               </div>
 
-              {/* Status messages */}
+              {/* Status Alerts */}
               {successMessage && (
-                <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800 flex items-center gap-2">
+                <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800 flex items-center justify-between">
                   <span>{successMessage}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSuccessMessage("")}
+                    className="text-xs font-bold text-emerald-700 hover:underline"
+                  >
+                    ✕
+                  </button>
                 </div>
               )}
               {errorMessage && (
-                <div className="mt-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800 flex items-center gap-2">
+                <div className="mt-5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800 flex items-center justify-between">
                   <span>⚠️ {errorMessage}</span>
+                  <button
+                    type="button"
+                    onClick={() => setErrorMessage("")}
+                    className="text-xs font-bold text-rose-700 hover:underline"
+                  >
+                    ✕
+                  </button>
                 </div>
               )}
 
-              <form onSubmit={handleCreateQuestion} className="mt-6 space-y-6">
-                {/* 1. Subject & Exam Selection */}
+              {/* ========================================================================= */}
+              {/* QUESTION CAROUSEL & NAVIGATION CONTROLS (ARROWS + LIVE COUNT DISPLAY) */}
+              {/* ========================================================================= */}
+              <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50/90 to-indigo-50/60 p-4 sm:p-5 shadow-xs">
+                {/* Left: Active Question Number Indicator */}
+                <div className="flex items-center gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-700 text-white font-black text-sm sm:text-base shadow-xs">
+                    #{isEditingExisting ? activeQuestionIndex + 1 : currentTestQuestions.length + 1}
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-base sm:text-lg font-black text-blue-950">
+                        {isEditingExisting
+                          ? `Question ${activeQuestionIndex + 1} of ${currentTestQuestions.length}`
+                          : currentTestQuestions.length === 0
+                          ? "Question 1 (New Question)"
+                          : `Question ${currentTestQuestions.length + 1} of ${currentTestQuestions.length} (New Question)`}
+                      </span>
+                      {isEditingExisting ? (
+                        <span className="rounded-md bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 border border-emerald-300">
+                          ✓ Saved in Database
+                        </span>
+                      ) : (
+                        <span className="rounded-md bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 border border-amber-300">
+                          ✍️ Drafting New Question
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 font-medium">
+                      Target Test: <strong className="text-slate-800">{currentTargetTest?.name || "Mock Test"}</strong>
+                      {" • "}Total Questions Saved:{" "}
+                      <strong className="text-blue-700">{currentTestQuestions.length}</strong>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Right: Arrow Controls & Action Buttons */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Arrow Left (Previous Question) */}
+                  <button
+                    type="button"
+                    onClick={handlePrevQuestion}
+                    disabled={activeQuestionIndex === 0}
+                    className="rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-400 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1.5 shadow-xs"
+                    title="Navigate to Previous Question"
+                  >
+                    <span className="text-base font-black">◀</span>
+                    <span className="hidden sm:inline">Previous</span>
+                  </button>
+
+                  {/* Question Counter / Jump Dropdown */}
+                  <div className="flex items-center gap-1 rounded-xl bg-white border border-slate-200 px-3 py-1.5 shadow-2xs">
+                    <span className="text-xs font-bold text-slate-500">Q</span>
+                    <select
+                      value={activeQuestionIndex}
+                      onChange={(e) => handleJumpToQuestion(Number(e.target.value))}
+                      className="bg-transparent text-xs font-black text-blue-900 outline-none cursor-pointer"
+                    >
+                      {currentTestQuestions.map((_, i) => (
+                        <option key={i} value={i}>
+                          {i + 1} of {currentTestQuestions.length}
+                        </option>
+                      ))}
+                      <option value={currentTestQuestions.length}>
+                        {currentTestQuestions.length + 1} (+ New)
+                      </option>
+                    </select>
+                  </div>
+
+                  {/* Arrow Right (Next Question) */}
+                  <button
+                    type="button"
+                    onClick={handleNextQuestion}
+                    disabled={!isEditingExisting}
+                    className="rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-400 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1.5 shadow-xs"
+                    title="Navigate to Next Question"
+                  >
+                    <span className="hidden sm:inline">Next</span>
+                    <span className="text-base font-black">▶</span>
+                  </button>
+
+                  {/* Explicit + New Question button */}
+                  <button
+                    type="button"
+                    onClick={handleNewQuestionClick}
+                    className={`rounded-xl px-3.5 py-2 text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 shadow-xs ${
+                      !isEditingExisting
+                        ? "bg-blue-700 text-white shadow-blue-700/20"
+                        : "border border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100"
+                    }`}
+                    title="Draft a new question for this mock test"
+                  >
+                    <span>➕</span>
+                    <span>New Question</span>
+                  </button>
+
+                  {/* Delete button if editing existing */}
+                  {isEditingExisting && (
+                    <button
+                      type="button"
+                      onClick={handleDeleteActiveQuestion}
+                      disabled={isPending}
+                      className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100 active:scale-95 transition-all flex items-center gap-1"
+                      title="Delete this question from database"
+                    >
+                      <span>🗑️</span>
+                      <span className="hidden sm:inline">Delete</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Question Authoring Form */}
+              <form onSubmit={handleSaveQuestion} className="mt-6 space-y-6">
+                {/* 1. Subject & Hierarchy Selection */}
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
@@ -1002,7 +1391,7 @@ export function AdminPanel({
                         setSelectedChapterId("");
                         setSelectedTopicId("");
                       }}
-                      className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-600"
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-600 shadow-xs"
                       required
                     >
                       {subjects.map((sub) => (
@@ -1023,9 +1412,9 @@ export function AdminPanel({
                         setSelectedChapterId(e.target.value);
                         setSelectedTopicId("");
                       }}
-                      className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-600"
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-600 shadow-xs"
                     >
-                      <option value="">-- Select Chapter --</option>
+                      <option value="">-- All / General Chapter --</option>
                       {filteredChapters.map((chap) => (
                         <option key={chap.id} value={chap.id}>
                           {chap.name}
@@ -1036,65 +1425,69 @@ export function AdminPanel({
 
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                      Target Exam Track
+                      Subtopic (Optional)
                     </label>
                     <select
-                      value={selectedExamId}
-                      onChange={(e) => setSelectedExamId(e.target.value)}
-                      className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-600"
+                      value={selectedTopicId}
+                      onChange={(e) => setSelectedTopicId(e.target.value)}
+                      disabled={!selectedChapterId}
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-600 disabled:bg-slate-100 shadow-xs"
                     >
-                      {exams.map((ex) => (
-                        <option key={ex.id} value={ex.id}>
-                          {ex.name} ({ex.slug.toUpperCase()})
+                      <option value="">-- All / General Topic --</option>
+                      {filteredTopics.map((top) => (
+                        <option key={top.id} value={top.id}>
+                          {top.name}
                         </option>
                       ))}
                     </select>
                   </div>
                 </div>
 
-                {/* 2. Difficulty & Marks */}
+                {/* 2. Marks, Negative Marks & Difficulty */}
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                      Difficulty Level
+                      Difficulty Level *
                     </label>
                     <select
                       value={difficulty}
                       onChange={(e) => setDifficulty(e.target.value as "easy" | "medium" | "hard")}
-                      className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-600"
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-600 shadow-xs"
                     >
-                      <option value="easy">Easy</option>
-                      <option value="medium">Medium</option>
-                      <option value="hard">Hard</option>
+                      <option value="easy">Easy (Foundational)</option>
+                      <option value="medium">Medium (Standard Entrance)</option>
+                      <option value="hard">Hard (Advanced / REAP Level)</option>
                     </select>
                   </div>
 
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                      Positive Marks
+                      Marks for Correct Answer *
                     </label>
                     <input
                       type="number"
-                      step="0.25"
+                      step="0.5"
                       min="0.5"
+                      max="10"
                       value={marks}
                       onChange={(e) => setMarks(Number(e.target.value))}
-                      className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-600"
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-600 shadow-xs"
                       required
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                      Negative Marks (Deduction)
+                      Negative Penalty (Incorrect) *
                     </label>
                     <input
                       type="number"
                       step="0.25"
                       min="0"
+                      max="5"
                       value={negativeMarks}
                       onChange={(e) => setNegativeMarks(Number(e.target.value))}
-                      className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-600"
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-600 shadow-xs"
                       required
                     />
                   </div>
@@ -1102,50 +1495,54 @@ export function AdminPanel({
 
                 {/* 3. Question Statement */}
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                    Question Statement *
-                  </label>
-                  <p className="text-[11px] text-slate-500 mb-1">
-                    Supports plain text, LaTeX math formulas (e.g. $x^2 + y^2 = r^2$), and multiline formatting.
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                      Question Statement (Supports LaTeX Math $...$) *
+                    </label>
+                    <span className="text-[11px] text-slate-500">
+                      {isEditingExisting ? `Editing Question #${activeQuestionIndex + 1}` : `Authoring Question #${currentTestQuestions.length + 1}`}
+                    </span>
+                  </div>
                   <textarea
                     rows={4}
                     value={questionText}
                     onChange={(e) => setQuestionText(e.target.value)}
-                    placeholder="Enter the full question text here..."
-                    className="w-full rounded-xl border border-slate-300 bg-white p-3.5 text-sm sm:text-base text-slate-900 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                    placeholder="Enter the complete question text here. LaTeX formatting like $x^2 + y^2 = r^2$ is supported..."
+                    className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3.5 text-sm sm:text-base text-slate-900 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                     required
                   />
                 </div>
 
-                {/* 4. Four Options & Correct Answer Radio Key */}
+                {/* 4. The 4 Options (A, B, C, D) & Answer Key */}
                 <div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-2">
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                      4 Multiple Choice Options (Select Correct Option Radio) *
+                      4 Multiple Choice Options (Select the Correct Option Radio Button) *
                     </label>
-                    <span className="text-xs text-slate-500">Click radio button to mark correct answer</span>
+                    <span className="text-xs font-bold text-emerald-700">
+                      Current Correct Key: Option {correctOptionLabel}
+                    </span>
                   </div>
 
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     {(["A", "B", "C", "D"] as const).map((label, idx) => {
                       const isCorrect = correctOptionLabel === label;
                       return (
                         <div
                           key={label}
-                          className={`rounded-xl border p-3.5 transition-all flex items-start gap-3 ${
+                          className={`flex items-start gap-3 rounded-xl border p-3.5 transition-all ${
                             isCorrect
-                              ? "border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-500/50"
-                              : "border-slate-300 bg-white hover:border-slate-400"
+                              ? "border-emerald-500 bg-emerald-50/50 shadow-xs ring-1 ring-emerald-400"
+                              : "border-slate-200 bg-slate-50/50 hover:bg-white"
                           }`}
                         >
-                          <label className="flex items-center gap-2 cursor-pointer pt-2 shrink-0">
+                          <label className="flex items-center gap-2 cursor-pointer pt-1">
                             <input
                               type="radio"
                               name="correctOption"
                               checked={isCorrect}
                               onChange={() => setCorrectOptionLabel(label)}
-                              className="h-4 w-4 text-emerald-600 focus:ring-emerald-500"
+                              className="h-4 w-4 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                             />
                             <span
                               className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-black ${
@@ -1180,7 +1577,7 @@ export function AdminPanel({
                 {/* 5. Detailed Step-by-Step Explanation */}
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                    Step-by-Step Explanation & Solution *
+                    Step-by-Step Explanation &amp; Solution *
                   </label>
                   <p className="text-[11px] text-slate-500 mb-1">
                     This verified explanation will be displayed to students on their scorecard review page after submitting.
@@ -1195,56 +1592,52 @@ export function AdminPanel({
                   />
                 </div>
 
-                {/* Target Mock Test Confirmation Notice */}
-                <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 text-xs text-blue-900 flex items-center justify-between">
-                  <span>
-                    Linking this question to: <strong>{currentTargetTest?.name || "Mock Test"}</strong>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("tests")}
-                    className="font-bold text-blue-700 hover:underline"
-                  >
-                    Change Mock Test &rarr;
-                  </button>
-                </div>
-
-                {/* 3 Distinct Action Buttons: Add Question, Save, and Publish */}
+                {/* Action Bar */}
                 <div className="flex flex-wrap items-center justify-between gap-4 pt-5 border-t border-slate-200">
                   <div className="flex items-center gap-2 text-xs text-slate-500">
                     <span>Target Test:</span>
                     <strong className="text-slate-800">{currentTargetTest?.name || "Mock Test"}</strong>
-                    {currentTargetTest?.status === "published" && (
+                    {currentTargetTest?.status === "published" ? (
                       <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
                         ● Published
+                      </span>
+                    ) : (
+                      <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-200">
+                        ○ Draft
                       </span>
                     )}
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3">
-                    {/* 1. Add Question Button */}
+                    {/* Clear / Reset for New Question */}
                     <button
                       type="button"
-                      onClick={handleResetForNewQuestion}
-                      className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-100 hover:border-slate-400 active:scale-95 transition-all flex items-center gap-2 shadow-xs"
-                      title="Clear question fields to start typing a new question"
+                      onClick={handleNewQuestionClick}
+                      className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-100 hover:border-slate-400 active:scale-95 transition-all flex items-center gap-1.5 shadow-xs"
+                      title="Clear form to write another question"
                     >
                       <span className="text-blue-600 font-extrabold text-base leading-none">➕</span>
-                      <span>Add Question</span>
+                      <span>Add New Question</span>
                     </button>
 
-                    {/* 2. Save Button */}
+                    {/* Save or Update Question Button */}
                     <button
                       type="submit"
                       disabled={isPending}
                       className="rounded-xl bg-blue-700 px-6 py-2.5 text-xs sm:text-sm font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 disabled:opacity-50 transition-all flex items-center gap-2"
-                      title="Save this question, options, and explanation into the mock test"
+                      title="Save this question, options, and explanation into Supabase"
                     >
                       <span>💾</span>
-                      <span>{isPending ? "Saving..." : "Save"}</span>
+                      <span>
+                        {isPending
+                          ? "Saving to Supabase..."
+                          : isEditingExisting
+                          ? `Update Question #${activeQuestionIndex + 1}`
+                          : `Save Question #${currentTestQuestions.length + 1}`}
+                      </span>
                     </button>
 
-                    {/* 3. Publish Button */}
+                    {/* Publish Button */}
                     <button
                       type="button"
                       onClick={handlePublishMockTest}
@@ -1253,7 +1646,9 @@ export function AdminPanel({
                       title="Publish this mock test so it becomes available for students"
                     >
                       <span>🚀</span>
-                      <span>Publish</span>
+                      <span>
+                        {currentTargetTest?.status === "published" ? "Re-Publish Test" : "Publish Mock Test"}
+                      </span>
                     </button>
                   </div>
                 </div>
@@ -1262,20 +1657,31 @@ export function AdminPanel({
           </div>
         )}
 
-        {/* TAB 2.5: MY LEARNING (Admin Curriculum Authoring) */}
+        {/* TAB 3: MY LEARNING (Admin Curriculum Studio & Rich Material Authoring) */}
         {activeTab === "learning" && (
-          <div className="mt-6 space-y-6">
+          <div className="mt-6 space-y-4">
+            {/* Step-Back Navigation: Return to Mock Tests */}
+            <button
+              type="button"
+              onClick={() => switchTab("tests")}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 active:scale-95 px-3.5 py-2 text-xs font-bold text-slate-700 transition-all shadow-2xs"
+              title="Go back to Mock Tests (1 step back)"
+            >
+              <span className="text-sm font-black leading-none">‹</span>
+              <span>Back to Mock Tests</span>
+            </button>
+
             <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs">
               <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-5">
                 <div>
                   <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-black uppercase tracking-wider text-blue-800 border border-blue-200">
-                    📖 Curriculum &amp; Learning Studio
+                    📖 Curriculum &amp; Study Materials Studio
                   </span>
                   <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900">
                     My Learning: Subjects, Chapters &amp; Subtopics
                   </h2>
                   <p className="mt-1 text-xs sm:text-sm text-slate-500 max-w-2xl">
-                    Configure the official syllabus across Mathematics, Physics, Chemistry, and Aptitude. Every chapter and subtopic added or modified here is immediately synchronized to the Student &quot;My Learning&quot; portal.
+                    Configure the official syllabus and author rich learning content: detailed theory explanations, formula cheat-sheets, and PDF/book materials. All content is saved in Supabase and synchronized to the Student portal.
                   </p>
                 </div>
 
@@ -1299,7 +1705,7 @@ export function AdminPanel({
                   <button
                     type="button"
                     onClick={() => setLearningSuccessMessage("")}
-                    className="text-emerald-700 hover:text-emerald-900 text-sm font-bold"
+                    className="text-xs font-bold text-emerald-700 hover:underline"
                   >
                     ✕
                   </button>
@@ -1311,117 +1717,86 @@ export function AdminPanel({
                   <button
                     type="button"
                     onClick={() => setLearningErrorMessage("")}
-                    className="text-rose-700 hover:text-rose-900 text-sm font-bold"
+                    className="text-xs font-bold text-rose-700 hover:underline"
                   >
                     ✕
                   </button>
                 </div>
               )}
 
-              {/* Subject Selector Pills */}
-              <div className="mt-6">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-                  Select Subject to Manage:
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {subjects.map((sub) => {
-                    const isSelected = sub.id === selectedLearningSubjectId;
-                    const subChapters = adminChapters.filter((c) => c.subject_id === sub.id);
-                    const subTopicsCount = subChapters.reduce(
-                      (acc, c) => acc + adminTopics.filter((t) => t.chapter_id === c.id).length,
-                      0
-                    );
-
-                    return (
-                      <button
-                        key={sub.id}
-                        type="button"
-                        onClick={() => setSelectedLearningSubjectId(sub.id)}
-                        className={`rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
-                          isSelected
-                            ? "bg-blue-700 text-white shadow-md shadow-blue-700/20"
-                            : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              {/* Subject Selector Tabs */}
+              <div className="mt-6 flex flex-wrap gap-2 border-b border-slate-200 pb-3">
+                {subjects.map((sub) => {
+                  const chapCount = adminChapters.filter((c) => c.subject_id === sub.id).length;
+                  const isSelected = selectedLearningSubjectId === sub.id;
+                  return (
+                    <button
+                      key={sub.id}
+                      type="button"
+                      onClick={() => setSelectedLearningSubjectId(sub.id)}
+                      className={`rounded-xl px-4 py-2 text-xs font-bold transition-all flex items-center gap-2 ${
+                        isSelected
+                          ? "bg-blue-700 text-white shadow-xs"
+                          : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                      }`}
+                    >
+                      <span>{sub.name}</span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] ${
+                          isSelected ? "bg-blue-800 text-white" : "bg-slate-200 text-slate-700"
                         }`}
                       >
-                        <span>{sub.name}</span>
-                        <span
-                          className={`rounded-full px-2 py-0.2 text-[10px] font-black ${
-                            isSelected ? "bg-blue-900 text-blue-200" : "bg-slate-100 text-slate-600"
-                          }`}
-                        >
-                          {subChapters.length} chap &bull; {subTopicsCount} topics
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
+                        {chapCount}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Create New Chapter for Selected Subject */}
-              <div className="mt-8 rounded-2xl border border-blue-200 bg-blue-50/40 p-5 sm:p-6">
-                <h3 className="text-sm font-extrabold uppercase tracking-wider text-blue-900">
-                  ➕ Add New Chapter to {subjects.find((s) => s.id === selectedLearningSubjectId)?.name || "Subject"}
-                </h3>
-                <p className="mt-1 text-xs text-slate-600">
-                  Enter chapter title (e.g. &quot;Coordinate Geometry&quot;, &quot;Thermodynamics&quot;, &quot;Electrochemistry&quot;).
-                </p>
+              {/* Add Chapter Form */}
+              <form onSubmit={handleCreateChapter} className="mt-6 flex flex-wrap items-center gap-3">
+                <input
+                  type="text"
+                  placeholder={`Add new chapter to ${subjects.find((s) => s.id === selectedLearningSubjectId)?.name || "Subject"}...`}
+                  value={newChapterName}
+                  onChange={(e) => setNewChapterName(e.target.value)}
+                  className="w-full sm:w-80 rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-800 outline-none focus:border-blue-600"
+                  required
+                />
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className="rounded-xl bg-blue-700 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-blue-800 transition-all"
+                >
+                  {isPending ? "Adding..." : "+ Add Chapter"}
+                </button>
+              </form>
 
-                <form onSubmit={handleCreateChapter} className="mt-4 flex flex-col sm:flex-row gap-3">
-                  <input
-                    type="text"
-                    value={newChapterName}
-                    onChange={(e) => setNewChapterName(e.target.value)}
-                    placeholder="Enter chapter name..."
-                    className="flex-1 rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-900 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
-                    required
-                  />
-                  <button
-                    type="submit"
-                    disabled={isPending}
-                    className="rounded-xl bg-blue-700 px-6 py-3 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 disabled:opacity-50 transition-all whitespace-nowrap"
-                  >
-                    {isPending ? "Adding..." : "+ Add Chapter"}
-                  </button>
-                </form>
-              </div>
-
-              {/* Chapters & Subtopics List */}
-              <div className="mt-8 space-y-5">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-base font-extrabold text-slate-900">
-                    Chapters &amp; Subtopics in {subjects.find((s) => s.id === selectedLearningSubjectId)?.name || "Subject"}
-                  </h3>
-                  <span className="text-xs text-slate-500 font-semibold">
-                    {adminChapters.filter((c) => c.subject_id === selectedLearningSubjectId).length} Chapters Total
-                  </span>
-                </div>
-
+              {/* Chapters & Subtopics Grid */}
+              <div className="mt-6 space-y-4">
                 {adminChapters.filter((c) => c.subject_id === selectedLearningSubjectId).length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center bg-slate-50">
-                    <p className="text-sm font-semibold text-slate-600">No chapters added yet for this subject.</p>
-                    <p className="mt-1 text-xs text-slate-400">Use the form above to add your first chapter.</p>
-                  </div>
+                  <p className="text-xs text-slate-400 italic">
+                    No chapters added to this subject yet. Use the form above to add one.
+                  </p>
                 ) : (
                   adminChapters
                     .filter((c) => c.subject_id === selectedLearningSubjectId)
-                    .map((chapter, chapIdx) => {
+                    .map((chapter) => {
                       const chapterTopics = adminTopics.filter((t) => t.chapter_id === chapter.id);
 
                       return (
                         <div
                           key={chapter.id}
-                          className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5 sm:p-6 transition-all hover:border-slate-300 hover:bg-white hover:shadow-xs"
+                          className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 transition-all hover:border-slate-300"
                         >
-                          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 pb-3">
-                            <div className="flex items-center gap-2.5">
-                              <span className="rounded-lg bg-blue-700 px-2.5 py-1 text-xs font-black text-white">
-                                Chapter {chapIdx + 1}
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-3">
+                            <div className="flex items-center gap-2">
+                              <span className="rounded bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-800">
+                                Chapter
                               </span>
-                              <h4 className="text-base font-extrabold text-slate-900">
-                                {chapter.name}
-                              </h4>
-                              <span className="rounded-full bg-slate-200 text-slate-700 px-2 py-0.5 text-[10px] font-bold">
-                                {chapterTopics.length} Subtopics
+                              <h4 className="text-sm font-bold text-slate-900">{chapter.name}</h4>
+                              <span className="text-[11px] text-slate-400">
+                                ({chapterTopics.length} subtopics)
                               </span>
                             </div>
 
@@ -1429,41 +1804,84 @@ export function AdminPanel({
                               type="button"
                               onClick={() => handleDeleteChapter(chapter.id, chapter.name)}
                               disabled={isPending}
-                              className="rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-50 hover:border-rose-300 active:scale-95 transition-all flex items-center gap-1"
-                              title="Delete chapter and all its subtopics"
+                              className="text-xs font-semibold text-rose-600 hover:text-rose-800 hover:underline"
                             >
-                              <span>🗑️</span>
-                              <span>Delete Chapter</span>
+                              Delete Chapter
                             </button>
                           </div>
 
-                          {/* Subtopics Chips List */}
-                          <div className="mt-4">
-                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
-                              Subtopics / Topics:
-                            </p>
+                          {/* Subtopics List */}
+                          <div className="mt-3">
                             {chapterTopics.length === 0 ? (
-                              <p className="text-xs text-slate-400 italic">No subtopics added under this chapter yet.</p>
+                              <p className="text-[11px] text-slate-400 italic">No subtopics added yet.</p>
                             ) : (
-                              <div className="flex flex-wrap gap-2">
-                                {chapterTopics.map((topic) => (
-                                  <span
-                                    key={topic.id}
-                                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 shadow-2xs font-medium"
-                                  >
-                                    <span>&bull;</span>
-                                    <span>{topic.name}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteTopic(topic.id, topic.name)}
-                                      disabled={isPending}
-                                      className="ml-1 text-slate-400 hover:text-rose-600 font-bold text-xs"
-                                      title="Remove subtopic"
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                {chapterTopics.map((topic) => {
+                                  const content = parseTopicLearningContent(topic.description);
+                                  const hasNotes = Boolean(content.explanation && content.explanation.trim());
+                                  const hasFormulas = Boolean(content.formulas && content.formulas.trim());
+                                  const resourceCount = content.resources?.length || 0;
+
+                                  return (
+                                    <div
+                                      key={topic.id}
+                                      className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-3 shadow-2xs gap-2"
                                     >
-                                      ✕
-                                    </button>
-                                  </span>
-                                ))}
+                                      <div>
+                                        <div className="flex items-center justify-between gap-1">
+                                          <h5 className="text-xs font-bold text-slate-900 leading-snug">
+                                            {topic.name}
+                                          </h5>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDeleteTopic(topic.id, topic.name)}
+                                            disabled={isPending}
+                                            className="text-slate-400 hover:text-rose-600 font-bold text-xs p-0.5"
+                                            title="Delete subtopic"
+                                          >
+                                            ✕
+                                          </button>
+                                        </div>
+
+                                        {/* Badges showing content added */}
+                                        <div className="mt-2 flex flex-wrap gap-1">
+                                          {hasNotes && (
+                                            <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 border border-blue-200">
+                                              📝 Notes
+                                            </span>
+                                          )}
+                                          {hasFormulas && (
+                                            <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 border border-amber-200">
+                                              ⚡ Formulas
+                                            </span>
+                                          )}
+                                          {resourceCount > 0 && (
+                                            <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
+                                              📚 {resourceCount} Materials
+                                            </span>
+                                          )}
+                                          {!hasNotes && !hasFormulas && resourceCount === 0 && (
+                                            <span className="text-[10px] text-slate-400 italic">
+                                              No study material added yet
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Action to edit learning material */}
+                                      <div className="mt-1 pt-2 border-t border-slate-100 flex items-center justify-end">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenTopicEditor(topic)}
+                                          className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-800 hover:bg-blue-100 transition-all flex items-center gap-1"
+                                        >
+                                          <span>✏️</span>
+                                          <span>Edit Notes &amp; Formulas</span>
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
@@ -1500,141 +1918,183 @@ export function AdminPanel({
                 )}
               </div>
             </div>
-          </div>
-        )}
 
-        {/* TAB 3: QUESTION BANK MANAGEMENT */}
-        {activeTab === "list" && (
-          <div className="mt-6 space-y-6">
-            {/* Filter and Search Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-bold uppercase text-slate-500 mr-1">Subject:</span>
-                <button
-                  type="button"
-                  onClick={() => setSubjectFilter("all")}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                    subjectFilter === "all"
-                      ? "bg-blue-700 text-white shadow-xs"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                  }`}
-                >
-                  All ({questions.length})
-                </button>
-                {subjects.map((sub) => {
-                  const count = questions.filter((q) => q.subject?.id === sub.id).length;
-                  return (
-                    <button
-                      key={sub.id}
-                      type="button"
-                      onClick={() => setSubjectFilter(sub.id)}
-                      className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                        subjectFilter === sub.id
-                          ? "bg-blue-700 text-white shadow-xs"
-                          : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                      }`}
-                    >
-                      {sub.name} ({count})
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="w-full sm:w-64">
-                <input
-                  type="text"
-                  placeholder="Search question text..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2 text-xs text-slate-800 outline-none focus:border-blue-600"
-                />
-              </div>
-            </div>
-
-            {/* Questions List */}
-            {displayedQuestions.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-xs">
-                <p className="text-base font-bold text-slate-700">No questions found matching your filter.</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {displayedQuestions.map((q, idx) => {
-                  return (
-                    <div
-                      key={q.id}
-                      className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs transition-all hover:border-slate-300"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                        <div className="flex items-center gap-2">
-                          <span className="rounded bg-slate-900 px-2.5 py-0.5 text-xs font-black text-white">
-                            #{idx + 1}
-                          </span>
-                          <span className="rounded-md bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-800 border border-blue-200">
-                            {q.subject?.name || "General"}
-                          </span>
-                          <span className="rounded border px-2 py-0.5 text-xs font-semibold uppercase text-slate-600">
-                            {q.difficulty}
-                          </span>
-                          <span className="text-xs text-slate-500">
-                            +{q.marks} / -{q.negative_marks} marks
-                          </span>
-                        </div>
-
-                        <button
-                          type="button"
-                          disabled={isPending}
-                          onClick={() => handleDeleteQuestion(q.id)}
-                          className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-all"
-                        >
-                          Delete
-                        </button>
-                      </div>
-
-                      <div className="mt-4 text-base font-normal leading-relaxed text-slate-900 whitespace-pre-wrap">
-                        {q.question_text}
-                      </div>
-
-                      {/* Options */}
-                      <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                        {q.options.map((opt) => {
-                          const isCorrect = opt.id === q.answer_key?.[0]?.correct_option_id;
-                          return (
-                            <div
-                              key={opt.id}
-                              className={`flex items-start gap-2.5 rounded-lg border p-2.5 text-xs ${
-                                isCorrect
-                                  ? "border-emerald-500 bg-emerald-50 font-bold text-emerald-950"
-                                  : "border-slate-200 bg-slate-50 text-slate-700"
-                              }`}
-                            >
-                              <span
-                                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] ${
-                                  isCorrect ? "bg-emerald-600 text-white font-bold" : "bg-slate-200 text-slate-600"
-                                }`}
-                              >
-                                {opt.option_label}
-                              </span>
-                              <span className="pt-0.5">{opt.option_text}</span>
-                              {isCorrect && (
-                                <span className="ml-auto text-[10px] text-emerald-700 font-bold">
-                                  ✓ Correct Key
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Explanation */}
-                      {q.explanation && (
-                        <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50/40 p-4 text-xs text-slate-800">
-                          <strong className="text-blue-950">💡 Explanation: </strong>
-                          <span className="whitespace-pre-wrap leading-relaxed">{q.explanation}</span>
-                        </div>
-                      )}
+            {/* TOPIC RICH CONTENT EDITOR MODAL */}
+            {editingTopic && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-in fade-in">
+                <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-2xl space-y-6">
+                  {/* Modal Header */}
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                    <div>
+                      <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-blue-800 border border-blue-200">
+                        Author Learning Curriculum
+                      </span>
+                      <h3 className="mt-1.5 text-xl font-black text-slate-900">
+                        {editingTopic.name}
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        Add comprehensive explanations, formula sheets, reference books, and old exam formula materials.
+                      </p>
                     </div>
-                  );
-                })}
+
+                    <button
+                      type="button"
+                      onClick={() => setEditingTopic(null)}
+                      className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* 1. Subtopic Title */}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                      Subtopic Title
+                    </label>
+                    <input
+                      type="text"
+                      value={editTopicName}
+                      onChange={(e) => setEditTopicName(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-300 p-2.5 text-sm font-semibold text-slate-900 outline-none focus:border-blue-600"
+                      required
+                    />
+                  </div>
+
+                  {/* 2. Detailed Explanation & Theory */}
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        Detailed Explanation &amp; Theory Notes
+                      </label>
+                      <span className="text-[11px] text-slate-500">
+                        Supports LaTeX $...$ &amp; multi-line formatted text
+                      </span>
+                    </div>
+                    <textarea
+                      rows={6}
+                      value={editExplanation}
+                      onChange={(e) => setEditExplanation(e.target.value)}
+                      placeholder="Enter detailed concept explanations, core theorems, step-by-step methodologies, and derivation notes..."
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 p-3 text-sm text-slate-900 outline-none focus:border-blue-600"
+                    />
+                  </div>
+
+                  {/* 3. Formulas & Key Rules / Short-cuts */}
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        Formulas, Key Equations &amp; Short-cuts
+                      </label>
+                      <span className="text-[11px] text-slate-500">Formula Cheat-Sheet</span>
+                    </div>
+                    <textarea
+                      rows={5}
+                      value={editFormulas}
+                      onChange={(e) => setEditFormulas(e.target.value)}
+                      placeholder="Enter standard formulas, shortcuts, speed math tricks, and essential identities for rapid problem solving..."
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 p-3 text-sm font-mono text-slate-900 outline-none focus:border-blue-600"
+                    />
+                  </div>
+
+                  {/* 4. PDFs, Reference Books & Old Exam Materials */}
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-800">
+                          PDFs, Reference Books &amp; Old Exam Materials
+                        </label>
+                        <p className="text-[11px] text-slate-500">
+                          Add links to PDF textbooks, formula booklets, or reference documents for students.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleAddResourceRow}
+                        className="rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-800 transition-all flex items-center gap-1 shadow-xs"
+                      >
+                        <span>+ Add Material</span>
+                      </button>
+                    </div>
+
+                    {editResources.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic py-2">
+                        No materials attached yet. Click &quot;+ Add Material&quot; to link PDFs, books, or formula guides.
+                      </p>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {editResources.map((res, idx) => (
+                          <div
+                            key={idx}
+                            className="flex flex-wrap sm:flex-nowrap items-center gap-2 rounded-lg border border-slate-200 bg-white p-2.5 shadow-2xs"
+                          >
+                            <select
+                              value={res.type}
+                              onChange={(e) =>
+                                handleUpdateResourceRow(idx, "type", e.target.value)
+                              }
+                              className="rounded-md border border-slate-200 bg-slate-50 p-2 text-xs font-semibold text-slate-700 outline-none"
+                            >
+                              <option value="pdf">📄 PDF Document</option>
+                              <option value="book">📖 Reference Book</option>
+                              <option value="formula_sheet">⚡ Formula Sheet</option>
+                              <option value="notes">📝 Revision Notes</option>
+                            </select>
+
+                            <input
+                              type="text"
+                              value={res.title}
+                              onChange={(e) =>
+                                handleUpdateResourceRow(idx, "title", e.target.value)
+                              }
+                              placeholder="Title (e.g. HC Verma Concepts Ch. 3 PDF)"
+                              className="flex-1 min-w-[150px] rounded-md border border-slate-200 p-2 text-xs text-slate-800 outline-none focus:border-blue-600"
+                            />
+
+                            <input
+                              type="url"
+                              value={res.url}
+                              onChange={(e) =>
+                                handleUpdateResourceRow(idx, "url", e.target.value)
+                              }
+                              placeholder="URL (https://...)"
+                              className="flex-1 min-w-[150px] rounded-md border border-slate-200 p-2 text-xs text-slate-800 outline-none focus:border-blue-600"
+                            />
+
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveResourceRow(idx)}
+                              className="text-slate-400 hover:text-rose-600 font-bold text-xs p-1"
+                              title="Remove item"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Modal Footer */}
+                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setEditingTopic(null)}
+                      className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveTopicContent}
+                      disabled={isSavingTopicContent}
+                      className="rounded-xl bg-blue-700 px-6 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 disabled:opacity-50 transition-all flex items-center gap-1.5"
+                    >
+                      <span>💾</span>
+                      <span>{isSavingTopicContent ? "Saving to Supabase..." : "Save to Supabase & Sync"}</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -1642,7 +2102,18 @@ export function AdminPanel({
 
         {/* TAB 4: ADMIN USERS ROLES */}
         {activeTab === "admins" && (
-          <div className="mt-6 space-y-6">
+          <div className="mt-6 space-y-4">
+            {/* Step-Back Navigation: Return to Mock Tests */}
+            <button
+              type="button"
+              onClick={() => switchTab("tests")}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 active:scale-95 px-3.5 py-2 text-xs font-bold text-slate-700 transition-all shadow-2xs"
+              title="Go back to Mock Tests (1 step back)"
+            >
+              <span className="text-sm font-black leading-none">‹</span>
+              <span>Back to Mock Tests</span>
+            </button>
+
             <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs">
               <h2 className="text-xl font-bold text-slate-900">Platform Administrators</h2>
               <p className="mt-1 text-xs sm:text-sm text-slate-500">

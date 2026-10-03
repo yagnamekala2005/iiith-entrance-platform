@@ -23,6 +23,19 @@ export default async function TestDetailPage({ params }: PageProps) {
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8 font-sans">
+      {/* 1-Step Back Navigation */}
+      <div className="mb-3">
+        <Link
+          href="/tests"
+          prefetch={true}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 active:scale-95 px-3 py-1.5 text-xs font-bold text-slate-700 transition-all shadow-2xs"
+          title="Return to Mock Tests list"
+        >
+          <span className="text-sm font-black leading-none">‹</span>
+          <span>Back to Mock Tests</span>
+        </Link>
+      </div>
+
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
         <Link href="/dashboard" className="hover:text-blue-700">Dashboard</Link>
