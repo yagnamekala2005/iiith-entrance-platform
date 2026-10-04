@@ -14,6 +14,9 @@ import {
   cleanAllOldMockTests,
   createAdminSubject,
   createAdminExam,
+  createAdminPracticeQuestion,
+  getAdminTopicPracticeQuestions,
+  updateAdminPracticeQuestion,
   createAdminChapter,
   deleteAdminChapter,
   createAdminTopic,
@@ -151,6 +154,21 @@ export function AdminPanel({
   const [isAddingSubject, setIsAddingSubject] = useState<boolean>(false);
   const [newSubjectName, setNewSubjectName] = useState<string>("");
   const [newSubjectDescription, setNewSubjectDescription] = useState<string>("");
+
+  // Topic Practice Question State
+  const [practiceTopic, setPracticeTopic] = useState<TopicItem | null>(null);
+  const [practiceQuestionText, setPracticeQuestionText] = useState<string>("");
+  const [practiceOptions, setPracticeOptions] = useState<[string, string, string, string]>(["", "", "", ""]);
+  const [practiceCorrectOption, setPracticeCorrectOption] = useState<string>("A");
+  const [practiceDifficulty, setPracticeDifficulty] = useState<"easy" | "medium" | "hard">("medium");
+  const [practiceMarks, setPracticeMarks] = useState<number>(1);
+  const [practiceExplanation, setPracticeExplanation] = useState<string>("");
+  const [practiceSuccessMessage, setPracticeSuccessMessage] = useState<string>("");
+  const [practiceErrorMessage, setPracticeErrorMessage] = useState<string>("");
+  const [practiceQuestions, setPracticeQuestions] = useState<Awaited<ReturnType<typeof getAdminTopicPracticeQuestions>>["questions"]>([]);
+  const [practiceQuestionIndex, setPracticeQuestionIndex] = useState<number>(0);
+  const [practiceEditingId, setPracticeEditingId] = useState<string | null>(null);
+  const [practiceQuestionsLoading, setPracticeQuestionsLoading] = useState<boolean>(false);
 
   // Topic Rich Learning Content Editor Modal state
   const [editingTopic, setEditingTopic] = useState<TopicItem | null>(null);
@@ -417,6 +435,156 @@ export function AdminPanel({
     const updated = [...options] as [string, string, string, string];
     updated[index] = value;
     setOptions(updated);
+  };
+
+  const populatePracticeQuestionForm = (question: Awaited<ReturnType<typeof getAdminTopicPracticeQuestions>>["questions"][number]) => {
+    setPracticeEditingId(question.id);
+    setPracticeQuestionText(question.question_text || "");
+    setPracticeOptions([
+      question.options.find((o) => o.option_label === "A")?.option_text || "",
+      question.options.find((o) => o.option_label === "B")?.option_text || "",
+      question.options.find((o) => o.option_label === "C")?.option_text || "",
+      question.options.find((o) => o.option_label === "D")?.option_text || "",
+    ]);
+    setPracticeCorrectOption(question.correct_option_label || "A");
+    setPracticeDifficulty(question.difficulty || "medium");
+    setPracticeMarks(question.marks ?? 1);
+    setPracticeExplanation(question.explanation || "");
+    setPracticeSuccessMessage("");
+    setPracticeErrorMessage("");
+  };
+
+  const openPracticeQuestionEditor = (topic: TopicItem) => {
+    setPracticeTopic(topic);
+    setPracticeQuestions([]);
+    setPracticeQuestionIndex(0);
+    setPracticeEditingId(null);
+    setPracticeQuestionText("");
+    setPracticeOptions(["", "", "", ""]);
+    setPracticeCorrectOption("A");
+    setPracticeDifficulty("medium");
+    setPracticeMarks(1);
+    setPracticeExplanation("");
+    setPracticeSuccessMessage("");
+    setPracticeErrorMessage("");
+    setPracticeQuestionsLoading(true);
+
+    startTransition(async () => {
+      const res = await getAdminTopicPracticeQuestions(topic.id);
+      setPracticeQuestionsLoading(false);
+
+      if (res.success) {
+        setPracticeQuestions(res.questions);
+        if (res.questions.length > 0) {
+          populatePracticeQuestionForm(res.questions[0]);
+        }
+      } else {
+        setPracticeErrorMessage(res.error || "Failed to load practice questions.");
+      }
+    });
+  };
+
+  const handlePracticeQuestionNavigation = (index: number) => {
+    if (index < 0 || index >= practiceQuestions.length) return;
+    setPracticeQuestionIndex(index);
+    populatePracticeQuestionForm(practiceQuestions[index]);
+  };
+
+  const handleNewPracticeQuestion = () => {
+    setPracticeQuestionIndex(practiceQuestions.length);
+    setPracticeEditingId(null);
+    setPracticeQuestionText("");
+    setPracticeOptions(["", "", "", ""]);
+    setPracticeCorrectOption("A");
+    setPracticeDifficulty("medium");
+    setPracticeMarks(1);
+    setPracticeExplanation("");
+    setPracticeSuccessMessage("");
+    setPracticeErrorMessage("");
+  };
+
+  const handlePracticeOptionChange = (index: number, value: string) => {
+    const updated = [...practiceOptions] as [string, string, string, string];
+    updated[index] = value;
+    setPracticeOptions(updated);
+  };
+
+  const handleCreatePracticeQuestion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPracticeSuccessMessage("");
+    setPracticeErrorMessage("");
+
+    if (!practiceTopic) return;
+
+    const chapter = adminChapters.find((item) => item.id === practiceTopic.chapter_id);
+    const subjectId = chapter?.subject_id;
+
+    if (!subjectId) {
+      setPracticeErrorMessage("Unable to determine the subject for this topic.");
+      return;
+    }
+
+    if (!practiceQuestionText.trim()) {
+      setPracticeErrorMessage("Please enter the question statement.");
+      return;
+    }
+
+    if (practiceOptions.some((option) => !option.trim())) {
+      setPracticeErrorMessage("Please enter all 4 options (A, B, C, D).");
+      return;
+    }
+
+    if (!practiceExplanation.trim()) {
+      setPracticeErrorMessage("Please provide the solution explanation.");
+      return;
+    }
+
+    startTransition(async () => {
+      const payload = {
+        question_text: practiceQuestionText.trim(),
+        difficulty: practiceDifficulty,
+        explanation: practiceExplanation.trim(),
+        marks: Number(practiceMarks) || 1,
+        options: [
+          { label: "A", text: practiceOptions[0].trim() },
+          { label: "B", text: practiceOptions[1].trim() },
+          { label: "C", text: practiceOptions[2].trim() },
+          { label: "D", text: practiceOptions[3].trim() },
+        ],
+        correct_option_label: practiceCorrectOption,
+      };
+
+      const res = practiceEditingId
+        ? await updateAdminPracticeQuestion(practiceEditingId, payload)
+        : await createAdminPracticeQuestion({
+            subject_id: subjectId,
+            chapter_id: practiceTopic.chapter_id,
+            topic_id: practiceTopic.id,
+            ...payload,
+          });
+
+      if (res.success) {
+        setPracticeSuccessMessage(
+          practiceEditingId
+            ? "✅ Practice question updated successfully."
+            : "✅ Practice question saved and published for this topic."
+        );
+
+        const refreshed = await getAdminTopicPracticeQuestions(practiceTopic.id);
+        if (refreshed.success) {
+          setPracticeQuestions(refreshed.questions);
+          const targetIndex = practiceEditingId
+            ? Math.max(0, refreshed.questions.findIndex((q) => q.id === practiceEditingId))
+            : Math.max(0, refreshed.questions.length - 1);
+          setPracticeQuestionIndex(targetIndex);
+          if (refreshed.questions[targetIndex]) {
+            populatePracticeQuestionForm(refreshed.questions[targetIndex]);
+          }
+        }
+      } else {
+        setPracticeErrorMessage(res.error || "Failed to save practice question.");
+      }
+    });
   };
 
   // Handler: Create Mock Test
@@ -2126,14 +2294,24 @@ export function AdminPanel({
 
                                       {/* Action to edit learning material */}
                                       <div className="mt-1 pt-2 border-t border-slate-100 flex items-center justify-end">
-                                        <button
-                                          type="button"
-                                          onClick={() => handleOpenTopicEditor(topic)}
-                                          className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-800 hover:bg-blue-100 transition-all flex items-center gap-1"
-                                        >
-                                          <span>✏️</span>
-                                          <span>Edit Notes &amp; Formulas</span>
-                                        </button>
+                                        <div className="flex flex-wrap items-center justify-end gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleOpenTopicEditor(topic)}
+                                            className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-800 hover:bg-blue-100 transition-all flex items-center gap-1"
+                                          >
+                                            <span>✏️</span>
+                                            <span>Edit Notes &amp; Formulas</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => openPracticeQuestionEditor(topic)}
+                                            className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800 hover:bg-emerald-100 transition-all flex items-center gap-1"
+                                          >
+                                            <span>📝</span>
+                                            <span>Add / Edit Practice Questions</span>
+                                          </button>
+                                        </div>
                                       </div>
                                     </div>
                                   );
@@ -2174,6 +2352,238 @@ export function AdminPanel({
                 )}
               </div>
             </div>
+
+            {/* TOPIC PRACTICE QUESTION EDITOR */}
+            {practiceTopic && (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-xs animate-in fade-in">
+                <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-2xl">
+                  <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+                    <div>
+                      <span className="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-emerald-800 border border-emerald-200">
+                        Topic Practice Questions
+                      </span>
+                      <h3 className="mt-2 text-xl font-black text-slate-900">
+                        {practiceTopic.name}
+                      </h3>
+                      <p className="mt-1 text-xs text-slate-500">
+                        View, navigate, add, and edit all practice questions for this topic.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPracticeTopic(null)}
+                      className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {practiceQuestionsLoading ? (
+                    <div className="py-14 text-center">
+                      <div className="text-3xl">⏳</div>
+                      <p className="mt-3 text-sm font-bold text-slate-700">Loading topic practice questions...</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Question Navigator</p>
+                          <p className="text-sm font-black text-slate-900">
+                            {practiceEditingId
+                              ? `Question ${Math.min(practiceQuestionIndex + 1, practiceQuestions.length)} of ${practiceQuestions.length}`
+                              : "New Practice Question"}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handlePracticeQuestionNavigation(practiceQuestionIndex - 1)}
+                            disabled={practiceQuestionIndex <= 0 || practiceQuestions.length === 0}
+                            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            ← Previous
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handlePracticeQuestionNavigation(practiceQuestionIndex + 1)}
+                            disabled={practiceQuestionIndex >= practiceQuestions.length - 1 || practiceQuestions.length === 0}
+                            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            Next →
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleNewPracticeQuestion}
+                            className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700"
+                          >
+                            + New Question
+                          </button>
+                        </div>
+                      </div>
+
+                      {practiceQuestions.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {practiceQuestions.map((question, index) => (
+                            <button
+                              key={question.id}
+                              type="button"
+                              onClick={() => handlePracticeQuestionNavigation(index)}
+                              className={`h-8 min-w-8 rounded-lg border px-2 text-[11px] font-black transition-all ${
+                                practiceEditingId === question.id
+                                  ? "border-emerald-600 bg-emerald-600 text-white"
+                                  : "border-slate-200 bg-white text-slate-700 hover:border-emerald-400 hover:bg-emerald-50"
+                              }`}
+                              title={`Open question ${index + 1}`}
+                            >
+                              {index + 1}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {practiceSuccessMessage && (
+                        <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-800">
+                          {practiceSuccessMessage}
+                        </div>
+                      )}
+                      {practiceErrorMessage && (
+                        <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-800">
+                          ⚠️ {practiceErrorMessage}
+                        </div>
+                      )}
+
+                      <form onSubmit={handleCreatePracticeQuestion} className="mt-5 space-y-5">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Topic</label>
+                            <input
+                              value={practiceTopic.name}
+                              readOnly
+                              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-700"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Difficulty</label>
+                            <select
+                              value={practiceDifficulty}
+                              onChange={(e) => setPracticeDifficulty(e.target.value as "easy" | "medium" | "hard")}
+                              className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-emerald-600"
+                            >
+                              <option value="easy">Easy</option>
+                              <option value="medium">Medium</option>
+                              <option value="hard">Hard</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Question Statement *</label>
+                          <textarea
+                            rows={4}
+                            value={practiceQuestionText}
+                            onChange={(e) => setPracticeQuestionText(e.target.value)}
+                            placeholder="Enter the practice question..."
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3.5 text-sm text-slate-900 outline-none focus:border-emerald-600"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <div className="mb-2 flex items-center justify-between">
+                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Options &amp; Correct Answer *</label>
+                            <span className="text-xs font-bold text-emerald-700">Correct: {practiceCorrectOption}</span>
+                          </div>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {(["A", "B", "C", "D"] as const).map((label, idx) => {
+                              const isCorrect = practiceCorrectOption === label;
+                              return (
+                                <div
+                                  key={label}
+                                  className={`flex items-start gap-3 rounded-xl border p-3 transition-all ${
+                                    isCorrect
+                                      ? "border-emerald-500 bg-emerald-50/50 ring-1 ring-emerald-400"
+                                      : "border-slate-200 bg-slate-50/50"
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="practiceCorrectOption"
+                                    checked={isCorrect}
+                                    onChange={() => setPracticeCorrectOption(label)}
+                                    className="mt-1 h-4 w-4 cursor-pointer"
+                                  />
+                                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black ${
+                                    isCorrect ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-700"
+                                  }`}>
+                                    {label}
+                                  </span>
+                                  <input
+                                    type="text"
+                                    value={practiceOptions[idx]}
+                                    onChange={(e) => handlePracticeOptionChange(idx, e.target.value)}
+                                    placeholder={`Option ${label} text...`}
+                                    className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-800 outline-none focus:border-emerald-600"
+                                    required
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="grid gap-4 sm:grid-cols-[1fr_2fr]">
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Marks</label>
+                            <input
+                              type="number"
+                              min="0.5"
+                              step="0.5"
+                              value={practiceMarks}
+                              onChange={(e) => setPracticeMarks(Number(e.target.value))}
+                              className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-900 outline-none focus:border-emerald-600"
+                            />
+                            <p className="mt-1 text-[10px] text-slate-400">No negative marking is applied in student practice.</p>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Solution Explanation *</label>
+                            <textarea
+                              rows={5}
+                              value={practiceExplanation}
+                              onChange={(e) => setPracticeExplanation(e.target.value)}
+                              placeholder="Enter the explanation that students can open after answering..."
+                              className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-900 outline-none focus:border-emerald-600"
+                              required
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                          <p className="text-[11px] text-slate-500">
+                            Practice questions are scoped to this topic and are not added to Mock Tests.
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setPracticeTopic(null)}
+                              className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50"
+                            >
+                              Close
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={isPending}
+                              className="rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-emerald-600/20 hover:bg-emerald-700 disabled:opacity-50"
+                            >
+                              {isPending ? "Saving..." : practiceEditingId ? "Save Changes" : "Save Practice Question"}
+                            </button>
+                          </div>
+                        </div>
+                      </form>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* TOPIC RICH CONTENT EDITOR MODAL */}
             {editingTopic && (
