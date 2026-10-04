@@ -61,10 +61,16 @@ export function AppBackHandler() {
         return;
       }
 
-      // On Admin Studio pages: Return 1 step back to Dashboard or previous page
+      // On Admin Studio pages: Dispatch admin-step-back event so Admin Panel steps back subtabs or modals, or return to Entrance Portal
       if (pathname.startsWith("/admin")) {
+        const ev = new CustomEvent("admin-step-back", { cancelable: true });
+        window.dispatchEvent(ev);
+        if (ev.defaultPrevented) {
+          return;
+        }
+
         if (pathname === "/admin") {
-          router.push("/dashboard");
+          router.push("/");
         } else {
           if (typeof window !== "undefined" && window.history.length > 1) {
             window.history.back();
