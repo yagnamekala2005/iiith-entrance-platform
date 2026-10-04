@@ -37,52 +37,50 @@ export type PracticeAnswerResult =
 export async function getTopicPracticeQuestions(topicId: string) {
   try {
     if (!topicId) {
-      return { success: false, error: "Topic is required.", questions: [] as PracticeQuestion[] };
+      return {
+        success: false,
+        error: "Topic is required.",
+        questions: [] as PracticeQuestion[],
+      };
     }
 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return { success: false, error: "Authentication required.", questions: [] as PracticeQuestion[] };
+      return {
+        success: false,
+        error: "Authentication required.",
+        questions: [] as PracticeQuestion[],
+      };
     }
 
     const adminClient = createAdminClient();
 
-    const { data: linkedTestQuestions, error: testLinkError } = await adminClient
-      .from("test_questions")
-      .select("question_id");
-
-    if (testLinkError) {
-      return { success: false, error: testLinkError.message, questions: [] as PracticeQuestion[] };
-    }
-
-    const mockTestQuestionIds = new Set(
-      (linkedTestQuestions || []).map((item) => item.question_id)
-    );
-
     const { data, error } = await adminClient
-      .from("questions")
+      .from("practice_questions")
       .select(
-        "id, question_text, difficulty, marks, explanation, question_options(id, option_label, option_text, display_order)"
+        "id, question_text, difficulty, marks, explanation, practice_question_options(id, option_label, option_text, display_order)"
       )
       .eq("topic_id", topicId)
       .eq("status", "published")
       .order("created_at", { ascending: true });
 
     if (error) {
-      return { success: false, error: error.message, questions: [] as PracticeQuestion[] };
+      return {
+        success: false,
+        error: error.message,
+        questions: [] as PracticeQuestion[],
+      };
     }
 
-    const questions: PracticeQuestion[] = (data || [])
-      .filter((question: any) => !mockTestQuestionIds.has(question.id))
-      .map((question: any) => ({
+    const questions: PracticeQuestion[] = (data || []).map((question: any) => ({
       id: question.id,
       question_text: question.question_text,
-      difficulty: question.difficulty,
+      difficulty: question.difficulty || "medium",
       marks: Number(question.marks ?? 1),
       explanation: question.explanation || null,
-      options: [...(question.question_options || [])].sort(
+      options: [...(question.practice_question_options || [])].sort(
         (a, b) => (a.display_order || 0) - (b.display_order || 0)
       ),
     }));
@@ -99,8 +97,9 @@ export async function getTopicPracticeQuestions(topicId: string) {
 }
 
 /**
- * Checks the selected answer on the server so the protected answer key
- * is never exposed to the browser before the student answers.
+ * Checks the selected answer against the dedicated practice answer table.
+ * The practice question data is completely separate from the mock-test
+ * questions, options, and answer-key tables.
  */
 export async function checkTopicPracticeAnswer(
   questionId: string,
@@ -108,7 +107,10 @@ export async function checkTopicPracticeAnswer(
 ): Promise<PracticeAnswerResult> {
   try {
     if (!questionId || !selectedOptionId) {
-      return { success: false, error: "Question and selected option are required." };
+      return {
+        success: false,
+        error: "Question and selected option are required.",
+      };
     }
 
     const supabase = await createClient();
@@ -121,35 +123,51 @@ export async function checkTopicPracticeAnswer(
     const adminClient = createAdminClient();
 
     const { data: question, error: questionError } = await adminClient
-      .from("questions")
-      .select("id, status, topic_id")
+      .from("practice_questions")
+      .select("id, status")
       .eq("id", questionId)
       .maybeSingle();
 
-    if (questionError || !question || question.status !== "published" || !question.topic_id) {
+    if (questionError || !question || question.status !== "published") {
       return { success: false, error: "Practice question is not available." };
     }
 
     const { data: answerKey, error: answerKeyError } = await adminClient
-      .from("question_answer_keys")
+      .from("practice_question_answers")
       .select("correct_option_id")
-      .eq("question_id", questionId)
+      .eq("practice_question_id", questionId)
       .maybeSingle();
 
     if (answerKeyError || !answerKey) {
       return { success: false, error: "Answer key is not available." };
     }
 
+    const { data: selectedOption } = await adminClient
+      .from("practice_question_options")
+      .select("id")
+      .eq("id", selectedOptionId)
+      .eq("practice_question_id", questionId)
+      .maybeSingle();
+
+    if (!selectedOption) {
+      return { success: false, error: "Selected option is not valid for this question." };
+    }
+
     const { data: correctOption } = await adminClient
-      .from("question_options")
+      .from("practice_question_options")
       .select("id, option_label, option_text")
       .eq("id", answerKey.correct_option_id)
+      .eq("practice_question_id", questionId)
       .maybeSingle();
+
+    if (!correctOption) {
+      return { success: false, error: "Correct answer option is not available." };
+    }
 
     return {
       success: true,
       correct: answerKey.correct_option_id === selectedOptionId,
-      correctOption: correctOption || null,
+      correctOption,
     };
   } catch (err) {
     console.error("checkTopicPracticeAnswer error:", err);
