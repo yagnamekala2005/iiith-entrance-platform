@@ -2,7 +2,6 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 import { AdminPanel } from "@/components/admin/admin-panel";
-import { purgeDuplicateAndOrphanQuestions } from "@/lib/admin/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +52,6 @@ export default async function AdminPage() {
 
   const oldTestIdSet = new Set(oldTestIds);
   const tests = (rawTests || []).filter((t) => !oldTestIdSet.has(t.id));
-  const validTestIds = tests.map((t) => t.id);
 
   // Fetch questions from Supabase linked to active mock tests or authored
   type AdminQuestionItem = {

@@ -34,6 +34,20 @@ export type PracticeAnswerResult =
       error: string;
     };
 
+interface PracticeQuestionRow {
+  id: string;
+  question_text: string;
+  difficulty?: string | null;
+  marks?: number | string | null;
+  explanation?: string | null;
+  practice_question_options?: Array<{
+    id: string;
+    option_label: string;
+    option_text: string;
+    display_order?: number | null;
+  }> | null;
+}
+
 export async function getTopicPracticeQuestions(topicId: string) {
   try {
     if (!topicId) {
@@ -74,15 +88,16 @@ export async function getTopicPracticeQuestions(topicId: string) {
       };
     }
 
-    const questions: PracticeQuestion[] = (data || []).map((question: any) => ({
+    const rows = (data as PracticeQuestionRow[] | null) ?? [];
+    const questions: PracticeQuestion[] = rows.map((question) => ({
       id: question.id,
       question_text: question.question_text,
       difficulty: question.difficulty || "medium",
       marks: Number(question.marks ?? 1),
       explanation: question.explanation || null,
-      options: [...(question.practice_question_options || [])].sort(
-        (a, b) => (a.display_order || 0) - (b.display_order || 0)
-      ),
+      options: (question.practice_question_options || [])
+        .map((option) => ({ ...option, display_order: option.display_order ?? 0 }))
+        .sort((a, b) => a.display_order - b.display_order),
     }));
 
     return { success: true, questions };

@@ -398,10 +398,26 @@ export async function getAdminTopicPracticeQuestions(topicId: string) {
       };
     }
 
-    const questions: AdminPracticeQuestionItem[] = (data || []).map((question: any) => {
-      const options = [...(question.practice_question_options || [])].sort(
-        (a, b) => (a.display_order || 0) - (b.display_order || 0)
-      );
+    type PracticeQuestionDataRow = {
+      id: string;
+      topic_id: string;
+      question_text: string;
+      difficulty?: string | null;
+      marks?: number | string | null;
+      explanation?: string | null;
+      practice_question_options?: Array<{
+        id: string;
+        option_label: string;
+        option_text: string;
+        display_order?: number | null;
+      }> | null;
+      practice_question_answers?: Array<{ correct_option_id: string }> | null;
+    };
+
+    const questions: AdminPracticeQuestionItem[] = ((data as PracticeQuestionDataRow[] | null) || []).map((question) => {
+      const options = (question.practice_question_options || [])
+        .map((option) => ({ ...option, display_order: option.display_order ?? 0 }))
+        .sort((a, b) => a.display_order - b.display_order);
       const correctId = question.practice_question_answers?.[0]?.correct_option_id;
       const correctOption = options.find((option) => option.id === correctId);
 
@@ -409,7 +425,7 @@ export async function getAdminTopicPracticeQuestions(topicId: string) {
         id: question.id,
         topic_id: question.topic_id,
         question_text: question.question_text,
-        difficulty: question.difficulty || "medium",
+        difficulty: (question.difficulty as AdminPracticeQuestionItem["difficulty"]) || "medium",
         marks: Number(question.marks ?? 1),
         explanation: question.explanation || null,
         options,
@@ -1561,7 +1577,6 @@ export async function sendPasswordResetEmailAction(email: string, origin: string
     return { success: false, error: msg };
   }
 }
-
 
 
 

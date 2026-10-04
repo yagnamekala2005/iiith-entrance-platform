@@ -69,7 +69,10 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
 
   // Keep handleStepBackRef updated to latest closure without triggering history pushes
   const handleStepBackRef = useRef(handleStepBack);
-  handleStepBackRef.current = handleStepBack;
+
+  useEffect(() => {
+    handleStepBackRef.current = handleStepBack;
+  }, [handleStepBack]);
 
   // Prevent app exit on mobile back button/gesture by intercepting popstate and exam-step-back
   useEffect(() => {
@@ -195,12 +198,18 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
 
   // Auto-submit when timer expires
   useEffect(() => {
-    if (secondsRemaining <= 0 && !autoSubmitTriggered && !isSubmitting) {
+    if (secondsRemaining > 0 || autoSubmitTriggered || isSubmitting) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
       setAutoSubmitTriggered(true);
       setIsSubmitModalOpen(false);
       setIsMobilePaletteOpen(false);
-      handleConfirmSubmit();
-    }
+      void handleConfirmSubmit();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [secondsRemaining, autoSubmitTriggered, isSubmitting]);
 
   // 1. Select option

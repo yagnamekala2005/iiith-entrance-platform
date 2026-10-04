@@ -2,54 +2,91 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const callbackUrl = new URL(request.url);
+  const { searchParams } = callbackUrl;
   const code = searchParams.get("code");
-  const nextParam = searchParams.get("next") ?? "/dashboard";
-  const next = nextParam.startsWith("/") ? nextParam : "/dashboard";
+  const providerError = searchParams.get("error");
+  const loginWithError = (error: string) =>
+    NextResponse.redirect(new URL(`/login?authError=${error}`, callbackUrl.origin));
+
+  if (providerError) {
+    return loginWithError(
+      providerError === "access_denied" ? "oauth_cancelled" : "oauth_failed",
+    );
+  }
 
   if (!code) {
-    return NextResponse.redirect(
-      new URL("/login?oauth_error=Missing+authentication+code", origin),
-    );
+    return loginWithError("oauth_failed");
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  try {
+    const supabase = await createClient();
+    const { data, error: exchangeError } =
+      await supabase.auth.exchangeCodeForSession(code);
 
-  if (error) {
-    const message = encodeURIComponent(error.message);
-    return NextResponse.redirect(
-      new URL(`/login?oauth_error=${message}`, origin),
-    );
-  }
+    if (exchangeError || !data.user) {
+      if (exchangeError) console.error("OAuth code exchange failed:", exchangeError);
+      return loginWithError("oauth_failed");
+    }
 
-  if (next.startsWith("/admin")) {
-    const { data: adminMembership } = await supabase
-      .from("admin_users")
-      .select("user_id")
-      .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
+    const user = data.user;
+    const metadata = user.user_metadata ?? {};
+    const fullName = [metadata.full_name, metadata.name].find(
+      (value): value is string =>
+        typeof value === "string" && value.trim().length > 0,
+    )?.trim();
+    const avatarUrl = [metadata.avatar_url, metadata.picture].find(
+      (value): value is string =>
+        typeof value === "string" && value.trim().length > 0,
+    )?.trim();
+
+    const { data: profile, error: profileLookupError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
       .maybeSingle();
 
-    if (!adminMembership) {
-      return NextResponse.redirect(
-        new URL(
-          "/login?role=admin&oauth_error=This+Google+account+is+not+enrolled+as+an+administrator",
-          origin,
-        ),
-      );
+    if (profileLookupError || !profile) {
+      if (profileLookupError) {
+        console.error("OAuth profile lookup failed:", profileLookupError);
+      } else {
+        console.error("OAuth profile is missing for authenticated user:", user.id);
+      }
+      return loginWithError("profile_update_failed");
     }
+
+    const profileUpdates: { display_name?: string; avatar_url?: string } = {};
+    if (fullName) profileUpdates.display_name = fullName;
+    if (avatarUrl) profileUpdates.avatar_url = avatarUrl;
+
+    if (Object.keys(profileUpdates).length > 0) {
+      const { error: profileUpdateError } = await supabase
+        .from("profiles")
+        .update(profileUpdates)
+        .eq("id", user.id);
+
+      if (profileUpdateError) {
+        console.error("OAuth profile update failed:", profileUpdateError);
+        return loginWithError("profile_update_failed");
+      }
+    }
+
+    const { data: adminMembership, error: roleLookupError } = await supabase
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (roleLookupError) {
+      console.error("OAuth role lookup failed:", roleLookupError);
+      return loginWithError("role_lookup_failed");
+    }
+
+    return NextResponse.redirect(
+      new URL(adminMembership ? "/admin" : "/dashboard", callbackUrl.origin),
+    );
+  } catch (error) {
+    console.error("OAuth callback failed:", error);
+    return loginWithError("oauth_failed");
   }
-
-  const forwardedHost = request.headers.get("x-forwarded-host");
-  const isLocalEnv = process.env.NODE_ENV === "development";
-
-  if (isLocalEnv) {
-    return NextResponse.redirect(new URL(next, origin));
-  }
-
-  if (forwardedHost) {
-    return NextResponse.redirect(`https://${forwardedHost}${next}`);
-  }
-
-  return NextResponse.redirect(new URL(next, origin));
 }
