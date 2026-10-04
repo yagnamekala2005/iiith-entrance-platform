@@ -144,6 +144,16 @@ export function StudentLearningView({ subjects }: StudentLearningViewProps) {
     }
   };
 
+  const handlePreviousPracticeQuestion = () => {
+    if (practiceIndex <= 0) return;
+
+    setPracticeIndex((prev) => prev - 1);
+    setPracticeSelectedOption("");
+    setPracticeAnswerResult(null);
+    setPracticeShowExplanation(false);
+    setPracticeError("");
+  };
+
   const handleNextPracticeQuestion = () => {
     if (practiceIndex >= practiceQuestions.length - 1) {
       setPracticeCompleted(true);
@@ -892,7 +902,41 @@ export function StudentLearningView({ subjects }: StudentLearningViewProps) {
                   )}
 
                   {practiceAnswerResult && (
-                    <div className="mt-5 flex justify-end">
+                    <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={handlePreviousPracticeQuestion}
+                        disabled={practiceIndex === 0}
+                        className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        ← Previous Question
+                      </button>
+
+                      <div className="flex items-center gap-1.5">
+                        {practiceQuestions.map((question, index) => (
+                          <button
+                            key={question.id}
+                            type="button"
+                            onClick={() => {
+                              if (index === practiceIndex) return;
+                              setPracticeIndex(index);
+                              setPracticeSelectedOption("");
+                              setPracticeAnswerResult(null);
+                              setPracticeShowExplanation(false);
+                              setPracticeError("");
+                            }}
+                            className={`h-7 min-w-7 rounded-md border px-1.5 text-[10px] font-black transition-all ${
+                              index === practiceIndex
+                                ? "border-blue-600 bg-blue-600 text-white"
+                                : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:bg-blue-50"
+                            }`}
+                            title={`Question ${index + 1}`}
+                          >
+                            {index + 1}
+                          </button>
+                        ))}
+                      </div>
+
                       <button
                         type="button"
                         onClick={handleNextPracticeQuestion}
