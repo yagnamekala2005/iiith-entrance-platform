@@ -35,6 +35,19 @@ export default async function DashboardPage() {
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 font-sans">
+      {/* 1-Step Back Navigation to Entrance Portal */}
+      <div className="mb-4">
+        <Link
+          href="/"
+          prefetch={true}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 active:scale-95 px-3 py-1.5 text-xs font-bold text-slate-700 transition-all shadow-2xs"
+          title="Return to Entrance Home Portal"
+        >
+          <span className="text-sm font-black leading-none">‹</span>
+          <span>Back to Entrance Portal</span>
+        </Link>
+      </div>
+
       {/* Ongoing Test Alert Banner */}
       {activeAttempt && (
         <div className="mb-8 rounded-2xl border border-amber-300 bg-amber-50/90 p-5 shadow-xs flex flex-wrap items-center justify-between gap-4 animate-in fade-in">
