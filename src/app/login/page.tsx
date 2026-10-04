@@ -292,24 +292,15 @@ function LoginFormContent() {
                 : "Sign In to Dashboard →"}
             </button>
 
-            {/* Register link */}
-            <div className="pt-2 text-center text-xs text-slate-500 border-t border-slate-100">
-              {isAdminTab ? (
-                <>
-                  Need an administrator account?{" "}
-                  <Link className="font-bold text-sky-700 hover:text-sky-900" href="/register?role=admin">
-                    Create Admin Account &rarr;
-                  </Link>
-                </>
-              ) : (
-                <>
-                  New aspirant?{" "}
-                  <Link className="font-bold text-blue-700 hover:text-blue-900" href="/register">
-                    Create a student account &rarr;
-                  </Link>
-                </>
-              )}
-            </div>
+            {/* Student registration link only - Admin creation removed */}
+            {!isAdminTab && (
+              <div className="pt-2 text-center text-xs text-slate-500 border-t border-slate-100">
+                New aspirant?{" "}
+                <Link className="font-bold text-blue-700 hover:text-blue-900" href="/register">
+                  Create a student account &rarr;
+                </Link>
+              </div>
+            )}
           </form>
         </div>
       </div>
