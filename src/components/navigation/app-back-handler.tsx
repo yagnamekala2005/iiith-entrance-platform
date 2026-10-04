@@ -14,17 +14,28 @@ export function AppBackHandler() {
     const handleHardwareBack = (e: Event) => {
       e.preventDefault();
 
-      // If user is currently in a live exam attempt, let TakingInterface handle its own paused exit modal
+      // Live Exam Attempt: Dispatch exam-step-back event so TakingInterface can close modals or return to previous page
       if (
         pathname.startsWith("/attempts/") &&
         !pathname.endsWith("/result") &&
         !pathname.endsWith("/review")
       ) {
+        const ev = new CustomEvent("exam-step-back", { cancelable: true });
+        window.dispatchEvent(ev);
+        if (ev.defaultPrevented) {
+          return;
+        }
+
+        if (typeof window !== "undefined" && window.history.length > 1) {
+          window.history.back();
+        } else {
+          router.push("/tests");
+        }
         return;
       }
 
-      // Root pages: Landing ('/') or direct Auth ('/login')
-      if (pathname === "/" || pathname === "/login") {
+      // ONLY Root Entrance Landing Portal ('/'): Require double-press within 2 seconds to exit app
+      if (pathname === "/") {
         const now = Date.now();
         if (now - lastPressRef.current < 2000) {
           // Double press confirmed: allow native exit if Capacitor is present
@@ -36,6 +47,23 @@ export function AppBackHandler() {
           lastPressRef.current = now;
           setToastMessage("Press back again to exit");
           setTimeout(() => setToastMessage(null), 2000);
+        }
+        return;
+      }
+
+      // Auth pages: /login, /register, etc. -> Return 1 step back to Entrance Portal ('/') or previous page
+      if (
+        pathname === "/login" ||
+        pathname === "/register" ||
+        pathname === "/admin/login" ||
+        pathname.startsWith("/forgot-password") ||
+        pathname.startsWith("/reset-password") ||
+        pathname.startsWith("/update-password")
+      ) {
+        if (typeof window !== "undefined" && window.history.length > 1) {
+          window.history.back();
+        } else {
+          router.push("/");
         }
         return;
       }
