@@ -69,12 +69,19 @@ body {
 /* ANTI-SCREENSHOT & EXAM INTEGRITY PROTECTIONS */
 /* ========================================================================= */
 
-/* Block printing and save to PDF completely */
-@media print {
+/* Block printing on mobile devices to prevent screen export */
+@media print and (pointer: coarse) and (max-width: 820px) {
   html, body, main, div, header, aside, section {
     display: none !important;
     visibility: hidden !important;
     opacity: 0 !important;
+  }
+}
+
+/* Prevent long-press image saving / callout on mobile phones */
+@media (pointer: coarse) and (max-width: 820px) {
+  body, img, canvas {
+    -webkit-touch-callout: none !important;
   }
 }
 
