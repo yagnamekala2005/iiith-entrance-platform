@@ -211,7 +211,7 @@ export async function createAdminPracticeQuestion(input: CreatePracticeQuestionI
       return { success: false, error: "Authentication required." };
     }
 
-    const { data: adminMembership } = await supabase
+    const { data: adminMembership } = await createAdminClient()
       .from("admin_users")
       .select("user_id")
       .eq("user_id", user.id)
@@ -357,7 +357,7 @@ export async function getAdminTopicPracticeQuestions(topicId: string) {
       };
     }
 
-    const { data: adminMembership } = await supabase
+    const { data: adminMembership } = await createAdminClient()
       .from("admin_users")
       .select("user_id")
       .eq("user_id", user.id)
@@ -438,7 +438,7 @@ export async function updateAdminPracticeQuestion(
 
     if (!user) return { success: false, error: "Authentication required." };
 
-    const { data: adminMembership } = await supabase
+    const { data: adminMembership } = await createAdminClient()
       .from("admin_users")
       .select("user_id")
       .eq("user_id", user.id)
