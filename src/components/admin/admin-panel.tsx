@@ -1673,18 +1673,6 @@ export function AdminPanel({
                     Configure the official syllabus and author rich learning content: detailed theory explanations, formula cheat-sheets, and PDF/book materials. All content is saved in Supabase and synchronized to the Student portal.
                   </p>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  <Link
-                    href="/learning"
-                    target="_blank"
-                    className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 active:scale-95 transition-all flex items-center gap-1.5 shadow-xs"
-                    title="Open the student My Learning page in a new tab"
-                  >
-                    <span>View Student Portal</span>
-                    <span>↗</span>
-                  </Link>
-                </div>
               </div>
 
               {/* Status alerts */}
