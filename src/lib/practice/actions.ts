@@ -47,7 +47,9 @@ export async function getTopicPracticeQuestions(topicId: string) {
       return { success: false, error: "Authentication required.", questions: [] as PracticeQuestion[] };
     }
 
-    const { data: linkedTestQuestions, error: testLinkError } = await supabase
+    const adminClient = createAdminClient();
+
+    const { data: linkedTestQuestions, error: testLinkError } = await adminClient
       .from("test_questions")
       .select("question_id");
 
@@ -59,7 +61,7 @@ export async function getTopicPracticeQuestions(topicId: string) {
       (linkedTestQuestions || []).map((item) => item.question_id)
     );
 
-    const { data, error } = await supabase
+    const { data, error } = await adminClient
       .from("questions")
       .select(
         "id, question_text, difficulty, marks, explanation, question_options(id, option_label, option_text, display_order)"
