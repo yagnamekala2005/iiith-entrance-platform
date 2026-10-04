@@ -27,22 +27,27 @@ export function parseTopicLearningContent(rawDescription?: string | null): Topic
   }
 
   try {
-    const parsed = JSON.parse(rawDescription);
+    const parsed = JSON.parse(rawDescription) as Record<string, unknown>;
     if (parsed && typeof parsed === "object") {
+      const rawResources = Array.isArray(parsed.resources) ? parsed.resources : [];
+
       return {
         summary: typeof parsed.summary === "string" ? parsed.summary : "",
         explanation: typeof parsed.explanation === "string" ? parsed.explanation : "",
         formulas: typeof parsed.formulas === "string" ? parsed.formulas : "",
-        resources: Array.isArray(parsed.resources)
-          ? parsed.resources.map((r: any) => ({
-              title: String(r.title || "").trim(),
-              url: String(r.url || "").trim(),
-              type: ["pdf", "book", "formula_sheet", "notes"].includes(r.type)
-                ? (r.type as LearningResource["type"])
-                : "pdf",
-            }))
-          : [],
-        updated_at: parsed.updated_at,
+        resources: rawResources.map((resource) => {
+          const candidate = resource as Partial<Record<"title" | "url" | "type", unknown>>;
+          const typeValue = candidate.type;
+
+          return {
+            title: String(candidate.title || "").trim(),
+            url: String(candidate.url || "").trim(),
+            type: typeof typeValue === "string" && ["pdf", "book", "formula_sheet", "notes", "link"].includes(typeValue)
+              ? (typeValue as LearningResource["type"])
+              : "pdf",
+          };
+        }),
+        updated_at: typeof parsed.updated_at === "string" ? parsed.updated_at : undefined,
       };
     }
   } catch {

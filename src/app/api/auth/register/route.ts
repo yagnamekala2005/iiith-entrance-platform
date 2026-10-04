@@ -3,11 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 
 export async function POST(request: Request) {
   try {
-    const { email, password, role } = await request.json();
+    const { email, password } = await request.json();
 
     const normalizedEmail = String(email ?? "").trim().toLowerCase();
     const normalizedPassword = String(password ?? "");
-    const requestedRole = String(role ?? "student").toLowerCase();
 
     if (!normalizedEmail || !normalizedPassword) {
       return NextResponse.json(

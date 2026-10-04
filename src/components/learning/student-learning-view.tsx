@@ -41,10 +41,16 @@ export function StudentLearningView({ subjects }: StudentLearningViewProps) {
   const [practiceError, setPracticeError] = useState<string>("");
   const [practiceCompleted, setPracticeCompleted] = useState<boolean>(false);
 
-  const selectedTopicRef = useRef(selectedTopic);
-  const practiceTopicRef = useRef(practiceTopic);
-  practiceTopicRef.current = practiceTopic;
-  selectedTopicRef.current = selectedTopic;
+  const selectedTopicRef = useRef<typeof selectedTopic>(selectedTopic);
+  const practiceTopicRef = useRef<typeof practiceTopic>(practiceTopic);
+
+  useEffect(() => {
+    practiceTopicRef.current = practiceTopic;
+  }, [practiceTopic]);
+
+  useEffect(() => {
+    selectedTopicRef.current = selectedTopic;
+  }, [selectedTopic]);
 
   // Intercept back navigation so mobile phone gestures / back buttons come back 1 step instead of exiting app
   useEffect(() => {

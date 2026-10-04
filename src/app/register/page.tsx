@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useState } from "react";
+import { GoogleOAuthButton } from "@/components/auth/google-oauth-button";
 
 function RegisterContent() {
   const router = useRouter();
@@ -132,6 +133,15 @@ function RegisterContent() {
           )}
 
           <form className="space-y-4" onSubmit={handleSubmit}>
+            <GoogleOAuthButton disabled={loading} />
+            <div className="flex items-center gap-3" aria-hidden="true">
+              <span className="h-px flex-1 bg-slate-200" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Or register with email
+              </span>
+              <span className="h-px flex-1 bg-slate-200" />
+            </div>
+
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700" htmlFor="email">
                 Email Address
