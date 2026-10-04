@@ -47,6 +47,18 @@ export async function getTopicPracticeQuestions(topicId: string) {
       return { success: false, error: "Authentication required.", questions: [] as PracticeQuestion[] };
     }
 
+    const { data: linkedTestQuestions, error: testLinkError } = await supabase
+      .from("test_questions")
+      .select("question_id");
+
+    if (testLinkError) {
+      return { success: false, error: testLinkError.message, questions: [] as PracticeQuestion[] };
+    }
+
+    const mockTestQuestionIds = new Set(
+      (linkedTestQuestions || []).map((item) => item.question_id)
+    );
+
     const { data, error } = await supabase
       .from("questions")
       .select(
@@ -60,7 +72,9 @@ export async function getTopicPracticeQuestions(topicId: string) {
       return { success: false, error: error.message, questions: [] as PracticeQuestion[] };
     }
 
-    const questions: PracticeQuestion[] = (data || []).map((question: any) => ({
+    const questions: PracticeQuestion[] = (data || [])
+      .filter((question: any) => !mockTestQuestionIds.has(question.id))
+      .map((question: any) => ({
       id: question.id,
       question_text: question.question_text,
       difficulty: question.difficulty,
