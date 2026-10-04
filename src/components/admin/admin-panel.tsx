@@ -426,7 +426,7 @@ export function AdminPanel({
   };
 
   // Handler: Create Mock Test
-
+  const handleCreateMockTest = async (e: React.FormEvent) => {
     e.preventDefault();
     setTestErrorMessage("");
     setTestSuccessMessage("");
