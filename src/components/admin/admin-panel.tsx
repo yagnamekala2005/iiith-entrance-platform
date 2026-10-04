@@ -11,6 +11,8 @@ import {
   deleteAdminMockTest,
   publishAdminMockTest,
   cleanAllOldMockTests,
+  createAdminSubject,
+  createAdminExam,
   createAdminChapter,
   deleteAdminChapter,
   createAdminTopic,
@@ -111,6 +113,13 @@ export function AdminPanel({
   const [activeTab, setActiveTab] = useState<"tests" | "create" | "learning" | "admins">("tests");
   const [isPending, startTransition] = useTransition();
 
+  // Exams State
+  const [adminExams, setAdminExams] = useState<ExamItem[]>(exams);
+  const [isAddingExam, setIsAddingExam] = useState<boolean>(false);
+  const [newExamName, setNewExamName] = useState<string>("");
+  const [newExamDescription, setNewExamDescription] = useState<string>("");
+  const [newExamNegativeMarking, setNewExamNegativeMarking] = useState<string>("");
+
   // Mock Tests State
   const [mockTests, setMockTests] = useState<TestItem[]>(() =>
     tests.filter((t) => !OLD_TEST_IDS.has(t.id) && t.status !== "archived")
@@ -120,13 +129,14 @@ export function AdminPanel({
   );
   const [isCreatingMockTest, setIsCreatingMockTest] = useState<boolean>(false);
   const [newTestName, setNewTestName] = useState<string>("");
-  const [newTestExamId, setNewTestExamId] = useState<string>(exams[0]?.id || "");
+  const [newTestExamId, setNewTestExamId] = useState<string>(adminExams[0]?.id || "");
   const [newTestDuration, setNewTestDuration] = useState<number>(180);
   const [newTestDescription, setNewTestDescription] = useState<string>("");
   const [testSuccessMessage, setTestSuccessMessage] = useState<string>("");
   const [testErrorMessage, setTestErrorMessage] = useState<string>("");
 
   // My Learning State (Subjects, Chapters, Subtopics)
+  const [adminSubjects, setAdminSubjects] = useState<SubjectItem[]>(subjects);
   const [adminChapters, setAdminChapters] = useState<ChapterItem[]>(chapters);
   const [adminTopics, setAdminTopics] = useState<TopicItem[]>(topics);
   const [selectedLearningSubjectId, setSelectedLearningSubjectId] = useState<string>(subjects[0]?.id || "");
@@ -135,6 +145,9 @@ export function AdminPanel({
   const [targetChapterIdForTopic, setTargetChapterIdForTopic] = useState<string>("");
   const [learningSuccessMessage, setLearningSuccessMessage] = useState<string>("");
   const [learningErrorMessage, setLearningErrorMessage] = useState<string>("");
+  const [isAddingSubject, setIsAddingSubject] = useState<boolean>(false);
+  const [newSubjectName, setNewSubjectName] = useState<string>("");
+  const [newSubjectDescription, setNewSubjectDescription] = useState<string>("");
 
   // Topic Rich Learning Content Editor Modal state
   const [editingTopic, setEditingTopic] = useState<TopicItem | null>(null);
@@ -219,7 +232,7 @@ export function AdminPanel({
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(subjects[0]?.id || "");
   const [selectedChapterId, setSelectedChapterId] = useState<string>("");
   const [selectedTopicId, setSelectedTopicId] = useState<string>("");
-  const [selectedExamId, setSelectedExamId] = useState<string>(exams[0]?.id || "");
+  const [selectedExamId, setSelectedExamId] = useState<string>(adminExams[0]?.id || "");
   const [questionText, setQuestionText] = useState<string>("");
   const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium");
   const [marks, setMarks] = useState<number>(1);
@@ -261,7 +274,7 @@ export function AdminPanel({
     setSelectedSubjectId(q.subject_id || q.subject?.id || subjects[0]?.id || "");
     setSelectedChapterId(q.chapter_id || "");
     setSelectedTopicId(q.topic_id || "");
-    setSelectedExamId(q.exam_id || currentTargetTest?.exam_id || exams[0]?.id || "");
+    setSelectedExamId(q.exam_id || currentTargetTest?.exam_id || adminExams[0]?.id || "");
 
     const sortedOpts = [...(q.options || [])].sort((a, b) =>
       a.option_label.localeCompare(b.option_label)
@@ -358,6 +371,58 @@ export function AdminPanel({
     const updated = [...options] as [string, string, string, string];
     updated[index] = value;
     setOptions(updated);
+  };
+
+  // Handler: Create Mock Test
+  const handleCreateExam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTestErrorMessage("");
+    setTestSuccessMessage("");
+
+    if (!newExamName.trim()) {
+      setTestErrorMessage("Please enter an exam name.");
+      return;
+    }
+
+    const parsedNegativeMarking =
+      newExamNegativeMarking.trim() === "" ? null : Number(newExamNegativeMarking);
+
+    if (
+      parsedNegativeMarking !== null &&
+      (!Number.isFinite(parsedNegativeMarking) || parsedNegativeMarking < 0)
+    ) {
+      setTestErrorMessage("Negative marking ratio must be a valid non-negative number.");
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await createAdminExam(
+        newExamName.trim(),
+        newExamDescription.trim(),
+        parsedNegativeMarking
+      );
+
+      if (res.success && res.exam) {
+        const createdExam: ExamItem = {
+          id: res.exam.id,
+          name: res.exam.name,
+          slug: res.exam.slug,
+        };
+
+        setAdminExams((prev) => [...prev, createdExam]);
+        setNewTestExamId(createdExam.id);
+        setSelectedExamId(createdExam.id);
+        setNewExamName("");
+        setNewExamDescription("");
+        setNewExamNegativeMarking("");
+        setIsAddingExam(false);
+        setTestSuccessMessage(
+          `✅ Exam "${createdExam.name}" created in Supabase. It is saved as unpublished until you are ready to use it.`
+        );
+      } else {
+        setTestErrorMessage(res.error || "Failed to create exam.");
+      }
+    });
   };
 
   // Handler: Create Mock Test
@@ -637,6 +702,39 @@ export function AdminPanel({
         setTestSuccessMessage("🧹 All old mock tests and useless test data removed successfully!");
       } else {
         setTestErrorMessage(res.error || "Failed to remove old mock tests.");
+      }
+    });
+  };
+
+  // Learning Handler: Create Subject
+  const handleCreateSubject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLearningErrorMessage("");
+    setLearningSuccessMessage("");
+
+    if (!newSubjectName.trim()) {
+      setLearningErrorMessage("Please enter a subject name.");
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await createAdminSubject(
+        newSubjectName.trim(),
+        newSubjectDescription.trim()
+      );
+
+      if (res.success && res.subject) {
+        setAdminSubjects((prev) => [...prev, res.subject]);
+        setSelectedLearningSubjectId(res.subject.id);
+        setSelectedSubjectId(res.subject.id);
+        setNewSubjectName("");
+        setNewSubjectDescription("");
+        setIsAddingSubject(false);
+        setLearningSuccessMessage(
+          `✅ Subject "${res.subject.name}" added to Supabase and synced to the admin/student learning hierarchy!`
+        );
+      } else {
+        setLearningErrorMessage(res.error || "Failed to create subject.");
       }
     });
   };
@@ -958,6 +1056,14 @@ export function AdminPanel({
 
                   <button
                     type="button"
+                    onClick={() => setIsAddingExam((prev) => !prev)}
+                    className="rounded-xl border border-blue-300 bg-blue-50 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-blue-800 hover:bg-blue-100 active:scale-95 transition-all flex items-center gap-2"
+                  >
+                    <span>{isAddingExam ? "✕ Cancel Exam" : "➕ Add Exam"}</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => setIsCreatingMockTest(!isCreatingMockTest)}
                     className="rounded-xl bg-blue-700 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 transition-all flex items-center gap-2"
                   >
@@ -966,7 +1072,72 @@ export function AdminPanel({
                 </div>
               </div>
 
-              {/* Status messages for Mock Tests */}
+{/* Status messages for Mock Tests */}              {isAddingExam && (
+                <form onSubmit={handleCreateExam} className="mt-6 rounded-2xl border border-blue-200 bg-blue-50/50 p-5">
+                  <div className="mb-4">
+                    <h3 className="text-sm font-extrabold text-slate-900">Add New Exam</h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      This creates the exam directly in Supabase. New exams are unpublished by default.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        Exam Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={newExamName}
+                        onChange={(e) => setNewExamName(e.target.value)}
+                        placeholder="e.g. IIITH UG Entrance 2027"
+                        className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-600"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        Negative Marking Ratio
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={newExamNegativeMarking}
+                        onChange={(e) => setNewExamNegativeMarking(e.target.value)}
+                        placeholder="e.g. 0.25"
+                        className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-600"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        Description
+                      </label>
+                      <input
+                        type="text"
+                        value={newExamDescription}
+                        onChange={(e) => setNewExamDescription(e.target.value)}
+                        placeholder="Exam syllabus or instructions"
+                        className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-600"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={isPending}
+                      className="rounded-xl bg-emerald-600 px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-emerald-700 disabled:opacity-60 transition-all"
+                    >
+                      {isPending ? "Saving..." : "Save Exam to Supabase"}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+
               {testSuccessMessage && (
                 <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800 flex items-center gap-2">
                   <span>{testSuccessMessage}</span>
@@ -1010,7 +1181,7 @@ export function AdminPanel({
                         onChange={(e) => setNewTestExamId(e.target.value)}
                         className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-600 shadow-xs"
                       >
-                        {exams.map((ex) => (
+                        {adminExams.map((ex) => (
                           <option key={ex.id} value={ex.id}>
                             {ex.name}
                           </option>
@@ -1394,7 +1565,7 @@ export function AdminPanel({
                       className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-600 shadow-xs"
                       required
                     >
-                      {subjects.map((sub) => (
+                      {adminSubjects.map((sub) => (
                         <option key={sub.id} value={sub.id}>
                           {sub.name}
                         </option>
@@ -1724,9 +1895,55 @@ export function AdminPanel({
                 </div>
               )}
 
+              {/* Subject Management */}
+              <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900">Subjects</h3>
+                    <p className="mt-0.5 text-[11px] text-slate-500">
+                      Add a new subject directly to the Supabase subjects table.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingSubject((prev) => !prev)}
+                    className="rounded-xl bg-blue-700 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-blue-800 active:scale-95 transition-all"
+                  >
+                    {isAddingSubject ? "Cancel" : "+ Add Subject"}
+                  </button>
+                </div>
+
+                {isAddingSubject && (
+                  <form onSubmit={handleCreateSubject} className="mt-4 grid gap-3 sm:grid-cols-[1fr_1.5fr_auto]">
+                    <input
+                      type="text"
+                      placeholder="Subject name"
+                      value={newSubjectName}
+                      onChange={(e) => setNewSubjectName(e.target.value)}
+                      className="rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-800 outline-none focus:border-blue-600"
+                      required
+                    />
+                    <input
+                      type="text"
+                      placeholder="Description (optional)"
+                      value={newSubjectDescription}
+                      onChange={(e) => setNewSubjectDescription(e.target.value)}
+                      className="rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-800 outline-none focus:border-blue-600"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isPending}
+                      className="rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-emerald-700 disabled:opacity-60"
+                    >
+                      {isPending ? "Saving..." : "Save Subject"}
+                    </button>
+                  </form>
+                )}
+              </div>
+
               {/* Subject Selector Tabs */}
               <div className="mt-6 flex flex-wrap gap-2 border-b border-slate-200 pb-3">
-                {subjects.map((sub) => {
+                {adminSubjects.map((sub) => {
                   const chapCount = adminChapters.filter((c) => c.subject_id === sub.id).length;
                   const isSelected = selectedLearningSubjectId === sub.id;
                   return (
@@ -1757,7 +1974,7 @@ export function AdminPanel({
               <form onSubmit={handleCreateChapter} className="mt-6 flex flex-wrap items-center gap-3">
                 <input
                   type="text"
-                  placeholder={`Add new chapter to ${subjects.find((s) => s.id === selectedLearningSubjectId)?.name || "Subject"}...`}
+                  placeholder={`Add new chapter to ${adminSubjects.find((s) => s.id === selectedLearningSubjectId)?.name || "Subject"}...`}
                   value={newChapterName}
                   onChange={(e) => setNewChapterName(e.target.value)}
                   className="w-full sm:w-80 rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-800 outline-none focus:border-blue-600"
