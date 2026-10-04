@@ -235,11 +235,18 @@ export async function deleteAdminQuestion(questionId: string) {
       await adminClient.from("tests").update({ status: "published" }).in("id", publishedTestIds);
     }
 
-    // 4. Delete answer key
+    // 4. Delete attempt_questions if any student attempted it
+    try {
+      await adminClient.from("attempt_questions").delete().eq("question_id", questionId);
+    } catch (e) {
+      console.warn("attempt_questions delete notice:", e);
+    }
+
+    // 5. Delete answer key
     await adminClient.from("question_answer_keys").delete().eq("question_id", questionId);
-    // 5. Delete options
+    // 6. Delete options
     await adminClient.from("question_options").delete().eq("question_id", questionId);
-    // 6. Delete question from questions table in Supabase
+    // 7. Delete question from questions table in Supabase
     const { error: delErr } = await adminClient.from("questions").delete().eq("id", questionId);
 
     if (delErr) {
@@ -575,7 +582,17 @@ export async function createAdminChapter(subject_id: string, name: string) {
 export async function deleteAdminChapter(chapterId: string) {
   try {
     const adminClient = createAdminClient();
+
+    // 1. Unlink any questions referencing this chapter or its subtopics in Supabase
+    await adminClient
+      .from("questions")
+      .update({ chapter_id: null, topic_id: null })
+      .eq("chapter_id", chapterId);
+
+    // 2. Delete all subtopics in this chapter
     await adminClient.from("topics").delete().eq("chapter_id", chapterId);
+
+    // 3. Delete the chapter in Supabase
     const { error } = await adminClient.from("chapters").delete().eq("id", chapterId);
     if (error) return { success: false, error: error.message };
 
@@ -627,6 +644,14 @@ export async function createAdminTopic(chapter_id: string, name: string) {
 export async function deleteAdminTopic(topicId: string) {
   try {
     const adminClient = createAdminClient();
+
+    // 1. Unlink any questions referencing this subtopic in Supabase
+    await adminClient
+      .from("questions")
+      .update({ topic_id: null })
+      .eq("topic_id", topicId);
+
+    // 2. Delete topic row in Supabase
     const { error } = await adminClient.from("topics").delete().eq("id", topicId);
     if (error) return { success: false, error: error.message };
 
