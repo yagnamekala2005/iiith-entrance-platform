@@ -940,6 +940,7 @@ export function StudentLearningView({ subjects }: StudentLearningViewProps) {
                       <button
                         type="button"
                         onClick={handleNextPracticeQuestion}
+                        disabled={!practiceAnswerResult}
                         className="rounded-xl bg-blue-700 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-blue-800"
                       >
                         {practiceIndex === practiceQuestions.length - 1 ? "Finish Practice" : "Next Question →"}
