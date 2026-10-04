@@ -69,8 +69,8 @@ body {
 /* ANTI-SCREENSHOT & EXAM INTEGRITY PROTECTIONS */
 /* ========================================================================= */
 
-/* Block printing and save to PDF completely */
-@media print {
+/* Block printing on mobile devices to prevent screen export */
+@media print and (pointer: coarse) and (max-width: 820px) {
   html, body, main, div, header, aside, section {
     display: none !important;
     visibility: hidden !important;
@@ -78,19 +78,16 @@ body {
   }
 }
 
-/* Disable text selection and mobile long-press callouts across app */
-body, .no-screenshot, .cbt-exam-container {
-  -webkit-touch-callout: none !important;
-  -webkit-user-select: none !important;
-  -khtml-user-select: none !important;
-  -moz-user-select: none !important;
-  -ms-user-select: none !important;
-  user-select: none !important;
+/* Prevent long-press image saving / callout on mobile phones */
+@media (pointer: coarse) and (max-width: 820px) {
+  body, img, canvas {
+    -webkit-touch-callout: none !important;
+  }
 }
 
-/* Allow text editing inside form inputs so users and admins can type */
+/* Text selection enabled for inspection and normal user interaction */
 input, textarea, select {
-  -webkit-user-select: text !important;
-  user-select: text !important;
+  -webkit-user-select: text;
+  user-select: text;
 }
 

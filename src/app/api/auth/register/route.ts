@@ -88,24 +88,9 @@ export async function POST(request: Request) {
       );
     }
 
-    if (requestedRole === "admin") {
-      const { error: adminInsertError } = await supabaseAdmin
-        .from("admin_users")
-        .upsert({ user_id: data.user.id });
-
-      if (adminInsertError) {
-        console.error("Failed to enroll user as admin:", adminInsertError);
-        return NextResponse.json(
-          {
-            error:
-              "Account was created, but failed to grant administrator privileges. Please contact support.",
-          },
-          { status: 500 },
-        );
-      }
-    }
-
-    return NextResponse.json({ success: true, role: requestedRole }, { status: 201 });
+    // Public registrations are strictly student accounts.
+    // Admin accounts must be granted by existing administrators or enrolled in Supabase.
+    return NextResponse.json({ success: true, role: "student" }, { status: 201 });
   } catch {
     return NextResponse.json(
       { error: "Unable to create the account. Please try again." },

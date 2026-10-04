@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState, Suspense } from "react";
+import { FormEvent, useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -17,6 +17,16 @@ function LoginFormContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user && user.email) {
+        setCurrentUserEmail(user.email);
+      }
+    });
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -86,13 +96,21 @@ function LoginFormContent() {
       <div className="relative w-full max-w-md">
         {/* Back Link */}
         <div className="mb-4">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-colors"
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                router.back();
+              } else {
+                router.push("/");
+              }
+            }}
+            className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-colors active:scale-95"
+            title="Return to previous page"
           >
             <span>&larr;</span>
-            <span>Back to Entrance Portal</span>
-          </Link>
+            <span>Back to Previous Page</span>
+          </button>
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-slate-800 bg-white shadow-2xl">
@@ -137,6 +155,34 @@ function LoginFormContent() {
 
           {/* Form Area */}
           <form className="p-6 sm:p-8 pt-4 space-y-5" onSubmit={handleSubmit}>
+
+            {/* Active Session Notice when navigating back while signed in */}
+            {currentUserEmail && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50/90 p-4 text-xs shadow-2xs">
+                <p className="font-semibold text-blue-900 leading-snug">
+                  You are currently logged in as <strong className="font-bold underline">{currentUserEmail}</strong>
+                </p>
+                <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                  <Link
+                    href={isAdminTab ? "/admin" : "/dashboard"}
+                    className="rounded-lg bg-blue-700 px-3 py-1.5 font-bold text-white hover:bg-blue-800 transition-all text-xs shadow-xs"
+                  >
+                    Go to {isAdminTab ? "Admin Studio" : "Student Dashboard"} &rarr;
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const supabase = createClient();
+                      await supabase.auth.signOut();
+                      setCurrentUserEmail(null);
+                    }}
+                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 font-bold text-slate-700 hover:bg-slate-50 transition-all text-xs"
+                  >
+                    Switch Account
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Error Message */}
             {message && (
@@ -217,24 +263,15 @@ function LoginFormContent() {
                 : "Sign In to Dashboard →"}
             </button>
 
-            {/* Register link */}
-            <div className="pt-2 text-center text-xs text-slate-500 border-t border-slate-100">
-              {isAdminTab ? (
-                <>
-                  Need an administrator account?{" "}
-                  <Link className="font-bold text-sky-700 hover:text-sky-900" href="/register?role=admin">
-                    Create Admin Account &rarr;
-                  </Link>
-                </>
-              ) : (
-                <>
-                  New aspirant?{" "}
-                  <Link className="font-bold text-blue-700 hover:text-blue-900" href="/register">
-                    Create a student account &rarr;
-                  </Link>
-                </>
-              )}
-            </div>
+            {/* Student registration link only - Admin creation removed */}
+            {!isAdminTab && (
+              <div className="pt-2 text-center text-xs text-slate-500 border-t border-slate-100">
+                New aspirant?{" "}
+                <Link className="font-bold text-blue-700 hover:text-blue-900" href="/register">
+                  Create a student account &rarr;
+                </Link>
+              </div>
+            )}
           </form>
         </div>
       </div>

@@ -1,29 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 
 function RegisterContent() {
-  const searchParams = useSearchParams();
-  const initialRole = searchParams.get("role") === "admin" ? "admin" : "student";
-
-  const [role, setRole] = useState<"student" | "admin">(initialRole);
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const queryRole = searchParams.get("role");
-    if (queryRole === "admin") {
-      setRole("admin");
-    } else if (queryRole === "student") {
-      setRole("student");
-    }
-  }, [searchParams]);
 
   useEffect(() => {
     if (!success) return;
@@ -59,7 +47,7 @@ function RegisterContent() {
         body: JSON.stringify({
           email: normalizedEmail,
           password,
-          role,
+          role: "student",
         }),
       });
 
@@ -71,11 +59,7 @@ function RegisterContent() {
       }
 
       setSuccess(true);
-      setMessage(
-        role === "admin"
-          ? "Administrator account created successfully! You now have full admin access."
-          : "Student account created successfully! You can now sign in to start practicing."
-      );
+      setMessage("Student account created successfully! You can now sign in to start practicing.");
       setEmail("");
       setPassword("");
     } catch {
@@ -85,8 +69,6 @@ function RegisterContent() {
     }
   }
 
-  const isAdmin = role === "admin";
-
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 flex items-center justify-center p-4 sm:p-6 lg:p-8 font-sans selection:bg-blue-600 selection:text-white relative overflow-x-hidden w-full max-w-full">
       {/* Background glow contained within screen */}
@@ -95,68 +77,34 @@ function RegisterContent() {
       <div className="relative w-full max-w-md">
         {/* Back Link */}
         <div className="mb-4">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-colors"
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                router.back();
+              } else {
+                router.push("/");
+              }
+            }}
+            className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-colors active:scale-95"
+            title="Return to previous page"
           >
             <span>&larr;</span>
-            <span>Back to Entrance Portal</span>
-          </Link>
+            <span>Back to Previous Page</span>
+          </button>
         </div>
 
         {/* Card */}
         <div className="overflow-hidden rounded-2xl border border-slate-800 bg-white p-6 sm:p-8 shadow-2xl space-y-6">
-          {/* Role Switcher Tabs */}
-          <div className="grid grid-cols-2 rounded-xl bg-slate-100 p-1 border border-slate-200">
-            <button
-              type="button"
-              onClick={() => {
-                setRole("student");
-                setMessage("");
-                setSuccess(false);
-              }}
-              className={`rounded-lg py-2 text-xs font-bold transition-all ${
-                !isAdmin
-                  ? "bg-white text-blue-700 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              🎓 Student
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setRole("admin");
-                setMessage("");
-                setSuccess(false);
-              }}
-              className={`rounded-lg py-2 text-xs font-bold transition-all ${
-                isAdmin
-                  ? "bg-slate-900 text-amber-400 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              🛡️ Administrator
-            </button>
-          </div>
-
           <div>
-            <span
-              className={`rounded-md px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider border ${
-                isAdmin
-                  ? "bg-amber-50 text-amber-800 border-amber-200"
-                  : "bg-blue-50 text-blue-800 border-blue-200"
-              }`}
-            >
-              {isAdmin ? "ADMINISTRATOR REGISTRATION" : "NEW STUDENT REGISTRATION"}
+            <span className="rounded-md px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider border bg-blue-50 text-blue-800 border-blue-200">
+              NEW STUDENT REGISTRATION
             </span>
             <h1 className="mt-2 text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              {isAdmin ? "Create Admin Account" : "Create Student Account"}
+              Create Student Account
             </h1>
             <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-              {isAdmin
-                ? "Register an administrator account to manage mock tests, subjects, topics, and live CBT question banks."
-                : "Join IIITH Entrance Prep to practice questions across Maths, Physics, Chemistry, and Aptitude, and take full CBT mock tests."}
+              Join IIITH Entrance Prep to practice questions across Maths, Physics, Chemistry, and Aptitude, and take full CBT mock tests.
             </p>
           </div>
 
@@ -167,7 +115,7 @@ function RegisterContent() {
               <p className="mt-1">{message}</p>
               <div className="mt-3">
                 <Link
-                  href={isAdmin ? "/login?role=admin" : "/login"}
+                  href="/login"
                   className="rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold uppercase text-white inline-block hover:bg-emerald-800 transition-colors"
                 >
                   Proceed to Sign In &rarr;
@@ -195,7 +143,7 @@ function RegisterContent() {
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder={isAdmin ? "admin@iiit.ac.in" : "student@example.com"}
+                placeholder="student@example.com"
                 className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50/50 px-3.5 py-3 text-sm text-slate-900 outline-none focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 transition-all"
               />
             </div>
@@ -230,24 +178,16 @@ function RegisterContent() {
             <button
               type="submit"
               disabled={loading}
-              className={`w-full rounded-xl py-3.5 text-xs font-bold uppercase tracking-wider text-white shadow-md active:scale-95 disabled:opacity-50 transition-all ${
-                isAdmin
-                  ? "bg-slate-900 hover:bg-slate-800 shadow-slate-900/25"
-                  : "bg-blue-700 hover:bg-blue-800 shadow-blue-700/25"
-              }`}
+              className="w-full rounded-xl py-3.5 text-xs font-bold uppercase tracking-wider text-white shadow-md active:scale-95 disabled:opacity-50 transition-all bg-blue-700 hover:bg-blue-800 shadow-blue-700/25"
             >
-              {loading
-                ? "Creating account..."
-                : isAdmin
-                ? "Register Admin Account &rarr;"
-                : "Register Student Account &rarr;"}
+              {loading ? "Creating account..." : "Register Student Account →"}
             </button>
 
             <div className="pt-2 text-center text-xs text-slate-500 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2">
               <span>Already have an account?</span>
               <Link
                 className="font-bold text-blue-700 hover:text-blue-900"
-                href={isAdmin ? "/login?role=admin" : "/login"}
+                href="/login"
               >
                 Sign in here &rarr;
               </Link>
