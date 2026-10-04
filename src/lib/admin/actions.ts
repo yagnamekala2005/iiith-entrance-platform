@@ -1087,7 +1087,7 @@ export async function purgeDuplicateAndOrphanQuestions() {
     // 1. Fetch all questions from Supabase
     const { data: allQuestions } = await adminClient
       .from("questions")
-      .select("id, question_text, status")
+      .select("id, question_text, status, topic_id")
       .order("created_at", { ascending: true });
 
     if (!allQuestions || allQuestions.length === 0) {
@@ -1127,9 +1127,10 @@ export async function purgeDuplicateAndOrphanQuestions() {
     for (const q of allQuestions) {
       const norm = (q.question_text || "").trim().toLowerCase().replace(/\s+/g, " ");
       const isLinked = activeQuestionIds.has(q.id);
+      const isTopicPracticeQuestion = Boolean(q.topic_id);
 
-      // Unlinked questions OR duplicate question statements
-      if (!isLinked || seenTexts.has(norm)) {
+      // Keep questions linked to mock tests and standalone topic practice questions.
+      if ((!isLinked && !isTopicPracticeQuestion) || seenTexts.has(norm)) {
         toDeleteIds.push(q.id);
       } else {
         seenTexts.add(norm);
