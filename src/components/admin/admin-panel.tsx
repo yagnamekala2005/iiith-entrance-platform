@@ -829,17 +829,6 @@ export function AdminPanel({
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Top Back to Dashboard Button (1 Step Back) */}
-            <Link
-              href="/dashboard"
-              prefetch={true}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/90 hover:bg-slate-700 active:scale-95 px-3 py-1.5 text-xs font-bold text-slate-200 transition-all shadow-xs"
-              title="Return to Student Dashboard"
-            >
-              <span className="text-sm font-black leading-none">‹</span>
-              <span>Back to Dashboard</span>
-            </Link>
-
             <span className="text-xs text-slate-300 hidden md:block">
               Logged in: <strong className="text-sky-300">{currentAdminEmail}</strong>
             </span>
