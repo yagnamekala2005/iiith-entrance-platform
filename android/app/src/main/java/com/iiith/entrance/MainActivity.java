@@ -3,6 +3,7 @@ package com.iiith.entrance;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.WindowManager;
 import android.webkit.WebView;
 import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
@@ -14,6 +15,9 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Restrict screenshots and screen capture on mobile phone app
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
 
         // Intercept Android hardware back button & swipe back navigation
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
