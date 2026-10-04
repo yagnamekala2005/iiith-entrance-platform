@@ -32,29 +32,38 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
   const [autoSubmitTriggered, setAutoSubmitTriggered] = useState<boolean>(false);
 
   // Unified Step-Back Handler (Navigates 1 step back to previous page instead of exiting app)
-  const handleStepBack = () => {
+  const handleStepBack = (e?: Event | React.SyntheticEvent) => {
     // 1. If Scientific Calculator is open, close it (1 step back)
     if (isCalculatorOpen) {
+      if (e) e.preventDefault();
       setIsCalculatorOpen(false);
       return;
     }
     // 2. If Question Palette drawer is open, close it (1 step back)
     if (isMobilePaletteOpen) {
+      if (e) e.preventDefault();
       setIsMobilePaletteOpen(false);
       return;
     }
     // 3. If Submit Modal is open, close it (1 step back)
     if (isSubmitModalOpen) {
+      if (e) e.preventDefault();
       setIsSubmitModalOpen(false);
       return;
     }
-    // 4. If Exit Modal is open, safely return to tests page (1 step back)
+    // 4. If Exit Modal is open, safely return to previous page (1 step back)
     if (isExitModalOpen) {
+      if (e) e.preventDefault();
       setIsExitModalOpen(false);
-      router.push("/tests");
+      if (typeof window !== "undefined" && window.history.length > 1) {
+        router.back();
+      } else {
+        router.push("/tests");
+      }
       return;
     }
     // 5. Open safe Pause & Return to Previous Page dialog
+    if (e) e.preventDefault();
     setIsExitModalOpen(true);
   };
 
@@ -62,20 +71,27 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
   const handleStepBackRef = useRef(handleStepBack);
   handleStepBackRef.current = handleStepBack;
 
-  // Prevent app exit on mobile back button/gesture by intercepting popstate once
+  // Prevent app exit on mobile back button/gesture by intercepting popstate and exam-step-back
   useEffect(() => {
     // Push dummy history entry so back button doesn't close the browser/app
-    window.history.pushState({ cbtTaking: true }, "");
+    if (typeof window !== "undefined" && window.history.state?.cbtTaking !== true) {
+      window.history.pushState({ cbtTaking: true }, "");
+    }
 
     const onPopState = () => {
-      // Re-push state so user remains inside the app
-      window.history.pushState({ cbtTaking: true }, "");
       handleStepBackRef.current();
     };
 
+    const onExamStepBack = (e: Event) => {
+      handleStepBackRef.current(e);
+    };
+
     window.addEventListener("popstate", onPopState);
+    window.addEventListener("exam-step-back", onExamStepBack);
+
     return () => {
       window.removeEventListener("popstate", onPopState);
+      window.removeEventListener("exam-step-back", onExamStepBack);
     };
   }, []);
 
@@ -333,13 +349,13 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
           <div className="flex items-center gap-2 sm:gap-3">
             <button
               type="button"
-              onClick={handleStepBack}
+              onClick={() => handleStepBack()}
               className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 active:scale-95 px-3 py-1.5 text-xs font-bold text-slate-800 transition-all shadow-xs"
               title="Pause and return to previous page"
               aria-label="Return to previous page"
             >
               <span className="text-sm font-black leading-none">‹</span>
-              <span className="text-xs font-bold">Return to Tests</span>
+              <span className="text-xs font-bold">Previous Page</span>
             </button>
 
             <span className="rounded-lg bg-blue-700 px-2 sm:px-2.5 py-1 text-[10px] sm:text-xs font-black tracking-widest text-white uppercase shadow-xs">
@@ -693,7 +709,12 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
             <div className="mt-6 flex flex-col sm:flex-row gap-3">
               <button
                 type="button"
-                onClick={() => setIsExitModalOpen(false)}
+                onClick={() => {
+                  setIsExitModalOpen(false);
+                  if (typeof window !== "undefined" && window.history.state?.cbtTaking !== true) {
+                    window.history.pushState({ cbtTaking: true }, "");
+                  }
+                }}
                 className="flex-1 rounded-xl bg-blue-700 py-3 text-xs font-bold uppercase tracking-wider text-white hover:bg-blue-800 shadow-md shadow-blue-700/20 active:scale-95 transition-all"
               >
                 Keep Writing Exam
@@ -702,11 +723,15 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                 type="button"
                 onClick={() => {
                   setIsExitModalOpen(false);
-                  router.push("/tests");
+                  if (typeof window !== "undefined" && window.history.length > 1) {
+                    router.back();
+                  } else {
+                    router.push("/tests");
+                  }
                 }}
                 className="flex-1 rounded-xl border border-slate-300 bg-slate-100 py-3 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-200 active:scale-95 transition-all"
               >
-                ← Return to Tests
+                ← Return to Previous Page
               </button>
             </div>
           </div>

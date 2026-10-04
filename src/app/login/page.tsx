@@ -96,13 +96,21 @@ function LoginFormContent() {
       <div className="relative w-full max-w-md">
         {/* Back Link */}
         <div className="mb-4">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-colors"
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                router.back();
+              } else {
+                router.push("/");
+              }
+            }}
+            className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-colors active:scale-95"
+            title="Return to previous page"
           >
             <span>&larr;</span>
-            <span>Back to Entrance Portal</span>
-          </Link>
+            <span>Back to Previous Page</span>
+          </button>
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-slate-800 bg-white shadow-2xl">
