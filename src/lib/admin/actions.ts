@@ -539,6 +539,76 @@ export async function publishAdminMockTest(testId: string) {
   }
 }
 
+export async function createAdminSubject(name: string, description: string = "") {
+  try {
+    const cleanName = name.trim();
+    if (!cleanName) return { success: false, error: "Subject name is required." };
+
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { success: false, error: "Authentication required." };
+
+    const { data: adminMembership } = await supabase
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!adminMembership) {
+      return { success: false, error: "Admin authorization required." };
+    }
+
+    const adminClient = createAdminClient();
+    const cleanSlug = cleanName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+    if (!cleanSlug) {
+      return { success: false, error: "Subject name must contain letters or numbers." };
+    }
+
+    const { data: existingSubject } = await adminClient
+      .from("subjects")
+      .select("id")
+      .or(`name.ilike.${cleanName},slug.eq.${cleanSlug}`)
+      .maybeSingle();
+
+    if (existingSubject) {
+      return { success: false, error: "A subject with this name already exists." };
+    }
+
+    const { count } = await adminClient
+      .from("subjects")
+      .select("*", { count: "exact", head: true });
+
+    const { data, error } = await adminClient
+      .from("subjects")
+      .insert({
+        name: cleanName,
+        slug: cleanSlug,
+        description: description.trim() || null,
+        display_order: (count || 0) + 1,
+      })
+      .select("id, name, slug")
+      .single();
+
+    if (error) return { success: false, error: error.message };
+
+    revalidatePath("/admin");
+    revalidatePath("/learning");
+    revalidatePath("/practice");
+    revalidatePath("/tests");
+    revalidatePath("/", "layout");
+
+    return { success: true, subject: data };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to create subject.";
+    return { success: false, error: msg };
+  }
+}
+
 export async function createAdminChapter(subject_id: string, name: string) {
   try {
     if (!name.trim()) return { success: false, error: "Chapter name is required." };
