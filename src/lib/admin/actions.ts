@@ -183,6 +183,137 @@ export async function createAdminQuestion(input: CreateQuestionInput) {
   }
 }
 
+export interface CreatePracticeQuestionInput {
+  subject_id: string;
+  chapter_id: string;
+  topic_id: string;
+  question_text: string;
+  difficulty: "easy" | "medium" | "hard";
+  explanation: string;
+  marks: number;
+  options: {
+    label: string;
+    text: string;
+  }[];
+  correct_option_label: string;
+}
+
+/**
+ * Create a published topic practice question.
+ * Practice questions are intentionally not linked to tests/test_questions.
+ */
+export async function createAdminPracticeQuestion(input: CreatePracticeQuestionInput) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { success: false, error: "Authentication required." };
+    }
+
+    const { data: adminMembership } = await supabase
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!adminMembership) {
+      return { success: false, error: "Admin authorization required." };
+    }
+
+    if (!input.subject_id || !input.chapter_id || !input.topic_id) {
+      return { success: false, error: "Subject, chapter, and topic are required." };
+    }
+
+    if (!input.question_text.trim()) {
+      return { success: false, error: "Question text is required." };
+    }
+
+    if (!input.explanation.trim()) {
+      return { success: false, error: "A solution explanation is required." };
+    }
+
+    if (!input.options || input.options.length !== 4 || input.options.some((o) => !o.text.trim())) {
+      return { success: false, error: "All 4 options (A, B, C, D) are required." };
+    }
+
+    const adminClient = createAdminClient();
+
+    const { data: newQuestion, error: questionError } = await adminClient
+      .from("questions")
+      .insert({
+        subject_id: input.subject_id,
+        chapter_id: input.chapter_id,
+        topic_id: input.topic_id,
+        question_text: input.question_text.trim(),
+        question_type: "mcq",
+        difficulty: input.difficulty,
+        explanation: input.explanation.trim(),
+        marks: Number.isFinite(input.marks) ? input.marks : 1,
+        negative_marks: 0,
+        status: "published",
+      })
+      .select("id")
+      .single();
+
+    if (questionError || !newQuestion) {
+      return {
+        success: false,
+        error: questionError?.message || "Failed to create practice question.",
+      };
+    }
+
+    const optionsPayload = input.options.map((option, index) => ({
+      question_id: newQuestion.id,
+      option_label: option.label.toUpperCase(),
+      option_text: option.text.trim(),
+      display_order: index + 1,
+    }));
+
+    const { data: insertedOptions, error: optionsError } = await adminClient
+      .from("question_options")
+      .insert(optionsPayload)
+      .select("id, option_label");
+
+    if (optionsError || !insertedOptions) {
+      await adminClient.from("questions").delete().eq("id", newQuestion.id);
+      return { success: false, error: "Failed to create practice question options." };
+    }
+
+    const correctOption = insertedOptions.find(
+      (option) => option.option_label === input.correct_option_label.toUpperCase()
+    );
+
+    if (!correctOption) {
+      await adminClient.from("question_options").delete().eq("question_id", newQuestion.id);
+      await adminClient.from("questions").delete().eq("id", newQuestion.id);
+      return { success: false, error: "Please select a valid correct option." };
+    }
+
+    const { error: answerKeyError } = await adminClient
+      .from("question_answer_keys")
+      .insert({
+        question_id: newQuestion.id,
+        correct_option_id: correctOption.id,
+      });
+
+    if (answerKeyError) {
+      await adminClient.from("question_options").delete().eq("question_id", newQuestion.id);
+      await adminClient.from("questions").delete().eq("id", newQuestion.id);
+      return { success: false, error: "Failed to save the correct answer." };
+    }
+
+    revalidatePath("/admin");
+    revalidatePath("/learning");
+    revalidatePath("/practice");
+
+    return { success: true, questionId: newQuestion.id };
+  } catch (err) {
+    console.error("createAdminPracticeQuestion error:", err);
+    return { success: false, error: "Failed to create practice question." };
+  }
+}
+
 export async function deleteAdminQuestion(questionId: string) {
   try {
     const supabase = await createClient();
