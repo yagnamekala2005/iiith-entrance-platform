@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   createAdminQuestion,
   updateAdminQuestion,
@@ -107,6 +108,8 @@ export function AdminPanel({
     []
   );
 
+  const router = useRouter();
+
   // Primary navigation: Mock Tests -> Add Question -> My Learning -> Admin Roles (Question Bank removed)
   const [activeTab, setActiveTab] = useState<"tests" | "create" | "learning" | "admins">("tests");
   const [isPending, startTransition] = useTransition();
@@ -154,46 +157,89 @@ export function AdminPanel({
   const isCreatingMockTestRef = useRef(isCreatingMockTest);
   isCreatingMockTestRef.current = isCreatingMockTest;
 
+  // Unified back handler for Admin: modal -> subtab (e.g. learning) -> mock tests root -> entrance portal
+  const handleAdminStepBack = (e?: Event) => {
+    // 1. If Topic Learning Content Editor modal is open, close it (1 step back)
+    if (editingTopicRef.current) {
+      if (e) e.preventDefault();
+      setEditingTopic(null);
+      return;
+    }
+
+    // 2. If New Mock Test form is open, close it (1 step back)
+    if (isCreatingMockTestRef.current) {
+      if (e) e.preventDefault();
+      setIsCreatingMockTest(false);
+      return;
+    }
+
+    // 3. If on a subtab ("learning", "create", "admins"), return to "tests" tab (1 step back)
+    if (activeTabRef.current !== "tests") {
+      if (e) e.preventDefault();
+      setActiveTab("tests");
+      return;
+    }
+
+    // 4. If already on the root "tests" tab and called from UI button, return to Entrance Portal
+    if (!e) {
+      router.push("/");
+    }
+  };
+
   // Intercept back navigation so mobile phone gestures / back buttons come back 1 step instead of exiting app
   useEffect(() => {
-    // Push an initial admin history state so mobile back gesture is intercepted
-    window.history.pushState({ adminStudio: true, tab: "tests" }, "");
+    // Ensure initial admin history state so mobile back gesture is intercepted cleanly
+    if (typeof window !== "undefined" && window.history.state?.adminStudio !== true) {
+      window.history.pushState({ adminStudio: true, tab: "tests" }, "");
+    }
 
-    const onPopState = () => {
+    const onPopState = (e: PopStateEvent) => {
       // 1. If Topic Learning Content Editor modal is open, close it (1 step back)
       if (editingTopicRef.current) {
         setEditingTopic(null);
-        window.history.pushState({ adminStudio: true, tab: activeTabRef.current }, "");
         return;
       }
 
       // 2. If New Mock Test form is open, close it (1 step back)
       if (isCreatingMockTestRef.current) {
         setIsCreatingMockTest(false);
-        window.history.pushState({ adminStudio: true, tab: "tests" }, "");
         return;
       }
 
-      // 3. If on a subtab ("learning", "create", "admins"), return to "tests" tab (1 step back)
+      // 3. If history state has a specific tab recorded, restore it
+      if (e.state && typeof e.state.tab === "string") {
+        setActiveTab(e.state.tab as "tests" | "create" | "learning" | "admins");
+        return;
+      }
+
+      // 4. If on a subtab ("learning", "create", "admins"), return to "tests" tab (1 step back)
       if (activeTabRef.current !== "tests") {
         setActiveTab("tests");
-        window.history.pushState({ adminStudio: true, tab: "tests" }, "");
         return;
       }
 
-      // 4. If already on the root "tests" tab, safely navigate back to dashboard instead of exiting app!
-      window.location.href = "/dashboard";
+      // 5. If already on the root "tests" tab, safely navigate back to Entrance Portal instead of exiting!
+      router.push("/");
+    };
+
+    const onAdminStepBack = (e: Event) => {
+      handleAdminStepBack(e);
     };
 
     window.addEventListener("popstate", onPopState);
+    window.addEventListener("admin-step-back", onAdminStepBack);
+
     return () => {
       window.removeEventListener("popstate", onPopState);
+      window.removeEventListener("admin-step-back", onAdminStepBack);
     };
-  }, []);
+  }, [router]);
 
   const switchTab = (tab: "tests" | "create" | "learning" | "admins") => {
     setActiveTab(tab);
-    window.history.pushState({ adminStudio: true, tab }, "");
+    if (typeof window !== "undefined") {
+      window.history.pushState({ adminStudio: true, tab }, "");
+    }
   };
 
   // All questions in database
@@ -814,8 +860,24 @@ export function AdminPanel({
       {/* Admin Top Navigation Bar */}
       <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-900 text-white px-4 sm:px-8 py-3.5 shadow-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-black uppercase tracking-wider text-white shadow-xs">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => handleAdminStepBack()}
+              className="flex items-center gap-1 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 active:scale-95 px-2.5 py-1.5 text-xs font-bold text-slate-200 transition-all shadow-xs"
+              title={
+                activeTab !== "tests"
+                  ? "Go back to Mock Tests (1 step back)"
+                  : "Return to Entrance Portal"
+              }
+            >
+              <span className="text-sm font-black leading-none">‹</span>
+              <span className="text-[11px] uppercase tracking-wider font-bold">
+                {activeTab !== "tests" ? "Back" : "Portal"}
+              </span>
+            </button>
+
+            <span className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-black uppercase tracking-wider text-white shadow-xs hidden sm:inline-block">
               ADMIN CONTROL
             </span>
             <div>
@@ -1161,7 +1223,7 @@ export function AdminPanel({
                               type="button"
                               onClick={() => {
                                 handleSelectTargetTest(t.id);
-                                setActiveTab("create");
+                                switchTab("create");
                               }}
                               className="rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 transition-all flex items-center gap-1.5"
                             >
@@ -1185,7 +1247,7 @@ export function AdminPanel({
             {/* Step-Back Navigation: Return to Mock Tests */}
             <button
               type="button"
-              onClick={() => switchTab("tests")}
+              onClick={() => handleAdminStepBack()}
               className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 active:scale-95 px-3.5 py-2 text-xs font-bold text-slate-700 transition-all shadow-2xs"
               title="Go back to Mock Tests (1 step back)"
             >
@@ -1652,7 +1714,7 @@ export function AdminPanel({
             {/* Step-Back Navigation: Return to Mock Tests */}
             <button
               type="button"
-              onClick={() => switchTab("tests")}
+              onClick={() => handleAdminStepBack()}
               className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 active:scale-95 px-3.5 py-2 text-xs font-bold text-slate-700 transition-all shadow-2xs"
               title="Go back to Mock Tests (1 step back)"
             >
@@ -2083,7 +2145,7 @@ export function AdminPanel({
             {/* Step-Back Navigation: Return to Mock Tests */}
             <button
               type="button"
-              onClick={() => switchTab("tests")}
+              onClick={() => handleAdminStepBack()}
               className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 active:scale-95 px-3.5 py-2 text-xs font-bold text-slate-700 transition-all shadow-2xs"
               title="Go back to Mock Tests (1 step back)"
             >
