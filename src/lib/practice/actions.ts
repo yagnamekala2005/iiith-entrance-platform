@@ -19,6 +19,21 @@ export interface PracticeQuestion {
   options: PracticeQuestionOption[];
 }
 
+export type PracticeAnswerResult =
+  | {
+      success: true;
+      correct: boolean;
+      correctOption: {
+        id: string;
+        option_label: string;
+        option_text: string;
+      } | null;
+    }
+  | {
+      success: false;
+      error: string;
+    };
+
 export async function getTopicPracticeQuestions(topicId: string) {
   try {
     if (!topicId) {
@@ -74,7 +89,7 @@ export async function getTopicPracticeQuestions(topicId: string) {
 export async function checkTopicPracticeAnswer(
   questionId: string,
   selectedOptionId: string
-) {
+): Promise<PracticeAnswerResult> {
   try {
     if (!questionId || !selectedOptionId) {
       return { success: false, error: "Question and selected option are required." };
