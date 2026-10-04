@@ -901,7 +901,7 @@ export function StudentLearningView({ subjects }: StudentLearningViewProps) {
                     <p className="mt-3 text-xs font-semibold text-rose-700">{practiceError}</p>
                   )}
 
-                  {practiceAnswerResult && (
+                  {practiceQuestions.length > 0 && (
                     <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
                       <button
                         type="button"
