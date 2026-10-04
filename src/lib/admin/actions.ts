@@ -539,6 +539,75 @@ export async function publishAdminMockTest(testId: string) {
   }
 }
 
+export async function createAdminExam(name: string, description: string = "", negativeMarkingRatio: number | null = null) {
+  try {
+    const cleanName = name.trim();
+    if (!cleanName) return { success: false, error: "Exam name is required." };
+
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { success: false, error: "Authentication required." };
+
+    const { data: adminMembership } = await supabase
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!adminMembership) {
+      return { success: false, error: "Admin authorization required." };
+    }
+
+    const adminClient = createAdminClient();
+    const cleanSlug = cleanName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+    if (!cleanSlug) {
+      return { success: false, error: "Exam name must contain letters or numbers." };
+    }
+
+    const { data: existingExam } = await adminClient
+      .from("exams")
+      .select("id")
+      .or(`name.ilike.${cleanName},slug.eq.${cleanSlug}`)
+      .maybeSingle();
+
+    if (existingExam) {
+      return { success: false, error: "An exam with this name already exists." };
+    }
+
+    const { data, error } = await adminClient
+      .from("exams")
+      .insert({
+        name: cleanName,
+        slug: cleanSlug,
+        description: description.trim() || null,
+        negative_marking_ratio:
+          negativeMarkingRatio !== null && Number.isFinite(negativeMarkingRatio)
+            ? negativeMarkingRatio
+            : null,
+        published: false,
+      })
+      .select("id, name, slug, description, negative_marking_ratio, published")
+      .single();
+
+    if (error) return { success: false, error: error.message };
+
+    revalidatePath("/admin");
+    revalidatePath("/dashboard");
+    revalidatePath("/tests");
+    revalidatePath("/practice");
+
+    return { success: true, exam: data };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to create exam.";
+    return { success: false, error: msg };
+  }
+}
+
 export async function createAdminSubject(name: string, description: string = "") {
   try {
     const cleanName = name.trim();
