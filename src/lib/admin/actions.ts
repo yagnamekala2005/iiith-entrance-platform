@@ -233,24 +233,26 @@ export async function createAdminPracticeQuestion(input: CreatePracticeQuestionI
       return { success: false, error: "A solution explanation is required." };
     }
 
-    if (!input.options || input.options.length !== 4 || input.options.some((o) => !o.text.trim())) {
+    if (
+      !input.options ||
+      input.options.length !== 4 ||
+      input.options.some((option) => !option.text.trim())
+    ) {
       return { success: false, error: "All 4 options (A, B, C, D) are required." };
     }
 
     const adminClient = createAdminClient();
 
     const { data: newQuestion, error: questionError } = await adminClient
-      .from("questions")
+      .from("practice_questions")
       .insert({
         subject_id: input.subject_id,
         chapter_id: input.chapter_id,
         topic_id: input.topic_id,
         question_text: input.question_text.trim(),
-        question_type: "mcq",
         difficulty: input.difficulty,
         explanation: input.explanation.trim(),
         marks: Number.isFinite(input.marks) ? input.marks : 1,
-        negative_marks: 0,
         status: "published",
       })
       .select("id")
@@ -264,20 +266,23 @@ export async function createAdminPracticeQuestion(input: CreatePracticeQuestionI
     }
 
     const optionsPayload = input.options.map((option, index) => ({
-      question_id: newQuestion.id,
+      practice_question_id: newQuestion.id,
       option_label: option.label.toUpperCase(),
       option_text: option.text.trim(),
       display_order: index + 1,
     }));
 
     const { data: insertedOptions, error: optionsError } = await adminClient
-      .from("question_options")
+      .from("practice_question_options")
       .insert(optionsPayload)
       .select("id, option_label");
 
     if (optionsError || !insertedOptions) {
-      await adminClient.from("questions").delete().eq("id", newQuestion.id);
-      return { success: false, error: "Failed to create practice question options." };
+      await adminClient.from("practice_questions").delete().eq("id", newQuestion.id);
+      return {
+        success: false,
+        error: optionsError?.message || "Failed to create practice question options.",
+      };
     }
 
     const correctOption = insertedOptions.find(
@@ -285,22 +290,31 @@ export async function createAdminPracticeQuestion(input: CreatePracticeQuestionI
     );
 
     if (!correctOption) {
-      await adminClient.from("question_options").delete().eq("question_id", newQuestion.id);
-      await adminClient.from("questions").delete().eq("id", newQuestion.id);
+      await adminClient
+        .from("practice_question_options")
+        .delete()
+        .eq("practice_question_id", newQuestion.id);
+      await adminClient.from("practice_questions").delete().eq("id", newQuestion.id);
       return { success: false, error: "Please select a valid correct option." };
     }
 
     const { error: answerKeyError } = await adminClient
-      .from("question_answer_keys")
+      .from("practice_question_answers")
       .insert({
-        question_id: newQuestion.id,
+        practice_question_id: newQuestion.id,
         correct_option_id: correctOption.id,
       });
 
     if (answerKeyError) {
-      await adminClient.from("question_options").delete().eq("question_id", newQuestion.id);
-      await adminClient.from("questions").delete().eq("id", newQuestion.id);
-      return { success: false, error: "Failed to save the correct answer." };
+      await adminClient
+        .from("practice_question_options")
+        .delete()
+        .eq("practice_question_id", newQuestion.id);
+      await adminClient.from("practice_questions").delete().eq("id", newQuestion.id);
+      return {
+        success: false,
+        error: answerKeyError.message || "Failed to save the correct answer.",
+      };
     }
 
     revalidatePath("/admin");
@@ -314,7 +328,6 @@ export async function createAdminPracticeQuestion(input: CreatePracticeQuestionI
   }
 }
 
-
 export interface AdminPracticeQuestionItem {
   id: string;
   topic_id: string;
@@ -322,7 +335,12 @@ export interface AdminPracticeQuestionItem {
   difficulty: "easy" | "medium" | "hard";
   marks: number;
   explanation: string | null;
-  options: { id: string; option_label: string; option_text: string; display_order: number }[];
+  options: {
+    id: string;
+    option_label: string;
+    option_text: string;
+    display_order: number;
+  }[];
   correct_option_label: string;
 }
 
@@ -331,7 +349,13 @@ export async function getAdminTopicPracticeQuestions(topicId: string) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) return { success: false, error: "Authentication required.", questions: [] as AdminPracticeQuestionItem[] };
+    if (!user) {
+      return {
+        success: false,
+        error: "Authentication required.",
+        questions: [] as AdminPracticeQuestionItem[],
+      };
+    }
 
     const { data: adminMembership } = await supabase
       .from("admin_users")
@@ -340,54 +364,54 @@ export async function getAdminTopicPracticeQuestions(topicId: string) {
       .maybeSingle();
 
     if (!adminMembership) {
-      return { success: false, error: "Admin authorization required.", questions: [] as AdminPracticeQuestionItem[] };
+      return {
+        success: false,
+        error: "Admin authorization required.",
+        questions: [] as AdminPracticeQuestionItem[],
+      };
     }
 
     if (!topicId) {
-      return { success: false, error: "Topic is required.", questions: [] as AdminPracticeQuestionItem[] };
+      return {
+        success: false,
+        error: "Topic is required.",
+        questions: [] as AdminPracticeQuestionItem[],
+      };
     }
 
     const adminClient = createAdminClient();
 
-    const { data: linkedTestQuestions, error: testLinkError } = await adminClient
-      .from("test_questions")
-      .select("question_id");
-
-    if (testLinkError) {
-      return { success: false, error: testLinkError.message, questions: [] as AdminPracticeQuestionItem[] };
-    }
-
-    const mockTestQuestionIds = new Set(
-      (linkedTestQuestions || []).map((item) => item.question_id)
-    );
-
     const { data, error } = await adminClient
-      .from("questions")
-      .select("id, topic_id, question_text, difficulty, marks, explanation, created_at, question_options(id, option_label, option_text, display_order), question_answer_keys(correct_option_id)")
+      .from("practice_questions")
+      .select(
+        "id, topic_id, question_text, difficulty, marks, explanation, created_at, practice_question_options(id, option_label, option_text, display_order), practice_question_answers(correct_option_id)"
+      )
       .eq("topic_id", topicId)
       .eq("status", "published")
       .order("created_at", { ascending: true });
 
     if (error) {
-      return { success: false, error: error.message, questions: [] as AdminPracticeQuestionItem[] };
+      return {
+        success: false,
+        error: error.message,
+        questions: [] as AdminPracticeQuestionItem[],
+      };
     }
 
-    const questions: AdminPracticeQuestionItem[] = (data || [])
-      .filter((q: any) => !mockTestQuestionIds.has(q.id))
-      .map((q: any) => {
-      const options = [...(q.question_options || [])].sort(
+    const questions: AdminPracticeQuestionItem[] = (data || []).map((question: any) => {
+      const options = [...(question.practice_question_options || [])].sort(
         (a, b) => (a.display_order || 0) - (b.display_order || 0)
       );
-      const correctId = q.question_answer_keys?.[0]?.correct_option_id;
+      const correctId = question.practice_question_answers?.[0]?.correct_option_id;
       const correctOption = options.find((option) => option.id === correctId);
 
       return {
-        id: q.id,
-        topic_id: q.topic_id,
-        question_text: q.question_text,
-        difficulty: q.difficulty || "medium",
-        marks: Number(q.marks ?? 1),
-        explanation: q.explanation || null,
+        id: question.id,
+        topic_id: question.topic_id,
+        question_text: question.question_text,
+        difficulty: question.difficulty || "medium",
+        marks: Number(question.marks ?? 1),
+        explanation: question.explanation || null,
         options,
         correct_option_label: correctOption?.option_label || "A",
       };
@@ -396,7 +420,11 @@ export async function getAdminTopicPracticeQuestions(topicId: string) {
     return { success: true, questions };
   } catch (err) {
     console.error("getAdminTopicPracticeQuestions error:", err);
-    return { success: false, error: "Failed to load practice questions.", questions: [] as AdminPracticeQuestionItem[] };
+    return {
+      success: false,
+      error: "Failed to load practice questions.",
+      questions: [] as AdminPracticeQuestionItem[],
+    };
   }
 }
 
@@ -416,7 +444,9 @@ export async function updateAdminPracticeQuestion(
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (!adminMembership) return { success: false, error: "Admin authorization required." };
+    if (!adminMembership) {
+      return { success: false, error: "Admin authorization required." };
+    }
 
     if (!questionId || !input.question_text.trim()) {
       return { success: false, error: "Question text is required." };
@@ -426,36 +456,57 @@ export async function updateAdminPracticeQuestion(
       return { success: false, error: "A solution explanation is required." };
     }
 
-    if (input.options.length !== 4 || input.options.some((option) => !option.text.trim())) {
+    if (
+      input.options.length !== 4 ||
+      input.options.some((option) => !option.text.trim())
+    ) {
       return { success: false, error: "All 4 options (A, B, C, D) are required." };
     }
 
     const adminClient = createAdminClient();
 
+    const { data: existingQuestion, error: existingQuestionError } = await adminClient
+      .from("practice_questions")
+      .select("id")
+      .eq("id", questionId)
+      .maybeSingle();
+
+    if (existingQuestionError || !existingQuestion) {
+      return {
+        success: false,
+        error: existingQuestionError?.message || "Practice question not found.",
+      };
+    }
+
     const { error: questionError } = await adminClient
-      .from("questions")
+      .from("practice_questions")
       .update({
         question_text: input.question_text.trim(),
         difficulty: input.difficulty,
         explanation: input.explanation.trim(),
         marks: Number.isFinite(input.marks) ? input.marks : 1,
-        negative_marks: 0,
       })
-      .eq("id", questionId)
-      .not("topic_id", "is", null);
+      .eq("id", questionId);
 
     if (questionError) {
       return { success: false, error: questionError.message };
     }
 
-    await adminClient.from("question_answer_keys").delete().eq("question_id", questionId);
-    await adminClient.from("question_options").delete().eq("question_id", questionId);
+    await adminClient
+      .from("practice_question_answers")
+      .delete()
+      .eq("practice_question_id", questionId);
+
+    await adminClient
+      .from("practice_question_options")
+      .delete()
+      .eq("practice_question_id", questionId);
 
     const { data: insertedOptions, error: optionsError } = await adminClient
-      .from("question_options")
+      .from("practice_question_options")
       .insert(
         input.options.map((option, index) => ({
-          question_id: questionId,
+          practice_question_id: questionId,
           option_label: option.label.toUpperCase(),
           option_text: option.text.trim(),
           display_order: index + 1,
@@ -464,7 +515,10 @@ export async function updateAdminPracticeQuestion(
       .select("id, option_label");
 
     if (optionsError || !insertedOptions) {
-      return { success: false, error: optionsError?.message || "Failed to update options." };
+      return {
+        success: false,
+        error: optionsError?.message || "Failed to update options.",
+      };
     }
 
     const correctOption = insertedOptions.find(
@@ -476,9 +530,9 @@ export async function updateAdminPracticeQuestion(
     }
 
     const { error: answerError } = await adminClient
-      .from("question_answer_keys")
+      .from("practice_question_answers")
       .insert({
-        question_id: questionId,
+        practice_question_id: questionId,
         correct_option_id: correctOption.id,
       });
 
@@ -496,7 +550,6 @@ export async function updateAdminPracticeQuestion(
     return { success: false, error: "Failed to update practice question." };
   }
 }
-
 export async function deleteAdminQuestion(questionId: string) {
   try {
     const supabase = await createClient();
