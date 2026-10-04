@@ -348,6 +348,19 @@ export async function getAdminTopicPracticeQuestions(topicId: string) {
     }
 
     const adminClient = createAdminClient();
+
+    const { data: linkedTestQuestions, error: testLinkError } = await adminClient
+      .from("test_questions")
+      .select("question_id");
+
+    if (testLinkError) {
+      return { success: false, error: testLinkError.message, questions: [] as AdminPracticeQuestionItem[] };
+    }
+
+    const mockTestQuestionIds = new Set(
+      (linkedTestQuestions || []).map((item) => item.question_id)
+    );
+
     const { data, error } = await adminClient
       .from("questions")
       .select("id, topic_id, question_text, difficulty, marks, explanation, created_at, question_options(id, option_label, option_text, display_order), question_answer_keys(correct_option_id)")
@@ -359,7 +372,9 @@ export async function getAdminTopicPracticeQuestions(topicId: string) {
       return { success: false, error: error.message, questions: [] as AdminPracticeQuestionItem[] };
     }
 
-    const questions: AdminPracticeQuestionItem[] = (data || []).map((q: any) => {
+    const questions: AdminPracticeQuestionItem[] = (data || [])
+      .filter((q: any) => !mockTestQuestionIds.has(q.id))
+      .map((q: any) => {
       const options = [...(q.question_options || [])].sort(
         (a, b) => (a.display_order || 0) - (b.display_order || 0)
       );
