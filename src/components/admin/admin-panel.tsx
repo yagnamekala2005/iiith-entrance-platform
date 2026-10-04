@@ -11,6 +11,7 @@ import {
   deleteAdminMockTest,
   publishAdminMockTest,
   cleanAllOldMockTests,
+  createAdminSubject,
   createAdminChapter,
   deleteAdminChapter,
   createAdminTopic,
@@ -127,6 +128,7 @@ export function AdminPanel({
   const [testErrorMessage, setTestErrorMessage] = useState<string>("");
 
   // My Learning State (Subjects, Chapters, Subtopics)
+  const [adminSubjects, setAdminSubjects] = useState<SubjectItem[]>(subjects);
   const [adminChapters, setAdminChapters] = useState<ChapterItem[]>(chapters);
   const [adminTopics, setAdminTopics] = useState<TopicItem[]>(topics);
   const [selectedLearningSubjectId, setSelectedLearningSubjectId] = useState<string>(subjects[0]?.id || "");
@@ -135,6 +137,9 @@ export function AdminPanel({
   const [targetChapterIdForTopic, setTargetChapterIdForTopic] = useState<string>("");
   const [learningSuccessMessage, setLearningSuccessMessage] = useState<string>("");
   const [learningErrorMessage, setLearningErrorMessage] = useState<string>("");
+  const [isAddingSubject, setIsAddingSubject] = useState<boolean>(false);
+  const [newSubjectName, setNewSubjectName] = useState<string>("");
+  const [newSubjectDescription, setNewSubjectDescription] = useState<string>("");
 
   // Topic Rich Learning Content Editor Modal state
   const [editingTopic, setEditingTopic] = useState<TopicItem | null>(null);
@@ -637,6 +642,39 @@ export function AdminPanel({
         setTestSuccessMessage("🧹 All old mock tests and useless test data removed successfully!");
       } else {
         setTestErrorMessage(res.error || "Failed to remove old mock tests.");
+      }
+    });
+  };
+
+  // Learning Handler: Create Subject
+  const handleCreateSubject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLearningErrorMessage("");
+    setLearningSuccessMessage("");
+
+    if (!newSubjectName.trim()) {
+      setLearningErrorMessage("Please enter a subject name.");
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await createAdminSubject(
+        newSubjectName.trim(),
+        newSubjectDescription.trim()
+      );
+
+      if (res.success && res.subject) {
+        setAdminSubjects((prev) => [...prev, res.subject]);
+        setSelectedLearningSubjectId(res.subject.id);
+        setSelectedSubjectId(res.subject.id);
+        setNewSubjectName("");
+        setNewSubjectDescription("");
+        setIsAddingSubject(false);
+        setLearningSuccessMessage(
+          `✅ Subject "${res.subject.name}" added to Supabase and synced to the admin/student learning hierarchy!`
+        );
+      } else {
+        setLearningErrorMessage(res.error || "Failed to create subject.");
       }
     });
   };
@@ -1394,7 +1432,7 @@ export function AdminPanel({
                       className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-600 shadow-xs"
                       required
                     >
-                      {subjects.map((sub) => (
+                      {adminSubjects.map((sub) => (
                         <option key={sub.id} value={sub.id}>
                           {sub.name}
                         </option>
@@ -1724,9 +1762,55 @@ export function AdminPanel({
                 </div>
               )}
 
+              {/* Subject Management */}
+              <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900">Subjects</h3>
+                    <p className="mt-0.5 text-[11px] text-slate-500">
+                      Add a new subject directly to the Supabase subjects table.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingSubject((prev) => !prev)}
+                    className="rounded-xl bg-blue-700 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-blue-800 active:scale-95 transition-all"
+                  >
+                    {isAddingSubject ? "Cancel" : "+ Add Subject"}
+                  </button>
+                </div>
+
+                {isAddingSubject && (
+                  <form onSubmit={handleCreateSubject} className="mt-4 grid gap-3 sm:grid-cols-[1fr_1.5fr_auto]">
+                    <input
+                      type="text"
+                      placeholder="Subject name"
+                      value={newSubjectName}
+                      onChange={(e) => setNewSubjectName(e.target.value)}
+                      className="rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-800 outline-none focus:border-blue-600"
+                      required
+                    />
+                    <input
+                      type="text"
+                      placeholder="Description (optional)"
+                      value={newSubjectDescription}
+                      onChange={(e) => setNewSubjectDescription(e.target.value)}
+                      className="rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-800 outline-none focus:border-blue-600"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isPending}
+                      className="rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-emerald-700 disabled:opacity-60"
+                    >
+                      {isPending ? "Saving..." : "Save Subject"}
+                    </button>
+                  </form>
+                )}
+              </div>
+
               {/* Subject Selector Tabs */}
               <div className="mt-6 flex flex-wrap gap-2 border-b border-slate-200 pb-3">
-                {subjects.map((sub) => {
+                {adminSubjects.map((sub) => {
                   const chapCount = adminChapters.filter((c) => c.subject_id === sub.id).length;
                   const isSelected = selectedLearningSubjectId === sub.id;
                   return (
@@ -1757,7 +1841,7 @@ export function AdminPanel({
               <form onSubmit={handleCreateChapter} className="mt-6 flex flex-wrap items-center gap-3">
                 <input
                   type="text"
-                  placeholder={`Add new chapter to ${subjects.find((s) => s.id === selectedLearningSubjectId)?.name || "Subject"}...`}
+                  placeholder={`Add new chapter to ${adminSubjects.find((s) => s.id === selectedLearningSubjectId)?.name || "Subject"}...`}
                   value={newChapterName}
                   onChange={(e) => setNewChapterName(e.target.value)}
                   className="w-full sm:w-80 rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-800 outline-none focus:border-blue-600"
