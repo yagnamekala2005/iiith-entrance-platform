@@ -314,6 +314,174 @@ export async function createAdminPracticeQuestion(input: CreatePracticeQuestionI
   }
 }
 
+
+export interface AdminPracticeQuestionItem {
+  id: string;
+  topic_id: string;
+  question_text: string;
+  difficulty: "easy" | "medium" | "hard";
+  marks: number;
+  explanation: string | null;
+  options: { id: string; option_label: string; option_text: string; display_order: number }[];
+  correct_option_label: string;
+}
+
+export async function getAdminTopicPracticeQuestions(topicId: string) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { success: false, error: "Authentication required.", questions: [] as AdminPracticeQuestionItem[] };
+
+    const { data: adminMembership } = await supabase
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!adminMembership) {
+      return { success: false, error: "Admin authorization required.", questions: [] as AdminPracticeQuestionItem[] };
+    }
+
+    if (!topicId) {
+      return { success: false, error: "Topic is required.", questions: [] as AdminPracticeQuestionItem[] };
+    }
+
+    const adminClient = createAdminClient();
+    const { data, error } = await adminClient
+      .from("questions")
+      .select("id, topic_id, question_text, difficulty, marks, explanation, created_at, question_options(id, option_label, option_text, display_order), question_answer_keys(correct_option_id)")
+      .eq("topic_id", topicId)
+      .eq("status", "published")
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      return { success: false, error: error.message, questions: [] as AdminPracticeQuestionItem[] };
+    }
+
+    const questions: AdminPracticeQuestionItem[] = (data || []).map((q: any) => {
+      const options = [...(q.question_options || [])].sort(
+        (a, b) => (a.display_order || 0) - (b.display_order || 0)
+      );
+      const correctId = q.question_answer_keys?.[0]?.correct_option_id;
+      const correctOption = options.find((option) => option.id === correctId);
+
+      return {
+        id: q.id,
+        topic_id: q.topic_id,
+        question_text: q.question_text,
+        difficulty: q.difficulty || "medium",
+        marks: Number(q.marks ?? 1),
+        explanation: q.explanation || null,
+        options,
+        correct_option_label: correctOption?.option_label || "A",
+      };
+    });
+
+    return { success: true, questions };
+  } catch (err) {
+    console.error("getAdminTopicPracticeQuestions error:", err);
+    return { success: false, error: "Failed to load practice questions.", questions: [] as AdminPracticeQuestionItem[] };
+  }
+}
+
+export async function updateAdminPracticeQuestion(
+  questionId: string,
+  input: Omit<CreatePracticeQuestionInput, "subject_id" | "chapter_id" | "topic_id">
+) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { success: false, error: "Authentication required." };
+
+    const { data: adminMembership } = await supabase
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!adminMembership) return { success: false, error: "Admin authorization required." };
+
+    if (!questionId || !input.question_text.trim()) {
+      return { success: false, error: "Question text is required." };
+    }
+
+    if (!input.explanation.trim()) {
+      return { success: false, error: "A solution explanation is required." };
+    }
+
+    if (input.options.length !== 4 || input.options.some((option) => !option.text.trim())) {
+      return { success: false, error: "All 4 options (A, B, C, D) are required." };
+    }
+
+    const adminClient = createAdminClient();
+
+    const { error: questionError } = await adminClient
+      .from("questions")
+      .update({
+        question_text: input.question_text.trim(),
+        difficulty: input.difficulty,
+        explanation: input.explanation.trim(),
+        marks: Number.isFinite(input.marks) ? input.marks : 1,
+        negative_marks: 0,
+      })
+      .eq("id", questionId)
+      .not("topic_id", "is", null);
+
+    if (questionError) {
+      return { success: false, error: questionError.message };
+    }
+
+    await adminClient.from("question_answer_keys").delete().eq("question_id", questionId);
+    await adminClient.from("question_options").delete().eq("question_id", questionId);
+
+    const { data: insertedOptions, error: optionsError } = await adminClient
+      .from("question_options")
+      .insert(
+        input.options.map((option, index) => ({
+          question_id: questionId,
+          option_label: option.label.toUpperCase(),
+          option_text: option.text.trim(),
+          display_order: index + 1,
+        }))
+      )
+      .select("id, option_label");
+
+    if (optionsError || !insertedOptions) {
+      return { success: false, error: optionsError?.message || "Failed to update options." };
+    }
+
+    const correctOption = insertedOptions.find(
+      (option) => option.option_label === input.correct_option_label.toUpperCase()
+    );
+
+    if (!correctOption) {
+      return { success: false, error: "Please select a valid correct option." };
+    }
+
+    const { error: answerError } = await adminClient
+      .from("question_answer_keys")
+      .insert({
+        question_id: questionId,
+        correct_option_id: correctOption.id,
+      });
+
+    if (answerError) {
+      return { success: false, error: answerError.message };
+    }
+
+    revalidatePath("/admin");
+    revalidatePath("/learning");
+    revalidatePath("/practice");
+
+    return { success: true };
+  } catch (err) {
+    console.error("updateAdminPracticeQuestion error:", err);
+    return { success: false, error: "Failed to update practice question." };
+  }
+}
+
 export async function deleteAdminQuestion(questionId: string) {
   try {
     const supabase = await createClient();
