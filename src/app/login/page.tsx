@@ -32,16 +32,6 @@ function LoginFormContent() {
     }
   });
   const [loading, setLoading] = useState(false);
-  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
-
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user && user.email) {
-        setCurrentUserEmail(user.email);
-      }
-    });
-  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -170,34 +160,6 @@ function LoginFormContent() {
 
           {/* Form Area */}
           <form className="p-6 sm:p-8 pt-4 space-y-5" onSubmit={handleSubmit}>
-
-            {/* Active Session Notice when navigating back while signed in */}
-            {currentUserEmail && (
-              <div className="rounded-xl border border-blue-200 bg-blue-50/90 p-4 text-xs shadow-2xs">
-                <p className="font-semibold text-blue-900 leading-snug">
-                  You are currently logged in as <strong className="font-bold underline">{currentUserEmail}</strong>
-                </p>
-                <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                  <Link
-                    href={isAdminTab ? "/admin" : "/dashboard"}
-                    className="rounded-lg bg-blue-700 px-3 py-1.5 font-bold text-white hover:bg-blue-800 transition-all text-xs shadow-xs"
-                  >
-                    Go to {isAdminTab ? "Admin Studio" : "Student Dashboard"} &rarr;
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const supabase = createClient();
-                      await supabase.auth.signOut();
-                      setCurrentUserEmail(null);
-                    }}
-                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 font-bold text-slate-700 hover:bg-slate-50 transition-all text-xs"
-                  >
-                    Switch Account
-                  </button>
-                </div>
-              </div>
-            )}
 
             {/* Error Message */}
             {message && (
