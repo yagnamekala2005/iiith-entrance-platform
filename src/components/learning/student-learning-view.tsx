@@ -235,19 +235,6 @@ export function StudentLearningView({ subjects }: StudentLearningViewProps) {
     <div className="space-y-8 w-full max-w-full overflow-x-hidden">
       {/* Header Banner */}
       <div className="border-b border-slate-200 pb-6">
-        {/* Step-Back: Return to Dashboard */}
-        <div className="mb-3">
-          <Link
-            href="/dashboard"
-            prefetch={true}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 active:scale-95 px-3 py-1.5 text-xs font-bold text-slate-700 transition-all shadow-2xs"
-            title="Return to Student Dashboard (1 step back)"
-          >
-            <span className="text-sm font-black leading-none">‹</span>
-            <span>Back to Dashboard</span>
-          </Link>
-        </div>
-
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">

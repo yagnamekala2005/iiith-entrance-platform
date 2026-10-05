@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import SignOutButton from "@/components/auth/sign-out-button";
+import { LogoutConfirmModal } from "@/components/auth/logout-confirm-modal";
+import { createClient } from "@/lib/supabase/client";
 
 interface StudentNavbarProps {
   userEmail: string;
@@ -12,16 +14,52 @@ interface StudentNavbarProps {
 
 export function StudentNavbar({ userEmail, isAdmin }: StudentNavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isExitConfirmOpen, setIsExitConfirmOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
 
+  // Intercept back navigation when on root dashboard so user is prompted before exiting session
+  useEffect(() => {
+    if (pathname !== "/dashboard" || typeof window === "undefined") return;
+
+    if (window.history.state?.studentDashboard !== true) {
+      window.history.pushState({ studentDashboard: true }, "");
+    }
+
+    const onPopState = () => {
+      setIsExitConfirmOpen(true);
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, [pathname]);
+
   const handleBack = () => {
     if (pathname === "/dashboard") {
-      router.push("/");
-    } else if (typeof window !== "undefined" && window.history.length > 1) {
+      setIsExitConfirmOpen(true);
+      return;
+    }
+    if (typeof window !== "undefined" && window.history.length > 1) {
       router.back();
     } else {
       router.push("/dashboard");
+    }
+  };
+
+  const handleConfirmExit = async () => {
+    try {
+      setIsLoggingOut(true);
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      setIsExitConfirmOpen(false);
+      router.push("/");
+      router.refresh();
+    } catch {
+      setIsLoggingOut(false);
+      setIsExitConfirmOpen(false);
     }
   };
 
@@ -33,7 +71,8 @@ export function StudentNavbar({ userEmail, isAdmin }: StudentNavbarProps) {
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-md">
+    <>
+      <header className="fixed top-0 left-0 right-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-md w-full">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8 py-3.5">
         {/* Brand & Quick Back */}
         <div className="flex items-center gap-2 sm:gap-3">
@@ -223,6 +262,27 @@ export function StudentNavbar({ userEmail, isAdmin }: StudentNavbarProps) {
           </div>
         </div>
       )}
+
+      {/* Exit Dashboard / Log Out Confirmation Modal */}
+      <LogoutConfirmModal
+        isOpen={isExitConfirmOpen}
+        onClose={() => {
+          setIsExitConfirmOpen(false);
+          if (pathname === "/dashboard" && typeof window !== "undefined") {
+            window.history.pushState({ studentDashboard: true }, "");
+          }
+        }}
+        onConfirm={handleConfirmExit}
+        isLoading={isLoggingOut}
+        title="Log Out Confirmation"
+        message="You are exiting from the student portal. Are you sure you want to log out and return to the entrance portal?"
+        confirmText="Yes, Log Out"
+        cancelText="Cancel"
+      />
     </header>
+
+    {/* Spacer to preserve document layout height so content is not obscured */}
+    <div className="h-[60px] sm:h-[64px] w-full shrink-0" aria-hidden="true" />
+  </>
   );
 }
