@@ -17,7 +17,7 @@ function ParticleField({
   color = "#00ff88",
   speed = 0.08,
 }: ParticleFieldProps) {
-  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const meshRef = useRef<THREE.InstancedMesh | null>(null);
   const glowRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
 
