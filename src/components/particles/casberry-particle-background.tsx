@@ -14,7 +14,7 @@ type ParticleFieldProps = {
 function ParticleField({
   count = 20000,
   radius = 30,
-  color = "#00ff88",
+  color = "#00ff66",
   speed = 0.08,
 }: ParticleFieldProps) {
   const meshRef = useRef<THREE.InstancedMesh | null>(null);
@@ -29,7 +29,7 @@ function ParticleField({
       const theta = Math.PI * (3 - Math.sqrt(5)) * i;
 
       return new THREE.Vector3(
-        radius * Math.sin(phi) * Math.cos(theta),
+        radius * Math.sin(phi) * Math.cos(theta) - radius * 0.62,
         radius * Math.cos(phi),
         radius * Math.sin(phi) * Math.sin(theta)
       );
@@ -39,12 +39,12 @@ function ParticleField({
   }, [count, radius]);
 
   const geometry = useMemo(
-    () => new THREE.TetrahedronGeometry(0.12, 0),
+    () => new THREE.TetrahedronGeometry(0.18, 0),
     []
   );
 
   const glowGeometry = useMemo(
-    () => new THREE.TetrahedronGeometry(0.26, 0),
+    () => new THREE.TetrahedronGeometry(0.42, 0),
     []
   );
 
@@ -53,7 +53,7 @@ function ParticleField({
       new THREE.MeshBasicMaterial({
         color,
         transparent: true,
-        opacity: 0.95,
+        opacity: 1,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       }),
@@ -65,7 +65,7 @@ function ParticleField({
       new THREE.MeshBasicMaterial({
         color,
         transparent: true,
-        opacity: 0.12,
+        opacity: 0.30,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       }),
@@ -114,7 +114,7 @@ function ParticleField({
 export function CasberryParticleBackground({
   count = 20000,
   radius = 30,
-  color = "#00ff88",
+  color = "#00ff66",
   speed = 0.08,
 }: ParticleFieldProps) {
   return (
@@ -138,7 +138,7 @@ export function CasberryParticleBackground({
 
       <div
         aria-hidden="true"
-        className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,255,136,0.07),transparent_38%)]"
+        className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,255,102,0.18),transparent_42%)]"
       />
     </div>
   );
