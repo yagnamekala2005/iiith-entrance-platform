@@ -27,6 +27,7 @@ import {
   type LearningResource,
 } from "@/lib/learning/topic-content";
 import { createClient } from "@/lib/supabase/client";
+import { LogoutConfirmModal } from "@/components/auth/logout-confirm-modal";
 
 interface SubjectItem {
   id: string;
@@ -137,8 +138,12 @@ export function AdminPanel({
   const [newTestExamId, setNewTestExamId] = useState<string>(adminExams[0]?.id || "");
   const [newTestDuration, setNewTestDuration] = useState<number>(180);
   const [newTestDescription, setNewTestDescription] = useState<string>("");
-  const [testSuccessMessage, setTestSuccessMessage] = useState<string>("");
+  const [testSuccessMessage, setTestSuccessMessage] = useState<string>("" );
   const [testErrorMessage, setTestErrorMessage] = useState<string>("");
+
+  // Logout Confirmation Modal State
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState<boolean>(false);
+  const [isSigningOut, setIsSigningOut] = useState<boolean>(false);
 
   // My Learning State (Subjects, Chapters, Subtopics)
   const [adminSubjects, setAdminSubjects] = useState<SubjectItem[]>(subjects);
@@ -218,12 +223,12 @@ export function AdminPanel({
         return;
       }
 
-      // 4. If already on the root "tests" tab and called from UI button, return to Entrance Portal
+      // 4. If already on the root "tests" tab and called from UI button, prompt logout confirmation
       if (!e) {
-        router.push("/");
+        setIsLogoutModalOpen(true);
       }
     },
-    [router]
+    []
   );
 
   // Intercept back navigation so mobile phone gestures / back buttons come back 1 step instead of exiting app
@@ -258,8 +263,8 @@ export function AdminPanel({
         return;
       }
 
-      // 5. If already on the root "tests" tab, safely navigate back to Entrance Portal instead of exiting!
-      router.push("/");
+      // 5. If already on the root "tests" tab, prompt confirmation modal before leaving!
+      setIsLogoutModalOpen(true);
     };
 
     const onAdminStepBack = (e: Event) => {
@@ -330,11 +335,21 @@ export function AdminPanel({
   const isEditingExisting = activeQuestionIndex < currentTestQuestions.length;
   const currentEditingQuestion = isEditingExisting ? currentTestQuestions[activeQuestionIndex] : null;
 
-  // Sign out handler
-  const handleSignOut = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    window.location.href = "/login?role=admin";
+  // Sign out handlers (prompts confirmation modal before ending session)
+  const handleSignOut = () => {
+    setIsLogoutModalOpen(true);
+  };
+
+  const handleConfirmSignOut = async () => {
+    try {
+      setIsSigningOut(true);
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      window.location.href = "/login?role=admin";
+    } catch {
+      setIsSigningOut(false);
+      setIsLogoutModalOpen(false);
+    }
   };
 
   // Populate form with question data
@@ -2846,6 +2861,23 @@ export function AdminPanel({
           </div>
         )}
       </main>
+
+      {/* Admin Log Out Confirmation Modal */}
+      <LogoutConfirmModal
+        isOpen={isLogoutModalOpen}
+        onClose={() => {
+          setIsLogoutModalOpen(false);
+          if (typeof window !== "undefined") {
+            window.history.pushState({ adminStudio: true, tab: activeTab }, "");
+          }
+        }}
+        onConfirm={handleConfirmSignOut}
+        isLoading={isSigningOut}
+        title="Admin Log Out Confirmation"
+        message="You are exiting from Administrator Studio. Are you sure you want to log out and end your admin session?"
+        confirmText="Yes, Log Out"
+        cancelText="Cancel"
+      />
     </div>
   );
 }
