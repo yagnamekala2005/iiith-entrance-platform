@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useState, useTransition, useMemo, useEffect, useRef } from "react";
-import Link from "next/link";
+import React, { useState, useTransition, useMemo, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   createAdminQuestion,
@@ -179,43 +178,53 @@ export function AdminPanel({
   const [isSavingTopicContent, setIsSavingTopicContent] = useState<boolean>(false);
 
   // References to keep event handlers current without re-attaching listeners
-  const activeTabRef = useRef(activeTab);
-  activeTabRef.current = activeTab;
-
-  const editingTopicRef = useRef(editingTopic);
-  editingTopicRef.current = editingTopic;
-
+  const activeTabRef = useRef<"tests" | "create" | "learning" | "admins">(activeTab);
+  const editingTopicRef = useRef<TopicItem | null>(editingTopic);
   const isCreatingMockTestRef = useRef(isCreatingMockTest);
-  isCreatingMockTestRef.current = isCreatingMockTest;
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  useEffect(() => {
+    editingTopicRef.current = editingTopic;
+  }, [editingTopic]);
+
+  useEffect(() => {
+    isCreatingMockTestRef.current = isCreatingMockTest;
+  }, [isCreatingMockTest]);
 
   // Unified back handler for Admin: modal -> subtab (e.g. learning) -> mock tests root -> entrance portal
-  const handleAdminStepBack = (e?: Event) => {
-    // 1. If Topic Learning Content Editor modal is open, close it (1 step back)
-    if (editingTopicRef.current) {
-      if (e) e.preventDefault();
-      setEditingTopic(null);
-      return;
-    }
+  const handleAdminStepBack = useCallback(
+    (e?: Event) => {
+      // 1. If Topic Learning Content Editor modal is open, close it (1 step back)
+      if (editingTopicRef.current) {
+        if (e) e.preventDefault();
+        setEditingTopic(null);
+        return;
+      }
 
-    // 2. If New Mock Test form is open, close it (1 step back)
-    if (isCreatingMockTestRef.current) {
-      if (e) e.preventDefault();
-      setIsCreatingMockTest(false);
-      return;
-    }
+      // 2. If New Mock Test form is open, close it (1 step back)
+      if (isCreatingMockTestRef.current) {
+        if (e) e.preventDefault();
+        setIsCreatingMockTest(false);
+        return;
+      }
 
-    // 3. If on a subtab ("learning", "create", "admins"), return to "tests" tab (1 step back)
-    if (activeTabRef.current !== "tests") {
-      if (e) e.preventDefault();
-      setActiveTab("tests");
-      return;
-    }
+      // 3. If on a subtab ("learning", "create", "admins"), return to "tests" tab (1 step back)
+      if (activeTabRef.current !== "tests") {
+        if (e) e.preventDefault();
+        setActiveTab("tests");
+        return;
+      }
 
-    // 4. If already on the root "tests" tab and called from UI button, return to Entrance Portal
-    if (!e) {
-      router.push("/");
-    }
-  };
+      // 4. If already on the root "tests" tab and called from UI button, return to Entrance Portal
+      if (!e) {
+        router.push("/");
+      }
+    },
+    [router]
+  );
 
   // Intercept back navigation so mobile phone gestures / back buttons come back 1 step instead of exiting app
   useEffect(() => {

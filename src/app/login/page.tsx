@@ -4,18 +4,33 @@ import Link from "next/link";
 import { FormEvent, useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { GoogleOAuthButton } from "@/components/auth/google-oauth-button";
 
 function LoginFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialRole = searchParams.get("role") === "admin" ? "admin" : "student";
   const nextUrl = searchParams.get("next");
+  const authError = searchParams.get("authError");
 
   const [role, setRole] = useState<"student" | "admin">(initialRole);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(() => {
+    switch (authError) {
+      case "oauth_cancelled":
+        return "Google sign-in was cancelled. You can try again or use email and password.";
+      case "profile_update_failed":
+        return "Google sign-in succeeded, but your profile could not be updated. Please try again or contact support.";
+      case "role_lookup_failed":
+        return "We could not verify your account access. Please try again or contact support.";
+      case "oauth_failed":
+        return "Google sign-in could not be completed. Please try again or use email and password.";
+      default:
+        return "";
+    }
+  });
   const [loading, setLoading] = useState(false);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
 
@@ -190,6 +205,15 @@ function LoginFormContent() {
                 {message}
               </div>
             )}
+
+            <GoogleOAuthButton disabled={loading} />
+            <div className="flex items-center gap-3" aria-hidden="true">
+              <span className="h-px flex-1 bg-slate-200" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Or use email
+              </span>
+              <span className="h-px flex-1 bg-slate-200" />
+            </div>
 
             {/* Email Field */}
             <div>
