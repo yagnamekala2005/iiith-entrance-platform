@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { InteractiveExamPreview } from "@/components/landing/interactive-preview";
+import { CasberryParticleBackground } from "@/components/particles/casberry-particle-background";
 
 export default function Home() {
   return (
@@ -79,8 +80,13 @@ export default function Home() {
 
       {/* Hero Section with Interactive Mockup */}
       <section className="relative overflow-hidden pt-12 pb-16 lg:pt-20 lg:pb-24 bg-gradient-to-b from-white via-slate-50 to-[#f8fafc]">
+        {/* Casberry 3D particle background */}
+        <div className="absolute inset-0 opacity-70 pointer-events-none">
+          <CasberryParticleBackground count={20000} radius={24} color="#00ff88" speed={0.08} />
+        </div>
+
         {/* Subtle decorative grid */}
-        <div className="absolute inset-0 bg-grid-pattern opacity-60 pointer-events-none"></div>
+        <div className="absolute inset-0 bg-grid-pattern opacity-25 pointer-events-none"></div>
 
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid gap-12 lg:grid-cols-12 lg:items-center">
