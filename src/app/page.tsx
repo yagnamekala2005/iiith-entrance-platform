@@ -81,8 +81,8 @@ export default function Home() {
       {/* Hero Section with Interactive Mockup */}
       <section className="relative overflow-hidden pt-12 pb-16 lg:pt-20 lg:pb-24 bg-gradient-to-b from-white via-slate-50 to-[#f8fafc]">
         {/* Casberry 3D particle background */}
-        <div className="absolute inset-0 opacity-70 pointer-events-none">
-          <CasberryParticleBackground count={20000} radius={24} color="#00ff88" speed={0.08} />
+        <div className="absolute inset-0 opacity-100 pointer-events-none">
+          <CasberryParticleBackground count={20000} radius={24} color="#00ff66" speed={0.08} />
         </div>
 
         {/* Subtle decorative grid */}
