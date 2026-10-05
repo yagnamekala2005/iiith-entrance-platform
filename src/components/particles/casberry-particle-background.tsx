@@ -118,18 +118,17 @@ export function CasberryParticleBackground({
   speed = 0.08,
 }: ParticleFieldProps) {
   return (
-    <div className="absolute inset-0 overflow-hidden rounded-[inherit] bg-black pointer-events-none">
+    <div className="absolute inset-0 overflow-hidden rounded-[inherit] pointer-events-none">
       <Canvas
         dpr={[1, 1.5]}
         camera={{ position: [0, 0, 78], fov: 55, near: 0.1, far: 200 }}
         gl={{
           antialias: true,
-          alpha: false,
+          alpha: true,
           powerPreference: "high-performance",
         }}
       >
-        <color attach="background" args={["#000000"]} />
-        <ParticleField
+          <ParticleField
           count={count}
           radius={radius}
           color={color}
@@ -139,7 +138,7 @@ export function CasberryParticleBackground({
 
       <div
         aria-hidden="true"
-        className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,255,136,0.10),transparent_42%)]"
+        className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,255,136,0.07),transparent_38%)]"
       />
     </div>
   );
