@@ -11,6 +11,21 @@ import type {
   TestWithDetails,
 } from "@/types/content";
 
+type AnswerKeyRelation =
+  | { correct_option_id: string }
+  | { correct_option_id: string }[]
+  | null
+  | undefined;
+
+function getCorrectOptionId(answerKey: AnswerKeyRelation): string | undefined {
+  if (!answerKey) return undefined;
+  if (Array.isArray(answerKey)) {
+    return answerKey[0]?.correct_option_id;
+  }
+  return answerKey.correct_option_id;
+}
+
+
 /**
  * Fetch an in-progress attempt for active taking.
  * CRITICAL SECURITY: Never queries or returns answer keys or explanations.
@@ -221,9 +236,9 @@ export async function getAttemptResult(attemptId: string): Promise<AttemptResult
     const q = aq.question as unknown as {
       id: string;
       subject?: { id: string; name: string; slug: string } | null;
-      answer_key: { correct_option_id: string }[] | null;
+      answer_key: AnswerKeyRelation;
     } | null;
-    const correctOptId = q?.answer_key?.[0]?.correct_option_id;
+    const correctOptId = getCorrectOptionId(q?.answer_key);
 
     // Section calculations
     const current = sectionMap.get(secId) || {
@@ -377,10 +392,10 @@ export async function getAttemptReview(attemptId: string): Promise<AttemptReview
       explanation: string | null;
       subject?: { id: string; name: string; slug: string } | null;
       options: { id: string; question_id: string; option_label: string; option_text: string; display_order: number; created_at: string }[];
-      answer_key: { correct_option_id: string }[] | null;
+      answer_key: AnswerKeyRelation;
     };
     const sec = aq.section as unknown as { name: string } | null;
-    const correctOptId = q?.answer_key?.[0]?.correct_option_id || "";
+    const correctOptId = getCorrectOptionId(q?.answer_key) || "";
     const isCorrect = Boolean(aq.selected_option_id && aq.selected_option_id === correctOptId);
     const isUnanswered = aq.selected_option_id === null;
 
