@@ -15,8 +15,29 @@ function LoginFormContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(() => searchParams.get("oauth_error") || "");
   const [loading, setLoading] = useState(false);
+
+  async function handleGoogleSignIn() {
+    setLoading(true);
+    setMessage("");
+
+    const supabase = createClient();
+    const next = role === "admin" ? (nextUrl || "/admin") : (nextUrl || "/dashboard");
+    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo,
+      },
+    });
+
+    if (error) {
+      setLoading(false);
+      setMessage(error.message);
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -198,6 +219,22 @@ function LoginFormContent() {
                   {showPassword ? "Hide" : "Show"}
                 </button>
               </div>
+            </div>
+
+            {/* Google Sign In */}
+            <button
+              type="button"
+              disabled={loading}
+              onClick={handleGoogleSignIn}
+              className="w-full rounded-xl border border-slate-300 bg-white py-3.5 text-xs font-bold uppercase tracking-wider text-slate-800 shadow-sm hover:bg-slate-50 active:scale-95 disabled:opacity-50 transition-all"
+            >
+              {loading ? "Connecting to Google..." : "Continue with Google"}
+            </button>
+
+            <div className="relative flex items-center py-1">
+              <div className="flex-1 border-t border-slate-200" />
+              <span className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">or</span>
+              <div className="flex-1 border-t border-slate-200" />
             </div>
 
             {/* Submit Button */}
