@@ -23,6 +23,23 @@ export async function GET(request: Request) {
     );
   }
 
+  if (next.startsWith("/admin")) {
+    const { data: adminMembership } = await supabase
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
+      .maybeSingle();
+
+    if (!adminMembership) {
+      return NextResponse.redirect(
+        new URL(
+          "/login?role=admin&oauth_error=This+Google+account+is+not+enrolled+as+an+administrator",
+          origin,
+        ),
+      );
+    }
+  }
+
   const forwardedHost = request.headers.get("x-forwarded-host");
   const isLocalEnv = process.env.NODE_ENV === "development";
 
