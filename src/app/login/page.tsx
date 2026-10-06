@@ -35,13 +35,35 @@ function LoginFormContent() {
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user && user.email) {
+
+    async function restoreExistingSession() {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (cancelled || !user) return;
+
+      if (user.email) {
         setCurrentUserEmail(user.email);
       }
-    });
-  }, []);
+
+      // Safety net for an OAuth response that reached this page after the
+      // session was already established. Do not make the user click Google
+      // a second time; continue to the requested protected destination.
+      if (authError?.startsWith("oauth_")) {
+        const destination = isAdminTab
+          ? (nextUrl || "/admin")
+          : (nextUrl || "/dashboard");
+        window.location.replace(destination);
+      }
+    }
+
+    void restoreExistingSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authError, isAdminTab, nextUrl]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
