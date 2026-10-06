@@ -206,7 +206,10 @@ function LoginFormContent() {
               </div>
             )}
 
-            <GoogleOAuthButton disabled={loading} />
+            <GoogleOAuthButton
+              disabled={loading}
+              nextPath={isAdminTab ? (nextUrl || "/admin") : (nextUrl || "/dashboard")}
+            />
             <div className="flex items-center gap-3" aria-hidden="true">
               <span className="h-px flex-1 bg-slate-200" />
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
