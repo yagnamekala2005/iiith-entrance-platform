@@ -27,10 +27,12 @@ export default function AuthCompletePage() {
       return;
     }
 
+    const oauthCode = code;
     const supabase = createClient();
 
     async function completeOAuth() {
-      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+      const { data, error } =
+        await supabase.auth.exchangeCodeForSession(oauthCode);
 
       if (error || !data.session || !data.user) {
         console.error("OAuth code exchange failed:", error);
