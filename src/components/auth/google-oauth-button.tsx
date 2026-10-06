@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 interface GoogleOAuthButtonProps {
   disabled?: boolean;
@@ -13,18 +14,32 @@ export function GoogleOAuthButton({
 }: GoogleOAuthButtonProps) {
   const [loading, setLoading] = useState(false);
 
-  function handleGoogleSignIn() {
+  async function handleGoogleSignIn() {
     if (loading || disabled) return;
 
     setLoading(true);
 
-    const safeNext = nextPath.startsWith("/") ? nextPath : "/dashboard";
-    const oauthUrl = new URL("/auth/signin", window.location.origin);
-    oauthUrl.searchParams.set("next", safeNext);
+    try {
+      const safeNext = nextPath.startsWith("/") ? nextPath : "/dashboard";
+      const callbackUrl = new URL("/auth/callback", window.location.origin);
+      callbackUrl.searchParams.set("next", safeNext);
 
-    // One full navigation to the server-side OAuth starter. The server
-    // establishes the PKCE verifier cookie before sending the user to Google.
-    window.location.assign(oauthUrl.toString());
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: callbackUrl.toString(),
+        },
+      });
+
+      if (error) {
+        console.error("Google OAuth start failed:", error);
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error("Google OAuth start failed:", error);
+      setLoading(false);
+    }
   }
 
   return (
