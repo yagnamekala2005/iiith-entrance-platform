@@ -8,7 +8,10 @@ interface GoogleOAuthButtonProps {
   nextPath?: string;
 }
 
-export function GoogleOAuthButton({ disabled = false, nextPath = "/dashboard" }: GoogleOAuthButtonProps) {
+export function GoogleOAuthButton({
+  disabled = false,
+  nextPath = "/dashboard",
+}: GoogleOAuthButtonProps) {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -18,27 +21,49 @@ export function GoogleOAuthButton({ disabled = false, nextPath = "/dashboard" }:
     setLoading(true);
     setErrorMessage("");
 
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
-      setErrorMessage("Google sign-in is not configured. Please use email and password or contact support.");
+    if (
+      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+    ) {
+      setErrorMessage(
+        "Google sign-in is not configured. Please use email and password or contact support.",
+      );
       setLoading(false);
       return;
     }
 
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.signInWithOAuth({
+      const safeNext = nextPath.startsWith("/") ? nextPath : "/dashboard";
+      const redirectUrl = new URL(
+        "/auth/callback",
+        window.location.origin,
+      );
+      redirectUrl.searchParams.set("next", safeNext);
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath.startsWith("/") ? nextPath : "/dashboard")}`,
+          redirectTo: redirectUrl.toString(),
+          skipBrowserRedirect: true,
         },
       });
 
-      if (error) {
-        setErrorMessage("Unable to start Google sign-in. Please try again or use email and password.");
+      if (error || !data.url) {
+        setErrorMessage(
+          "Unable to start Google sign-in. Please try again or use email and password.",
+        );
         setLoading(false);
+        return;
       }
+
+      // Use a single full browser navigation. This avoids a race between
+      // Supabase's automatic redirect and Next.js client navigation.
+      window.location.assign(data.url);
     } catch {
-      setErrorMessage("Unable to start Google sign-in. Please try again or use email and password.");
+      setErrorMessage(
+        "Unable to start Google sign-in. Please try again or use email and password.",
+      );
       setLoading(false);
     }
   }
