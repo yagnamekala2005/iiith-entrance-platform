@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -25,14 +26,41 @@ export async function GET(request: Request) {
     return redirectWithError("oauth_failed");
   }
 
-  // Keep the PKCE exchange on the browser side. The Supabase browser client
-  // owns the PKCE verifier, so exchanging the code in the same browser
-  // guarantees the verifier and resulting auth session stay together.
-  const completeUrl = new URL("/auth/complete", origin);
-  completeUrl.searchParams.set("code", code);
-  completeUrl.searchParams.set("next", next);
+  try {
+    const supabase = await createClient();
 
-  const response = NextResponse.redirect(completeUrl);
-  response.headers.set("Cache-Control", "no-store");
-  return response;
+    // The PKCE verifier was written by the server-side OAuth starter route.
+    // Exchange the returned code on the same server-side client/cookie flow.
+    const { data, error: exchangeError } =
+      await supabase.auth.exchangeCodeForSession(code);
+
+    if (exchangeError || !data.user) {
+      console.error("OAuth code exchange failed:", exchangeError);
+      return redirectWithError("oauth_failed");
+    }
+
+    if (next.startsWith("/admin")) {
+      const { data: adminMembership, error: roleLookupError } = await supabase
+        .from("admin_users")
+        .select("user_id")
+        .eq("user_id", data.user.id)
+        .maybeSingle();
+
+      if (roleLookupError) {
+        console.error("OAuth role lookup failed:", roleLookupError);
+        return redirectWithError("role_lookup_failed");
+      }
+
+      if (!adminMembership) {
+        return redirectWithError("admin_access_denied");
+      }
+    }
+
+    const response = NextResponse.redirect(new URL(next, origin));
+    response.headers.set("Cache-Control", "no-store");
+    return response;
+  } catch (error) {
+    console.error("OAuth callback failed:", error);
+    return redirectWithError("oauth_failed");
+  }
 }
