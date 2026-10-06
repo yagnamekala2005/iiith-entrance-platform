@@ -52,7 +52,7 @@ export async function GET(request: Request) {
       return loginWithError("admin_access_denied");
     }
 
-    const destination = adminMembership ? "/admin" : "/dashboard";
+    const destination = next.startsWith("/admin") ? "/admin" : "/dashboard";
     const forwardedHost = request.headers.get("x-forwarded-host");
     const isLocalEnv = process.env.NODE_ENV === "development";
 
