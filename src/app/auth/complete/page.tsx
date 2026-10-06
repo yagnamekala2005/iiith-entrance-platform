@@ -13,6 +13,7 @@ export default function AuthCompletePage() {
 
     async function completeSignIn() {
       const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
       const requestedNext = params.get("next") ?? "/dashboard";
       const destination = requestedNext.startsWith("/")
         ? requestedNext
@@ -20,9 +21,45 @@ export default function AuthCompletePage() {
 
       const supabase = createClient();
 
-      // The callback has already exchanged the PKCE code on the server.
-      // Give the browser a few attempts to observe the session cookie before
-      // navigating to a server-rendered protected page.
+      if (!code) {
+        // A previous successful exchange may already have established a
+        // browser session. Reuse it rather than making the user sign in twice.
+        const { data } = await supabase.auth.getUser();
+
+        if (cancelled) return;
+
+        if (data.user) {
+          window.location.replace(destination);
+          return;
+        }
+
+        window.location.replace("/login?authError=oauth_failed");
+        return;
+      }
+
+      // Exchange the authorization code in the browser so the same browser
+      // storage that contains the PKCE verifier also receives the session.
+      const { error: exchangeError } =
+        await supabase.auth.exchangeCodeForSession(code);
+
+      if (cancelled) return;
+
+      if (exchangeError) {
+        console.error("Browser OAuth code exchange failed:", exchangeError);
+
+        // A retry can safely reuse an already-established session if the
+        // browser completed the exchange just before this response arrived.
+        const { data } = await supabase.auth.getUser();
+
+        if (!cancelled && data.user) {
+          window.location.replace(destination);
+          return;
+        }
+
+        window.location.replace("/login?authError=oauth_failed");
+        return;
+      }
+
       for (let attempt = 0; attempt < 10; attempt += 1) {
         if (cancelled) return;
 
