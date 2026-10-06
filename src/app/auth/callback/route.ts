@@ -8,19 +8,22 @@ export async function GET(request: Request) {
   const requestedNext = searchParams.get("next") ?? "/dashboard";
   const next = requestedNext.startsWith("/") ? requestedNext : "/dashboard";
 
-  const loginWithError = (error: string) =>
-    NextResponse.redirect(
+  const redirectWithError = (error: string) => {
+    const response = NextResponse.redirect(
       new URL(`/login?authError=${encodeURIComponent(error)}`, origin),
     );
+    response.headers.set("Cache-Control", "no-store");
+    return response;
+  };
 
   if (providerError) {
-    return loginWithError(
+    return redirectWithError(
       providerError === "access_denied" ? "oauth_cancelled" : "oauth_failed",
     );
   }
 
   if (!code) {
-    return loginWithError("oauth_failed");
+    return redirectWithError("oauth_failed");
   }
 
   try {
@@ -32,7 +35,7 @@ export async function GET(request: Request) {
 
     if (exchangeError || !data.user) {
       console.error("OAuth code exchange failed:", exchangeError);
-      return loginWithError("oauth_failed");
+      return redirectWithError("oauth_failed");
     }
 
     const user = data.user;
@@ -45,24 +48,24 @@ export async function GET(request: Request) {
 
     if (roleLookupError) {
       console.error("OAuth role lookup failed:", roleLookupError);
-      return loginWithError("role_lookup_failed");
+      return redirectWithError("role_lookup_failed");
     }
 
     if (next.startsWith("/admin") && !adminMembership) {
-      return loginWithError("admin_access_denied");
+      return redirectWithError("admin_access_denied");
     }
 
-    const destination = next.startsWith("/admin") ? "/admin" : "/dashboard";
-    const forwardedHost = request.headers.get("x-forwarded-host");
-    const isLocalEnv = process.env.NODE_ENV === "development";
+    // Use a dedicated client-side landing page after the server-side PKCE
+    // exchange. This gives the browser a clean navigation point where it can
+    // confirm the session before entering pages that may use Next.js prefetching.
+    const completeUrl = new URL("/auth/complete", origin);
+    completeUrl.searchParams.set("next", next);
 
-    if (isLocalEnv || !forwardedHost) {
-      return NextResponse.redirect(new URL(destination, origin));
-    }
-
-    return NextResponse.redirect(`https://${forwardedHost}${destination}`);
+    const response = NextResponse.redirect(completeUrl);
+    response.headers.set("Cache-Control", "no-store");
+    return response;
   } catch (error) {
     console.error("OAuth callback failed:", error);
-    return loginWithError("oauth_failed");
+    return redirectWithError("oauth_failed");
   }
 }
