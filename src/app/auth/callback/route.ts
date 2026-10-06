@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -26,30 +25,14 @@ export async function GET(request: Request) {
     return redirectWithError("oauth_failed");
   }
 
-  try {
-    const supabase = await createClient();
+  // Keep the PKCE exchange on the browser side. The Supabase browser client
+  // owns the PKCE verifier, so exchanging the code in the same browser
+  // guarantees the verifier and resulting auth session stay together.
+  const completeUrl = new URL("/auth/complete", origin);
+  completeUrl.searchParams.set("code", code);
+  completeUrl.searchParams.set("next", next);
 
-    // This is the only server-side operation required to complete the
-    // Google PKCE flow. It writes the Supabase session to SSR cookies.
-    const { data, error: exchangeError } =
-      await supabase.auth.exchangeCodeForSession(code);
-
-    if (exchangeError || !data.user) {
-      console.error("OAuth code exchange failed:", exchangeError);
-      return redirectWithError("oauth_failed");
-    }
-
-    // Do not query application tables here. The callback's responsibility is
-    // to establish the auth session. Protected pages perform their own
-    // authorization checks after the session exists.
-    const completeUrl = new URL("/auth/complete", origin);
-    completeUrl.searchParams.set("next", next);
-
-    const response = NextResponse.redirect(completeUrl);
-    response.headers.set("Cache-Control", "no-store");
-    return response;
-  } catch (error) {
-    console.error("OAuth callback failed:", error);
-    return redirectWithError("oauth_failed");
-  }
+  const response = NextResponse.redirect(completeUrl);
+  response.headers.set("Cache-Control", "no-store");
+  return response;
 }
