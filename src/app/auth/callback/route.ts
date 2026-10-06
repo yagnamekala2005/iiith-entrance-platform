@@ -29,7 +29,8 @@ export async function GET(request: Request) {
   try {
     const supabase = await createClient();
 
-    // Complete the PKCE exchange and persist the Supabase session in SSR cookies.
+    // This is the only server-side operation required to complete the
+    // Google PKCE flow. It writes the Supabase session to SSR cookies.
     const { data, error: exchangeError } =
       await supabase.auth.exchangeCodeForSession(code);
 
@@ -38,26 +39,9 @@ export async function GET(request: Request) {
       return redirectWithError("oauth_failed");
     }
 
-    const user = data.user;
-
-    const { data: adminMembership, error: roleLookupError } = await supabase
-      .from("admin_users")
-      .select("user_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (roleLookupError) {
-      console.error("OAuth role lookup failed:", roleLookupError);
-      return redirectWithError("role_lookup_failed");
-    }
-
-    if (next.startsWith("/admin") && !adminMembership) {
-      return redirectWithError("admin_access_denied");
-    }
-
-    // Use a dedicated client-side landing page after the server-side PKCE
-    // exchange. This gives the browser a clean navigation point where it can
-    // confirm the session before entering pages that may use Next.js prefetching.
+    // Do not query application tables here. The callback's responsibility is
+    // to establish the auth session. Protected pages perform their own
+    // authorization checks after the session exists.
     const completeUrl = new URL("/auth/complete", origin);
     completeUrl.searchParams.set("next", next);
 
