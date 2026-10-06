@@ -33,6 +33,7 @@ function LoginFormContent() {
   });
   const [loading, setLoading] = useState(false);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const isAdminTab = role === "admin";
 
   useEffect(() => {
     let cancelled = false;
@@ -122,8 +123,6 @@ function LoginFormContent() {
       router.refresh();
     }
   }
-
-  const isAdminTab = role === "admin";
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 flex items-center justify-center p-4 sm:p-6 lg:p-8 font-sans selection:bg-blue-600 selection:text-white relative overflow-x-hidden w-full max-w-full">
