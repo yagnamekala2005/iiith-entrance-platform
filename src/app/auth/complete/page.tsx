@@ -3,6 +3,10 @@
 import { useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 export default function AuthCompletePage() {
   useEffect(() => {
     let cancelled = false;
@@ -15,18 +19,26 @@ export default function AuthCompletePage() {
         : "/dashboard";
 
       const supabase = createClient();
-      const { data, error } = await supabase.auth.getUser();
 
-      if (cancelled) return;
+      // The callback has already exchanged the PKCE code on the server.
+      // Give the browser a few attempts to observe the session cookie before
+      // navigating to a server-rendered protected page.
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        if (cancelled) return;
 
-      if (error || !data.user) {
-        window.location.replace("/login?authError=oauth_failed");
-        return;
+        const { data, error } = await supabase.auth.getUser();
+
+        if (data.user && !error) {
+          window.location.replace(destination);
+          return;
+        }
+
+        await sleep(200);
       }
 
-      // Full navigation ensures the newly established auth session is
-      // available before the protected destination is rendered.
-      window.location.replace(destination);
+      if (!cancelled) {
+        window.location.replace("/login?authError=oauth_failed");
+      }
     }
 
     void completeSignIn();
