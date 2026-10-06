@@ -1,17 +1,15 @@
 "use client";
 
 import { useEffect } from "react";
-import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function AuthCompletePage() {
-  const searchParams = useSearchParams();
-
   useEffect(() => {
     let cancelled = false;
 
     async function completeSignIn() {
-      const requestedNext = searchParams.get("next") ?? "/dashboard";
+      const params = new URLSearchParams(window.location.search);
+      const requestedNext = params.get("next") ?? "/dashboard";
       const destination = requestedNext.startsWith("/")
         ? requestedNext
         : "/dashboard";
@@ -26,8 +24,8 @@ export default function AuthCompletePage() {
         return;
       }
 
-      // Full navigation ensures the newly established auth cookies/session
-      // are available before the protected destination is rendered.
+      // Full navigation ensures the newly established auth session is
+      // available before the protected destination is rendered.
       window.location.replace(destination);
     }
 
@@ -36,7 +34,7 @@ export default function AuthCompletePage() {
     return () => {
       cancelled = true;
     };
-  }, [searchParams]);
+  }, []);
 
   return (
     <main className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
