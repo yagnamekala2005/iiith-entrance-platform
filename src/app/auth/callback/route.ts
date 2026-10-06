@@ -2,12 +2,16 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
-  const callbackUrl = new URL(request.url);
-  const { searchParams } = callbackUrl;
+  const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const providerError = searchParams.get("error");
+  const requestedNext = searchParams.get("next") ?? "/dashboard";
+  const next = requestedNext.startsWith("/") ? requestedNext : "/dashboard";
+
   const loginWithError = (error: string) =>
-    NextResponse.redirect(new URL(`/login?authError=${error}`, callbackUrl.origin));
+    NextResponse.redirect(
+      new URL(`/login?authError=${encodeURIComponent(error)}`, origin),
+    );
 
   if (providerError) {
     return loginWithError(
@@ -21,55 +25,17 @@ export async function GET(request: Request) {
 
   try {
     const supabase = await createClient();
+
+    // Complete the PKCE exchange and persist the Supabase session in SSR cookies.
     const { data, error: exchangeError } =
       await supabase.auth.exchangeCodeForSession(code);
 
     if (exchangeError || !data.user) {
-      if (exchangeError) console.error("OAuth code exchange failed:", exchangeError);
+      console.error("OAuth code exchange failed:", exchangeError);
       return loginWithError("oauth_failed");
     }
 
     const user = data.user;
-    const metadata = user.user_metadata ?? {};
-    const fullName = [metadata.full_name, metadata.name].find(
-      (value): value is string =>
-        typeof value === "string" && value.trim().length > 0,
-    )?.trim();
-    const avatarUrl = [metadata.avatar_url, metadata.picture].find(
-      (value): value is string =>
-        typeof value === "string" && value.trim().length > 0,
-    )?.trim();
-
-    const { data: profile, error: profileLookupError } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (profileLookupError || !profile) {
-      if (profileLookupError) {
-        console.error("OAuth profile lookup failed:", profileLookupError);
-      } else {
-        console.error("OAuth profile is missing for authenticated user:", user.id);
-      }
-      return loginWithError("profile_update_failed");
-    }
-
-    const profileUpdates: { display_name?: string; avatar_url?: string } = {};
-    if (fullName) profileUpdates.display_name = fullName;
-    if (avatarUrl) profileUpdates.avatar_url = avatarUrl;
-
-    if (Object.keys(profileUpdates).length > 0) {
-      const { error: profileUpdateError } = await supabase
-        .from("profiles")
-        .update(profileUpdates)
-        .eq("id", user.id);
-
-      if (profileUpdateError) {
-        console.error("OAuth profile update failed:", profileUpdateError);
-        return loginWithError("profile_update_failed");
-      }
-    }
 
     const { data: adminMembership, error: roleLookupError } = await supabase
       .from("admin_users")
@@ -82,9 +48,19 @@ export async function GET(request: Request) {
       return loginWithError("role_lookup_failed");
     }
 
-    return NextResponse.redirect(
-      new URL(adminMembership ? "/admin" : "/dashboard", callbackUrl.origin),
-    );
+    if (next.startsWith("/admin") && !adminMembership) {
+      return loginWithError("admin_access_denied");
+    }
+
+    const destination = adminMembership ? "/admin" : "/dashboard";
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    const isLocalEnv = process.env.NODE_ENV === "development";
+
+    if (isLocalEnv || !forwardedHost) {
+      return NextResponse.redirect(new URL(destination, origin));
+    }
+
+    return NextResponse.redirect(`https://${forwardedHost}${destination}`);
   } catch (error) {
     console.error("OAuth callback failed:", error);
     return loginWithError("oauth_failed");
