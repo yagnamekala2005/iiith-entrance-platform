@@ -170,7 +170,7 @@ export function AdminPanel({
   const [practiceExplanation, setPracticeExplanation] = useState<string>("");
   const [practiceSuccessMessage, setPracticeSuccessMessage] = useState<string>("");
   const [practiceErrorMessage, setPracticeErrorMessage] = useState<string>("");
-  const [practiceQuestions, setPracticeQuestions] = useState<Awaited<ReturnType<typeof getAdminTopicPracticeQuestions>>["questions"]>([]);
+  const [practiceQuestions, setPracticeQuestions] = useState<AdminPracticeQuestionItem[]>([]);
   const [practiceQuestionIndex, setPracticeQuestionIndex] = useState<number>(0);
   const [practiceEditingId, setPracticeEditingId] = useState<string | null>(null);
   const [practiceQuestionsLoading, setPracticeQuestionsLoading] = useState<boolean>(false);
