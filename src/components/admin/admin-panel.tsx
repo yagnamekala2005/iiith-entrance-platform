@@ -21,6 +21,7 @@ import {
   createAdminTopic,
   deleteAdminTopic,
   updateTopicLearningContent,
+  uploadLearningPdf,
   type AdminPracticeQuestionItem,
 } from "@/lib/admin/actions";
 import {
@@ -182,6 +183,9 @@ export function AdminPanel({
   const [editFormulas, setEditFormulas] = useState<string>("");
   const [editResources, setEditResources] = useState<LearningResource[]>([]);
   const [isSavingTopicContent, setIsSavingTopicContent] = useState<boolean>(false);
+  const [uploadingPdfIndex, setUploadingPdfIndex] = useState<number | null>(null);
+  const learningPdfInputRef = useRef<HTMLInputElement | null>(null);
+  const [pdfUploadTargetIndex, setPdfUploadTargetIndex] = useState<number | null>(null);
 
   // References to keep event handlers current without re-attaching listeners
   const activeTabRef = useRef<"tests" | "create" | "learning" | "admins">(activeTab);
@@ -1080,6 +1084,42 @@ export function AdminPanel({
       ...prev,
       { title: "", url: "", type: "pdf" },
     ]);
+  };
+
+  // Upload a PDF from the administrator's device into Supabase Storage
+  const handlePdfFileSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    const targetIndex = pdfUploadTargetIndex;
+    event.target.value = "";
+    setPdfUploadTargetIndex(null);
+
+    if (!file || targetIndex === null || !editingTopic) return;
+
+    setUploadingPdfIndex(targetIndex);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("topic_id", editingTopic.id);
+
+    const result = await uploadLearningPdf(formData);
+    setUploadingPdfIndex(null);
+
+    if (!result.success || !result.url) {
+      setLearningErrorMessage(result.error || "Failed to upload PDF.");
+      return;
+    }
+
+    setEditResources((prev) => {
+      const copy = [...prev];
+      copy[targetIndex] = {
+        ...copy[targetIndex],
+        title: result.title || file.name.replace(/\.pdf$/i, ""),
+        url: result.url,
+        type: "pdf",
+      };
+      return copy;
+    });
+    setLearningErrorMessage("");
+    setLearningSuccessMessage(`PDF "${file.name}" uploaded successfully. Save the topic to attach it to students' My Learning.`);
   };
 
   // Update Resource Row
@@ -2696,7 +2736,7 @@ export function AdminPanel({
                           PDFs, Reference Books &amp; Old Exam Materials
                         </label>
                         <p className="text-[11px] text-slate-500">
-                          Add links to PDF textbooks, formula booklets, or reference documents for students.
+                          Upload PDF textbooks, formula booklets, or reference documents directly from your device.
                         </p>
                       </div>
 
@@ -2705,13 +2745,20 @@ export function AdminPanel({
                         onClick={handleAddResourceRow}
                         className="rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-800 transition-all flex items-center gap-1 shadow-xs"
                       >
-                        <span>+ Add Material</span>
+                        <span>+ Add PDF from Device</span>
                       </button>
+                      <input
+                        ref={learningPdfInputRef}
+                        type="file"
+                        accept="application/pdf,.pdf"
+                        className="hidden"
+                        onChange={handlePdfFileSelected}
+                      />
                     </div>
 
                     {editResources.length === 0 ? (
                       <p className="text-xs text-slate-400 italic py-2">
-                        No materials attached yet. Click &quot;+ Add Material&quot; to link PDFs, books, or formula guides.
+                        No materials attached yet. Click &quot;+ Add PDF from Device&quot; to upload a PDF, or choose another material type.
                       </p>
                     ) : (
                       <div className="space-y-2.5">
@@ -2743,15 +2790,33 @@ export function AdminPanel({
                               className="flex-1 min-w-[150px] rounded-md border border-slate-200 p-2 text-xs text-slate-800 outline-none focus:border-blue-600"
                             />
 
-                            <input
-                              type="url"
-                              value={res.url}
-                              onChange={(e) =>
-                                handleUpdateResourceRow(idx, "url", e.target.value)
-                              }
-                              placeholder="URL (https://...)"
-                              className="flex-1 min-w-[150px] rounded-md border border-slate-200 p-2 text-xs text-slate-800 outline-none focus:border-blue-600"
-                            />
+                            {res.type === "pdf" ? (
+                              <button
+                                type="button"
+                                disabled={uploadingPdfIndex === idx}
+                                onClick={() => {
+                                  setPdfUploadTargetIndex(idx);
+                                  learningPdfInputRef.current?.click();
+                                }}
+                                className="flex-1 min-w-[150px] rounded-md border border-blue-200 bg-blue-50 p-2 text-left text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+                              >
+                                {uploadingPdfIndex === idx
+                                  ? "Uploading PDF..."
+                                  : res.url
+                                    ? `📄 ${res.title || "PDF uploaded"} — Click to replace`
+                                    : "📎 Select PDF from device"}
+                              </button>
+                            ) : (
+                              <input
+                                type="url"
+                                value={res.url}
+                                onChange={(e) =>
+                                  handleUpdateResourceRow(idx, "url", e.target.value)
+                                }
+                                placeholder="URL (https://...)"
+                                className="flex-1 min-w-[150px] rounded-md border border-slate-200 p-2 text-xs text-slate-800 outline-none focus:border-blue-600"
+                              />
+                            )}
 
                             <button
                               type="button"
