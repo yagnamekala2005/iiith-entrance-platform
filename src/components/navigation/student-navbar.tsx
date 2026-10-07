@@ -142,18 +142,6 @@ export function StudentNavbar({ userEmail, isAdmin }: StudentNavbarProps) {
           >
             My Attempts
           </Link>
-
-          {isAdmin && (
-            <Link
-              href="/admin"
-              prefetch={true}
-              className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-sky-300 hover:bg-slate-800 transition-all shadow-xs flex items-center gap-1.5"
-            >
-              <span>🛡️</span>
-              <span>Admin Studio</span>
-            </Link>
-          )}
-
           <div className="border-l border-slate-200 pl-4 flex items-center gap-3">
             <span className="text-xs text-slate-400 font-normal truncate max-w-[140px]">
               {userEmail}
@@ -164,14 +152,6 @@ export function StudentNavbar({ userEmail, isAdmin }: StudentNavbarProps) {
 
         {/* Mobile Hamburger Button */}
         <div className="flex md:hidden items-center gap-2">
-          {isAdmin && (
-            <Link
-              href="/admin"
-              className="rounded-lg bg-slate-900 px-2.5 py-1 text-[11px] font-bold text-sky-300"
-            >
-              Admin
-            </Link>
-          )}
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -244,16 +224,6 @@ export function StudentNavbar({ userEmail, isAdmin }: StudentNavbarProps) {
             >
               📈 My Exam Scorecards & Attempts
             </Link>
-
-            {isAdmin && (
-              <Link
-                href="/admin"
-                onClick={() => setMobileMenuOpen(false)}
-                className="rounded-lg bg-slate-900 px-3 py-2 text-sky-300 font-bold"
-              >
-                🛡️ Open Admin Studio & Question Authoring
-              </Link>
-            )}
           </nav>
 
           <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
