@@ -2752,7 +2752,7 @@ export function AdminPanel({
                       <input
                         ref={learningPdfInputRef}
                         type="file"
-                        accept=".pdf,.doc,.docx,.txt,.ppt,.pptx,.xls,.xlsx,.csv,.zip"
+                        
                         className="hidden"
                         onChange={handlePdfFileSelected}
                       />
