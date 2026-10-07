@@ -60,7 +60,7 @@ export default async function TestsDirectoryPage({ searchParams }: PageProps) {
                 : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
             }`}
           >
-            All Competitive Exams ({tests.length})
+            All Mock Tests ({tests.length})
           </Link>
           {exams.map((exam) => {
             const isSelected = examFilter === exam.slug;
@@ -88,7 +88,7 @@ export default async function TestsDirectoryPage({ searchParams }: PageProps) {
           <div className="col-span-2 rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center shadow-xs">
             <span className="text-4xl">📚</span>
             <h3 className="mt-3 text-lg font-bold text-slate-900">No mock tests found</h3>
-            <p className="mt-1 text-sm text-slate-500">No mock tests currently match the selected entrance program.</p>
+            <p className="mt-1 text-sm text-slate-500">No mock tests currently match the selected competitive exam.</p>
             <Link
               href="/tests"
               className="mt-4 inline-block rounded-xl bg-blue-700 px-5 py-2.5 text-xs font-bold uppercase text-white shadow-md hover:bg-blue-800"
