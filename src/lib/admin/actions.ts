@@ -1269,6 +1269,67 @@ export interface TopicLearningContentInput {
   }[];
 }
 
+export async function uploadLearningPdf(formData: FormData) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { success: false, error: "Authentication required." };
+
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: adminCheckError } = await adminClient
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (adminCheckError) {
+      console.error("Admin membership check failed:", adminCheckError);
+      return { success: false, error: "Unable to verify admin authorization." };
+    }
+
+    if (!adminMembership) return { success: false, error: "Admin authorization required." };
+
+    const file = formData.get("file");
+    const topicId = String(formData.get("topic_id") || "").trim();
+
+    if (!(file instanceof File)) return { success: false, error: "Please select a PDF file." };
+    if (!topicId) return { success: false, error: "Topic ID is required." };
+    if (file.type !== "application/pdf") return { success: false, error: "Only PDF files are allowed." };
+
+    const maxSize = 20 * 1024 * 1024;
+    if (file.size > maxSize) return { success: false, error: "PDF must be 20 MB or smaller." };
+
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/_+/g, "_").slice(-160);
+    const path = `topics/${topicId}/${Date.now()}-${safeName || "document.pdf"}`;
+
+    const { error: uploadError } = await adminClient.storage
+      .from("learning-materials")
+      .upload(path, await file.arrayBuffer(), {
+        contentType: "application/pdf",
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error("Learning PDF upload failed:", uploadError);
+      return { success: false, error: uploadError.message };
+    }
+
+    const { data: { publicUrl } } = adminClient.storage
+      .from("learning-materials")
+      .getPublicUrl(path);
+
+    return {
+      success: true,
+      url: publicUrl,
+      title: file.name.replace(/\.pdf$/i, "").trim() || "Learning PDF",
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to upload PDF.";
+    return { success: false, error: msg };
+  }
+}
 export async function updateTopicLearningContent(
   topicId: string,
   content: TopicLearningContentInput
@@ -1279,17 +1340,21 @@ export async function updateTopicLearningContent(
 
     if (!user) return { success: false, error: "Authentication required." };
 
-    const { data: adminMembership } = await supabase
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: adminCheckError } = await adminClient
       .from("admin_users")
       .select("user_id")
       .eq("user_id", user.id)
       .maybeSingle();
 
+    if (adminCheckError) {
+      console.error("Admin membership check failed:", adminCheckError);
+      return { success: false, error: "Unable to verify admin authorization." };
+    }
+
     if (!adminMembership) {
       return { success: false, error: "Admin authorization required." };
     }
-
-    const adminClient = createAdminClient();
 
     const payload = JSON.stringify({
       summary: content.summary || "",
