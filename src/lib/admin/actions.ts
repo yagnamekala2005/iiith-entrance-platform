@@ -59,8 +59,6 @@ export async function createAdminQuestion(input: CreateQuestionInput) {
       return { success: false, error: "At least 2 options are required." };
     }
 
-    const adminClient = createAdminClient();
-
     // 1. Insert question into `questions`
     const { data: newQ, error: qErr } = await adminClient
       .from("questions")
