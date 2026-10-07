@@ -1306,7 +1306,7 @@ export async function uploadLearningPdf(formData: FormData) {
     const { error: uploadError } = await adminClient.storage
       .from("learning-materials")
       .upload(path, await file.arrayBuffer(), {
-        contentType: "application/pdf",
+        contentType: file.type || "application/octet-stream",
         cacheControl: "3600",
         upsert: false,
       });
@@ -1323,7 +1323,7 @@ export async function uploadLearningPdf(formData: FormData) {
     return {
       success: true,
       url: publicUrl,
-      title: file.name.replace(/\.pdf$/i, "").trim() || "Learning PDF",
+      title: file.name.replace(/\.[^.]+$/, "").trim() || "Learning Document",
     };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Failed to upload PDF.";
