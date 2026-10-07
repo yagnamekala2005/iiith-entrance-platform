@@ -237,12 +237,17 @@ export async function getAttemptResult(attemptId: string): Promise<AttemptResult
 
   (attemptQuestions || []).forEach((aq) => {
     const secId = aq.section_id || "general";
-    const secName = (aq.section as unknown as { name: string } | null)?.name || "General Section";
-    const q = aq.question as unknown as {
-      id: string;
-      subject?: { id: string; name: string; slug: string } | null;
-      answer_key: AnswerKeyRelation;
-    } | null;
+    const sec = getRelationRecord(
+      aq.section as unknown as { name: string } | { name: string }[] | null
+    );
+    const secName = sec?.name || "General Section";
+    const q = getRelationRecord(
+      aq.question as unknown as {
+        id: string;
+        subject?: { id: string; name: string; slug: string } | null;
+        answer_key: AnswerKeyRelation;
+      } | null
+    );
     const correctOptId = getCorrectOptionId(q?.answer_key);
 
     // Section calculations
