@@ -25,6 +25,11 @@ function getCorrectOptionId(answerKey: AnswerKeyRelation): string | undefined {
   return answerKey.correct_option_id;
 }
 
+function getRelationRecord<T>(relation: T | T[] | null | undefined): T | null {
+  if (!relation) return null;
+  return Array.isArray(relation) ? relation[0] ?? null : relation;
+}
+
 
 /**
  * Fetch an in-progress attempt for active taking.
@@ -385,7 +390,7 @@ export async function getAttemptReview(attemptId: string): Promise<AttemptReview
   let calculatedUnattempted = 0;
 
   const formattedQuestions: AttemptReviewQuestion[] = (attemptQuestions || []).map((aq) => {
-    const q = aq.question as unknown as {
+    const q = getRelationRecord(aq.question as unknown as {
       id: string;
       question_text: string;
       difficulty: "easy" | "medium" | "hard";
@@ -393,8 +398,8 @@ export async function getAttemptReview(attemptId: string): Promise<AttemptReview
       subject?: { id: string; name: string; slug: string } | null;
       options: { id: string; question_id: string; option_label: string; option_text: string; display_order: number; created_at: string }[];
       answer_key: AnswerKeyRelation;
-    };
-    const sec = aq.section as unknown as { name: string } | null;
+    } | null);
+    const sec = getRelationRecord(aq.section as unknown as { name: string } | { name: string }[] | null);
     const correctOptId = getCorrectOptionId(q?.answer_key) || "";
     const isCorrect = Boolean(aq.selected_option_id && aq.selected_option_id === correctOptId);
     const isUnanswered = aq.selected_option_id === null;
