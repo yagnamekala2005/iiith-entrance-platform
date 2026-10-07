@@ -602,8 +602,9 @@ export function AdminPanel({
             ? Math.max(0, (refreshed.questions ?? []).findIndex((q) => q.id === practiceEditingId))
             : Math.max(0, (refreshed.questions ?? []).length - 1);
           setPracticeQuestionIndex(targetIndex);
-          if ((refreshed.questions ?? [])[targetIndex]) {
-            populatePracticeQuestionForm(refreshed.questions[targetIndex]);
+          const refreshedQuestions = refreshed.questions ?? [];
+          if (refreshedQuestions[targetIndex]) {
+            populatePracticeQuestionForm(refreshedQuestions[targetIndex]);
           }
         }
       } else {
