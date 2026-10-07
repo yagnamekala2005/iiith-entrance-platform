@@ -21,6 +21,7 @@ import {
   createAdminTopic,
   deleteAdminTopic,
   updateTopicLearningContent,
+  type AdminPracticeQuestionItem,
 } from "@/lib/admin/actions";
 import {
   parseTopicLearningContent,
@@ -461,7 +462,7 @@ export function AdminPanel({
     setOptions(updated);
   };
 
-  const populatePracticeQuestionForm = (question: Awaited<ReturnType<typeof getAdminTopicPracticeQuestions>>["questions"][number]) => {
+  const populatePracticeQuestionForm = (question: AdminPracticeQuestionItem) => {
     setPracticeEditingId(question.id);
     setPracticeQuestionText(question.question_text || "");
     setPracticeOptions([
@@ -498,9 +499,9 @@ export function AdminPanel({
       setPracticeQuestionsLoading(false);
 
       if (res.success) {
-        setPracticeQuestions(res.questions);
-        if (res.questions.length > 0) {
-          populatePracticeQuestionForm(res.questions[0]);
+        setPracticeQuestions(res.questions ?? []);
+        if ((res.questions ?? []).length > 0) {
+          populatePracticeQuestionForm((res.questions ?? [])[0]);
         }
       } else {
         setPracticeErrorMessage(res.error || "Failed to load practice questions.");
@@ -596,12 +597,12 @@ export function AdminPanel({
 
         const refreshed = await getAdminTopicPracticeQuestions(practiceTopic.id);
         if (refreshed.success) {
-          setPracticeQuestions(refreshed.questions);
+          setPracticeQuestions(refreshed.questions ?? []);
           const targetIndex = practiceEditingId
-            ? Math.max(0, refreshed.questions.findIndex((q) => q.id === practiceEditingId))
-            : Math.max(0, refreshed.questions.length - 1);
+            ? Math.max(0, (refreshed.questions ?? []).findIndex((q) => q.id === practiceEditingId))
+            : Math.max(0, (refreshed.questions ?? []).length - 1);
           setPracticeQuestionIndex(targetIndex);
-          if (refreshed.questions[targetIndex]) {
+          if ((refreshed.questions ?? [])[targetIndex]) {
             populatePracticeQuestionForm(refreshed.questions[targetIndex]);
           }
         }
