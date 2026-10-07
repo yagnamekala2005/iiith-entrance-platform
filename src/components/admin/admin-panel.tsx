@@ -2738,7 +2738,7 @@ export function AdminPanel({
                           PDFs, Reference Books &amp; Old Exam Materials
                         </label>
                         <p className="text-[11px] text-slate-500">
-                          Upload PDF textbooks, formula booklets, or reference documents directly from your device.
+                          Add documents and reference materials directly from your device.
                         </p>
                       </div>
 
@@ -2747,12 +2747,12 @@ export function AdminPanel({
                         onClick={handleAddResourceRow}
                         className="rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-800 transition-all flex items-center gap-1 shadow-xs"
                       >
-                        <span>+ Add PDF from Device</span>
+                        <span>+ Add Document from Device</span>
                       </button>
                       <input
                         ref={learningPdfInputRef}
                         type="file"
-                        accept="application/pdf,.pdf"
+                        accept=".pdf,.doc,.docx,.txt,.ppt,.pptx,.xls,.xlsx,.csv,.zip"
                         className="hidden"
                         onChange={handlePdfFileSelected}
                       />
@@ -2760,7 +2760,7 @@ export function AdminPanel({
 
                     {editResources.length === 0 ? (
                       <p className="text-xs text-slate-400 italic py-2">
-                        No materials attached yet. Click &quot;+ Add PDF from Device&quot; to upload a PDF, or choose another material type.
+                        No materials attached yet. Click &quot;+ Add Document from Device&quot; to attach a document.
                       </p>
                     ) : (
                       <div className="space-y-2.5">
@@ -2769,19 +2769,6 @@ export function AdminPanel({
                             key={idx}
                             className="flex flex-wrap sm:flex-nowrap items-center gap-2 rounded-lg border border-slate-200 bg-white p-2.5 shadow-2xs"
                           >
-                            <select
-                              value={res.type}
-                              onChange={(e) =>
-                                handleUpdateResourceRow(idx, "type", e.target.value)
-                              }
-                              className="rounded-md border border-slate-200 bg-slate-50 p-2 text-xs font-semibold text-slate-700 outline-none"
-                            >
-                              <option value="pdf">📄 PDF Document</option>
-                              <option value="book">📖 Reference Book</option>
-                              <option value="formula_sheet">⚡ Formula Sheet</option>
-                              <option value="notes">📝 Revision Notes</option>
-                            </select>
-
                             <input
                               type="text"
                               value={res.title}
