@@ -1080,10 +1080,12 @@ export function AdminPanel({
 
   // Add Resource Row in Topic Editor Modal
   const handleAddResourceRow = () => {
-    setEditResources((prev) => [
-      ...prev,
-      { title: "", url: "", type: "pdf" },
-    ]);
+    setEditResources((prev) => {
+      const newIndex = prev.length;
+      setPdfUploadTargetIndex(newIndex);
+      setTimeout(() => learningPdfInputRef.current?.click(), 0);
+      return [...prev, { title: "", url: "", type: "pdf" }];
+    });
   };
 
   // Upload a PDF from the administrator's device into Supabase Storage
