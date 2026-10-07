@@ -501,8 +501,6 @@ export async function updateAdminPracticeQuestion(
       return { success: false, error: "All 4 options (A, B, C, D) are required." };
     }
 
-    const adminClient = createAdminClient();
-
     const { data: existingQuestion, error: existingQuestionError } = await adminClient
       .from("practice_questions")
       .select("id")
