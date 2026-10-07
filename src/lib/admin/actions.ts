@@ -217,11 +217,17 @@ export async function createAdminPracticeQuestion(input: CreatePracticeQuestionI
       return { success: false, error: "Authentication required." };
     }
 
-    const { data: adminMembership } = await createAdminClient()
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: adminCheckError } = await adminClient
       .from("admin_users")
       .select("user_id")
       .eq("user_id", user.id)
       .maybeSingle();
+
+    if (adminCheckError) {
+      console.error("Admin membership check failed:", adminCheckError);
+      return { success: false, error: "Unable to verify admin authorization." };
+    }
 
     if (!adminMembership) {
       return { success: false, error: "Admin authorization required." };
@@ -247,7 +253,6 @@ export async function createAdminPracticeQuestion(input: CreatePracticeQuestionI
       return { success: false, error: "All 4 options (A, B, C, D) are required." };
     }
 
-    const adminClient = createAdminClient();
 
     const { data: newQuestion, error: questionError } = await adminClient
       .from("practice_questions")
@@ -363,11 +368,17 @@ export async function getAdminTopicPracticeQuestions(topicId: string) {
       };
     }
 
-    const { data: adminMembership } = await createAdminClient()
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: adminCheckError } = await adminClient
       .from("admin_users")
       .select("user_id")
       .eq("user_id", user.id)
       .maybeSingle();
+
+    if (adminCheckError) {
+      console.error("Admin membership check failed:", adminCheckError);
+      return { success: false, error: "Unable to verify admin authorization." };
+    }
 
     if (!adminMembership) {
       return {
@@ -385,7 +396,6 @@ export async function getAdminTopicPracticeQuestions(topicId: string) {
       };
     }
 
-    const adminClient = createAdminClient();
 
     const { data, error } = await adminClient
       .from("practice_questions")
@@ -460,11 +470,17 @@ export async function updateAdminPracticeQuestion(
 
     if (!user) return { success: false, error: "Authentication required." };
 
-    const { data: adminMembership } = await createAdminClient()
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: adminCheckError } = await adminClient
       .from("admin_users")
       .select("user_id")
       .eq("user_id", user.id)
       .maybeSingle();
+
+    if (adminCheckError) {
+      console.error("Admin membership check failed:", adminCheckError);
+      return { success: false, error: "Unable to verify admin authorization." };
+    }
 
     if (!adminMembership) {
       return { success: false, error: "Admin authorization required." };
