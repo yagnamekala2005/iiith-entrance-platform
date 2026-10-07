@@ -903,18 +903,66 @@ export async function cleanAllOldMockTests() {
 
 export async function publishAdminMockTest(testId: string) {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { success: false, error: "Authentication required." };
+    }
+
+    const { data: adminMembership } = await supabase
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!adminMembership) {
+      return { success: false, error: "Admin authorization required." };
+    }
+
     const adminClient = createAdminClient();
+
+    // Publishing a mock test also publishes its linked competitive exam.
+    // This keeps the admin "Live / Published" state consistent with the
+    // student tests directory.
+    const { data: testRow, error: testLookupError } = await adminClient
+      .from("tests")
+      .select("id, exam_id")
+      .eq("id", testId)
+      .maybeSingle();
+
+    if (testLookupError || !testRow) {
+      return {
+        success: false,
+        error: testLookupError?.message || "Mock test not found.",
+      };
+    }
 
     const { data: updatedTest, error: updateErr } = await adminClient
       .from("tests")
       .update({ status: "published" })
       .eq("id", testId)
-      .select("id, name, status")
+      .select("id, name, status, exam_id")
       .single();
 
     if (updateErr) {
       console.error("Error publishing test:", updateErr);
       return { success: false, error: updateErr.message };
+    }
+
+    if (testRow.exam_id) {
+      const { error: examUpdateError } = await adminClient
+        .from("exams")
+        .update({ published: true })
+        .eq("id", testRow.exam_id);
+
+      if (examUpdateError) {
+        console.error("Error publishing linked exam:", examUpdateError);
+        return {
+          success: false,
+          error: `Mock test was published, but its linked exam could not be published: ${examUpdateError.message}`,
+        };
+      }
     }
 
     revalidatePath("/admin");
