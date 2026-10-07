@@ -212,7 +212,9 @@ export async function getAttemptResult(attemptId: string): Promise<AttemptResult
 
   if (!test) return null;
 
-  // Fetch section and subject breakdown
+  // Fetch section and subject breakdown.
+  // Answer keys are fetched separately to avoid Supabase nested-relation
+  // shape differences causing correct answers to be treated as incorrect.
   const { data: attemptQuestions } = await supabase
     .from("attempt_questions")
     .select(`
@@ -223,11 +225,32 @@ export async function getAttemptResult(attemptId: string): Promise<AttemptResult
       section:exam_sections(name),
       question:questions(
         id,
-        subject:subjects(id, name, slug),
-        answer_key:question_answer_keys(correct_option_id)
+        subject:subjects(id, name, slug)
       )
     `)
     .eq("attempt_id", attemptId);
+
+  const resultQuestionIds = (attemptQuestions || [])
+    .map((aq) => {
+      const q = getRelationRecord(
+        aq.question as unknown as {
+          id: string;
+        } | null
+      );
+      return q?.id;
+    })
+    .filter((id): id is string => Boolean(id));
+
+  const { data: resultAnswerKeys } = resultQuestionIds.length
+    ? await supabase
+        .from("question_answer_keys")
+        .select("question_id, correct_option_id")
+        .in("question_id", resultQuestionIds)
+    : { data: [] };
+
+  const resultAnswerKeyMap = new Map(
+    (resultAnswerKeys || []).map((key) => [key.question_id, key.correct_option_id])
+  );
 
   const sectionMap = new Map<string, AttemptSectionResult>();
   const subjectMap = new Map<string, AttemptSubjectResult>();
@@ -245,10 +268,9 @@ export async function getAttemptResult(attemptId: string): Promise<AttemptResult
       aq.question as unknown as {
         id: string;
         subject?: { id: string; name: string; slug: string } | null;
-        answer_key: AnswerKeyRelation;
       } | null
     );
-    const correctOptId = getCorrectOptionId(q?.answer_key);
+    const correctOptId = q?.id ? resultAnswerKeyMap.get(q.id) : undefined;
 
     // Section calculations
     const current = sectionMap.get(secId) || {
@@ -383,12 +405,26 @@ export async function getAttemptReview(attemptId: string): Promise<AttemptReview
         difficulty,
         explanation,
         subject:subjects(id, name, slug),
-        options:question_options(*),
-        answer_key:question_answer_keys(correct_option_id)
+        options:question_options(*)
       )
     `)
     .eq("attempt_id", attemptId)
     .order("display_order", { ascending: true });
+
+  const reviewQuestionIds = (attemptQuestions || [])
+    .map((aq) => aq.question_id)
+    .filter((id): id is string => Boolean(id));
+
+  const { data: reviewAnswerKeys } = reviewQuestionIds.length
+    ? await supabase
+        .from("question_answer_keys")
+        .select("question_id, correct_option_id")
+        .in("question_id", reviewQuestionIds)
+    : { data: [] };
+
+  const reviewAnswerKeyMap = new Map(
+    (reviewAnswerKeys || []).map((key) => [key.question_id, key.correct_option_id])
+  );
 
   const subjectMap = new Map<string, AttemptSubjectResult>();
   let calculatedAttempted = 0;
@@ -402,10 +438,9 @@ export async function getAttemptReview(attemptId: string): Promise<AttemptReview
       explanation: string | null;
       subject?: { id: string; name: string; slug: string } | null;
       options: { id: string; question_id: string; option_label: string; option_text: string; display_order: number; created_at: string }[];
-      answer_key: AnswerKeyRelation;
     } | null);
     const sec = getRelationRecord(aq.section as unknown as { name: string } | { name: string }[] | null);
-    const correctOptId = getCorrectOptionId(q?.answer_key) || "";
+    const correctOptId = reviewAnswerKeyMap.get(aq.question_id) || "";
     const isCorrect = Boolean(aq.selected_option_id && aq.selected_option_id === correctOptId);
     const isUnanswered = aq.selected_option_id === null;
 
