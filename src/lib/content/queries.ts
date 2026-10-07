@@ -18,47 +18,38 @@ export interface SubjectWithHierarchy extends Subject {
   })[];
 }
 
-const DEFAULT_FALLBACK_EXAMS: Exam[] = [
-  {
-    id: "e0000000-0000-0000-0000-000000000001",
-    slug: "ugee",
-    name: "IIITH UGEE (Dual Degree)",
-    description: "Undergraduate Engineering Entrance Examination for Dual Degree programs with SUPR and REAP sections.",
-    negative_marking_ratio: 0.25,
-    published: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "e0000000-0000-0000-0000-000000000002",
-    slug: "spec",
-    name: "IIITH SPEC (Special Channel of Admission)",
-    description: "Special Channel of Admission evaluating Mathematics, Physics, Chemistry, and Aptitude.",
-    negative_marking_ratio: 0.25,
-    published: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
-
 /**
  * Fetch all published exams (memoized with React cache)
  */
 export const getPublishedExams = cache(async (): Promise<Exam[]> => {
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase
+
+    // Only expose exams that actually exist in Supabase and have at least
+    // one published test. No hardcoded/fallback exam names are used.
+    const { data: exams, error } = await supabase
       .from("exams")
       .select("*")
       .eq("published", true)
       .order("name", { ascending: true });
 
-    if (error || !data || data.length === 0) {
-      return DEFAULT_FALLBACK_EXAMS;
+    if (error || !exams || exams.length === 0) {
+      return [];
     }
-    return data;
+
+    const { data: publishedTests } = await supabase
+      .from("tests")
+      .select("exam_id")
+      .eq("status", "published")
+      .in("exam_id", exams.map((exam) => exam.id));
+
+    const activeExamIds = new Set(
+      (publishedTests || []).map((test) => test.exam_id).filter(Boolean),
+    );
+
+    return exams.filter((exam) => activeExamIds.has(exam.id));
   } catch {
-    return DEFAULT_FALLBACK_EXAMS;
+    return [];
   }
 });
 
@@ -68,6 +59,7 @@ export const getPublishedExams = cache(async (): Promise<Exam[]> => {
 export const getExamBySlug = cache(async (slug: string): Promise<(Exam & { sections: ExamSection[] }) | null> => {
   try {
     const supabase = await createClient();
+
     const { data: exam, error: examError } = await supabase
       .from("exams")
       .select("*")
@@ -76,38 +68,6 @@ export const getExamBySlug = cache(async (slug: string): Promise<(Exam & { secti
       .maybeSingle();
 
     if (examError || !exam) {
-      const fallback = DEFAULT_FALLBACK_EXAMS.find((e) => e.slug === slug);
-      if (fallback) {
-        return {
-          ...fallback,
-          sections: [
-            {
-              id: `sec-${slug}-1`,
-              exam_id: fallback.id,
-              slug: slug === "ugee" ? "supr" : "proficiency",
-              name: slug === "ugee" ? "SUPR (Subject Proficiency)" : "Subject Proficiency",
-              description: "Core science questions in Mathematics, Physics, and Chemistry.",
-              default_duration_seconds: 3600,
-              display_order: 1,
-              published: true,
-              created_at: fallback.created_at,
-              updated_at: fallback.updated_at,
-            },
-            {
-              id: `sec-${slug}-2`,
-              exam_id: fallback.id,
-              slug: slug === "ugee" ? "reap" : "aptitude",
-              name: slug === "ugee" ? "REAP (Research Aptitude)" : "Aptitude & Reasoning",
-              description: "Critical thinking, data interpretation, and problem solving.",
-              default_duration_seconds: 7200,
-              display_order: 2,
-              published: true,
-              created_at: fallback.created_at,
-              updated_at: fallback.updated_at,
-            },
-          ],
-        };
-      }
       return null;
     }
 
@@ -123,13 +83,6 @@ export const getExamBySlug = cache(async (slug: string): Promise<(Exam & { secti
       sections: sections || [],
     };
   } catch {
-    const fallback = DEFAULT_FALLBACK_EXAMS.find((e) => e.slug === slug);
-    if (fallback) {
-      return {
-        ...fallback,
-        sections: [],
-      };
-    }
     return null;
   }
 });
@@ -353,14 +306,19 @@ export async function getPublishedQuestions(filters: QuestionFilters = {}): Prom
 export async function getPublishedTests(examSlug?: string): Promise<TestWithDetails[]> {
   const supabase = await createClient();
 
-  const testQuery = supabase
+  let testQuery = supabase
     .from("tests")
     .select(`
       *,
-      exam:exams(id, slug, name)
+      exam:exams!inner(id, slug, name, description, published)
     `)
     .eq("status", "published")
+    .eq("exam.published", true)
     .order("created_at", { ascending: true });
+
+  if (examSlug) {
+    testQuery = testQuery.eq("exam.slug", examSlug);
+  }
 
   const { data: rawTests, error } = await testQuery;
 
@@ -402,9 +360,7 @@ export async function getPublishedTests(examSlug?: string): Promise<TestWithDeta
     questionCountByTest.set(tq.test_id, current);
   });
 
-  const filteredTests = examSlug
-    ? tests.filter((t) => t.exam?.slug === examSlug)
-    : tests;
+  const filteredTests = tests;
 
   return filteredTests.map((t) => {
     const stats = questionCountByTest.get(t.id) || { count: 0, marks: 0 };
