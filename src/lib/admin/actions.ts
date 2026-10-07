@@ -32,12 +32,20 @@ export async function createAdminQuestion(input: CreateQuestionInput) {
       return { success: false, error: "Authentication required." };
     }
 
-    // Check admin status
-    const { data: adminMembership } = await supabase
+    // Use the service-role client for the admin membership check.
+    // The normal user client may be blocked by RLS on admin_users, which
+    // incorrectly made valid admins appear unauthorized.
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: adminCheckError } = await adminClient
       .from("admin_users")
       .select("user_id")
       .eq("user_id", user.id)
       .maybeSingle();
+
+    if (adminCheckError) {
+      console.error("Admin membership check failed:", adminCheckError);
+      return { success: false, error: "Unable to verify admin authorization." };
+    }
 
     if (!adminMembership) {
       return { success: false, error: "Admin authorization required." };
