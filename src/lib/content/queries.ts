@@ -211,8 +211,9 @@ export async function getPublishedQuestions(filters: QuestionFilters = {}): Prom
   // 1. Find all active published tests (excluding legacy sample tests)
   const { data: publishedTests } = await supabase
     .from("tests")
-    .select("id")
-    .eq("status", "published");
+    .select("id, exam:exams!inner(published)")
+    .eq("status", "published")
+    .eq("exam.published", true);
 
   const validTestIds = (publishedTests || [])
     .map((t) => t.id)
@@ -383,10 +384,11 @@ export async function getTestBySlug(slug: string): Promise<TestWithDetails | nul
     .from("tests")
     .select(`
       *,
-      exam:exams(id, slug, name, description)
+      exam:exams!inner(id, slug, name, description, published)
     `)
     .eq("slug", slug)
     .eq("status", "published")
+    .eq("exam.published", true)
     .maybeSingle();
 
   if (error || !test) return null;
