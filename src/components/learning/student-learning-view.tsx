@@ -56,6 +56,13 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
   }, [practiceTopic]);
 
   useEffect(() => {
+    if (!selectedTopic) return;
+    const reader = topicReaderRef.current;
+    if (!reader) return;
+    reader.scrollTop = 0;
+  }, [selectedTopic]);
+
+  useEffect(() => {
     selectedTopicRef.current = selectedTopic;
   }, [selectedTopic]);
 
