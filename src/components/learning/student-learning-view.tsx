@@ -4,14 +4,16 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { parseTopicLearningContent, type LearningResource } from "@/lib/learning/topic-content";
 import { checkTopicPracticeAnswer, getTopicPracticeQuestions, type PracticeQuestion } from "@/lib/practice/actions";
-import type { SubjectWithHierarchy } from "@/lib/content/queries";
+import type { LearningProgress, SubjectWithHierarchy } from "@/lib/content/queries";
+import { markChapterCompleted } from "@/lib/learning/progress-actions";
 import type { Topic } from "@/types/content";
 
 interface StudentLearningViewProps {
   subjects: SubjectWithHierarchy[];
+  learningProgress: LearningProgress;
 }
 
-export function StudentLearningView({ subjects }: StudentLearningViewProps) {
+export function StudentLearningView({ subjects, learningProgress }: StudentLearningViewProps) {
   const [selectedSubjectSlug, setSelectedSubjectSlug] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedTopic, setSelectedTopic] = useState<{
@@ -22,6 +24,10 @@ export function StudentLearningView({ subjects }: StudentLearningViewProps) {
   } | null>(null);
 
   const [activeModalTab, setActiveModalTab] = useState<"explanation" | "formulas" | "resources">("explanation");
+  const [completedChapterIds, setCompletedChapterIds] = useState<string[]>(
+    learningProgress.completedChapterIds
+  );
+  const [completingChapterId, setCompletingChapterId] = useState<string | null>(null);
 
   // Topic Practice Session State
   const [practiceTopic, setPracticeTopic] = useState<{
@@ -400,14 +406,48 @@ export function StudentLearningView({ subjects }: StudentLearningViewProps) {
                           <span className="rounded bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 border border-slate-200">
                             Chapter
                           </span>
-                          <span className="text-[11px] font-semibold text-slate-400">
-                            {chapter.topics?.length || 0} subtopics
+                          <span className={`flex items-center gap-1.5 text-[11px] font-semibold ${completedChapterIds.includes(chapter.id) ? "text-emerald-700" : "text-slate-400"}`}>
+                            {completedChapterIds.includes(chapter.id) && <span className="text-sm">✓</span>}
+                            {completedChapterIds.includes(chapter.id) ? "Completed" : `${chapter.topics?.length || 0} subtopics`}
                           </span>
                         </div>
 
-                        <h3 className="mt-2 text-sm sm:text-base font-bold text-slate-900 leading-snug">
-                          {chapter.name}
-                        </h3>
+                        <div className="mt-2 flex items-start justify-between gap-2">
+                          <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug">
+                            {chapter.name}
+                          </h3>
+                          {completedChapterIds.includes(chapter.id) && (
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-black text-emerald-700">
+                              ✓
+                            </span>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={completedChapterIds.includes(chapter.id) || completingChapterId === chapter.id}
+                          onClick={async () => {
+                            setCompletingChapterId(chapter.id);
+                            const result = await markChapterCompleted(chapter.id);
+                            if (result.success) {
+                              setCompletedChapterIds((prev) =>
+                                prev.includes(chapter.id) ? prev : [...prev, chapter.id]
+                              );
+                            }
+                            setCompletingChapterId(null);
+                          }}
+                          className={`mb-3 w-full rounded-lg border px-3 py-2 text-[11px] font-bold transition-all ${
+                            completedChapterIds.includes(chapter.id)
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700 cursor-default"
+                              : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                          }`}
+                        >
+                          {completedChapterIds.includes(chapter.id)
+                            ? "✓ Chapter Completed"
+                            : completingChapterId === chapter.id
+                            ? "Saving..."
+                            : "Mark Chapter as Complete"}
+                        </button>
 
                         {/* Subtopics List as Interactive Cards */}
                         <div className="mt-3 space-y-2 border-t border-slate-200/60 pt-3">
