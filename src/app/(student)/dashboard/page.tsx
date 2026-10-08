@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { getCachedAuthUser } from "@/lib/auth/session";
 import { getPublishedExams, getPublishedTests, getPublishedQuestions, getLearningProgress } from "@/lib/content/queries";
 import { getUserAttempts } from "@/lib/attempts/queries";
-import { DashboardQuestionTabs } from "@/components/dashboard/dashboard-question-tabs";
 import { StartAttemptButton } from "@/components/attempts/start-attempt-button";
 
 export const dynamic = "force-dynamic";
@@ -259,11 +258,6 @@ export default async function DashboardPage() {
             </div>
           </div>
         </div>
-      </section>
-
-      {/* Interactive 4-Subject Questions Showcase */}
-      <section className="mt-10">
-        <DashboardQuestionTabs questions={questions} />
       </section>
 
       {/* Target Entrance Programs Breakdown */}
