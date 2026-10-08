@@ -20,7 +20,7 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const [exams, rawTests, questions, attempts] = await Promise.all([
+  const [exams, rawTests, questions, attempts, learningProgress] = await Promise.all([
     getPublishedExams(),
     getPublishedTests(),
     getPublishedQuestions({ limit: 20 }),
