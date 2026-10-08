@@ -4,55 +4,58 @@ import { revalidatePath } from "next/cache";
 import { getCachedAuthUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 
-export async function markChapterCompleted(chapterId: string) {
+export async function markTopicCompleted(topicId: string) {
   const user = await getCachedAuthUser();
 
   if (!user) {
     return { success: false, error: "You must be signed in." };
   }
 
-  if (!chapterId) {
-    return { success: false, error: "Invalid chapter." };
+  if (!topicId) {
+    return { success: false, error: "Invalid topic." };
   }
 
   const supabase = await createClient();
 
   const { error: upsertError } = await supabase
-    .from("user_learning_chapter_progress")
+    .from("user_learning_topic_progress")
     .upsert(
       {
         user_id: user.id,
-        chapter_id: chapterId,
+        topic_id: topicId,
       },
-      { onConflict: "user_id,chapter_id" },
+      { onConflict: "user_id,topic_id" },
     );
 
   if (upsertError) {
-    console.error("Failed to save chapter completion:", upsertError);
-    return { success: false, error: "Unable to save chapter progress." };
+    console.error("Failed to save topic completion:", upsertError);
+    return { success: false, error: "Unable to save topic progress." };
   }
 
-  const [{ count: totalChapters, error: totalError }, { count: completedChapters, error: completedError }] =
+  const [{ count: totalTopics, error: totalError }, { count: completedTopics, error: completedError }] =
     await Promise.all([
+      supabase.from("topics").select("id", { count: "exact", head: true }),
       supabase
-        .from("chapters")
-        .select("id", { count: "exact", head: true }),
-      supabase
-        .from("user_learning_chapter_progress")
-        .select("chapter_id", { count: "exact", head: true })
+        .from("user_learning_topic_progress")
+        .select("topic_id", { count: "exact", head: true })
         .eq("user_id", user.id),
     ]);
 
   if (totalError || completedError) {
-    console.error("Failed to calculate learning progress:", {
+    console.error("Failed to calculate topic learning progress:", {
       totalError,
       completedError,
     });
-    return { success: true, completedChapters: 0, totalChapters: 0, percentage: 0 };
+    return {
+      success: true,
+      completedTopics: 0,
+      totalTopics: 0,
+      percentage: 0,
+    };
   }
 
-  const completed = completedChapters || 0;
-  const total = totalChapters || 0;
+  const completed = completedTopics || 0;
+  const total = totalTopics || 0;
   const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
 
   revalidatePath("/learning");
@@ -60,8 +63,8 @@ export async function markChapterCompleted(chapterId: string) {
 
   return {
     success: true,
-    completedChapters: completed,
-    totalChapters: total,
+    completedTopics: completed,
+    totalTopics: total,
     percentage,
   };
 }
