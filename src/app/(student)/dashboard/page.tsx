@@ -228,11 +228,11 @@ export default async function DashboardPage() {
                   My Learning
                 </span>
                 <span className="text-xs text-slate-400">&bull;</span>
-                <span className="text-xs text-slate-500 font-medium">Chapter completion</span>
+                <span className="text-xs text-slate-500 font-medium">Topic completion</span>
               </div>
               <h2 className="mt-2 text-xl font-black text-slate-900">Your Learning Progress</h2>
               <p className="mt-1 text-xs text-slate-500">
-                {learningProgress.completedChapters} of {learningProgress.totalChapters} chapters completed
+                {learningProgress.completedTopics} of {learningProgress.totalTopics} topics completed
               </p>
             </div>
             <Link
@@ -247,7 +247,7 @@ export default async function DashboardPage() {
             <div className="flex items-end justify-between gap-3">
               <span className="text-3xl font-black text-blue-700">{learningProgress.percentage}%</span>
               <span className="text-xs font-semibold text-slate-500">
-                {learningProgress.completedChapters}/{learningProgress.totalChapters} Chapters
+                {learningProgress.completedTopics}/{learningProgress.totalTopics} Topics
               </span>
             </div>
             <div className="mt-2 h-3 overflow-hidden rounded-full bg-slate-100">
