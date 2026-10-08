@@ -28,6 +28,7 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
     learningProgress.completedChapterIds
   );
   const [completingChapterId, setCompletingChapterId] = useState<string | null>(null);
+  const [learningPercentage, setLearningPercentage] = useState<number>(learningProgress.percentage);
 
   // Topic Practice Session State
   const [practiceTopic, setPracticeTopic] = useState<{
@@ -237,6 +238,8 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
     [subjects]
   );
 
+  const completedChaptersCount = completedChapterIds.length;
+
   return (
     <div className="space-y-8 w-full max-w-full overflow-x-hidden">
       {/* Header Banner */}
@@ -267,6 +270,27 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
             >
               Take Timed Mock Test &rarr;
             </Link>
+          </div>
+        </div>
+
+        {/* Learning Progress */}
+        <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-700">
+                Learning Progress
+              </span>
+              <p className="mt-1 text-sm font-bold text-slate-900">
+                {completedChaptersCount} of {totalChapters} chapters completed
+              </p>
+            </div>
+            <span className="text-2xl font-black text-blue-700">{learningPercentage}%</span>
+          </div>
+          <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white">
+            <div
+              className="h-full rounded-full bg-blue-700 transition-all duration-500"
+              style={{ width: `${learningPercentage}%` }}
+            />
           </div>
         </div>
 
@@ -433,6 +457,9 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
                               setCompletedChapterIds((prev) =>
                                 prev.includes(chapter.id) ? prev : [...prev, chapter.id]
                               );
+                              if (typeof result.percentage === "number") {
+                                setLearningPercentage(result.percentage);
+                              }
                             }
                             setCompletingChapterId(null);
                           }}
