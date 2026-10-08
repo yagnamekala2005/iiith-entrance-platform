@@ -484,7 +484,10 @@ export interface LearningProgress {
 export async function getLearningProgress(userId: string): Promise<LearningProgress> {
   const supabase = await createClient();
 
-  const [{ data: chapters }, { data: progress }] = await Promise.all([
+  const [
+    { data: chapters, error: chaptersError },
+    { data: progress, error: progressError },
+  ] = await Promise.all([
     supabase.from("chapters").select("id"),
     supabase
       .from("user_learning_chapter_progress")
@@ -492,8 +495,24 @@ export async function getLearningProgress(userId: string): Promise<LearningProgr
       .eq("user_id", userId),
   ]);
 
+  if (chaptersError || progressError) {
+    console.error("Failed to load learning progress:", {
+      chaptersError,
+      progressError,
+    });
+
+    return {
+      completedChapterIds: [],
+      completedChapters: 0,
+      totalChapters: chapters?.length || 0,
+      percentage: 0,
+    };
+  }
+
   const totalChapters = chapters?.length || 0;
-  const completedChapterIds = (progress || []).map((item) => item.chapter_id);
+  const completedChapterIds = Array.from(
+    new Set((progress || []).map((item) => item.chapter_id)),
+  );
   const completedChapters = completedChapterIds.length;
   const percentage =
     totalChapters > 0 ? Math.round((completedChapters / totalChapters) * 100) : 0;
