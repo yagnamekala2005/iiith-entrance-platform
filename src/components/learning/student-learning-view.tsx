@@ -105,7 +105,6 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
     subjectSlug: string;
   }) => {
     setSelectedTopic(topicData);
-    setActiveModalTab("explanation");
     window.history.pushState({ topicModal: topicData.topic.id }, "");
   };
 
