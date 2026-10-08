@@ -29,6 +29,8 @@ export default async function DashboardPage() {
   ]);
 
   const tests = rawTests.filter((t) => !OLD_TEST_IDS.has(t.id));
+  // getPublishedTests() orders tests by created_at ascending, so the last test is the latest.
+  const latestTest = tests[tests.length - 1];
 
   const activeAttempt = attempts.find((a) => a.status === "in_progress");
   const completedAttempts = attempts.filter((a) => a.status === "submitted");
@@ -153,7 +155,7 @@ export default async function DashboardPage() {
           </div>
         ) : (
           <div className="mt-4 grid gap-6 md:grid-cols-2">
-            {tests.map((test) => {
+            {[latestTest].map((test) => {
               const durationMinutes = Math.round(test.duration_seconds / 60);
               return (
                 <div
