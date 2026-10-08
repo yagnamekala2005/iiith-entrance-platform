@@ -477,9 +477,16 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
                           <span className="rounded bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 border border-slate-200">
                             Chapter
                           </span>
-                          <span className={`flex items-center gap-1.5 text-[11px] font-semibold ${completedChapterIds.includes(chapter.id) ? "text-emerald-700" : "text-slate-400"}`}>
-                            {completedChapterIds.includes(chapter.id) && <span className="text-sm">✓</span>}
-                            {completedChapterIds.includes(chapter.id) ? "Completed" : `${chapter.topics?.length || 0} subtopics`}
+                          <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
+                            {(() => {
+                              const chapterTopicIds = (chapter.topics || []).map((topic) => topic.id);
+                              const completedCount = chapterTopicIds.filter((id) =>
+                                completedTopicIds.includes(id)
+                              ).length;
+                              return completedCount === chapterTopicIds.length && chapterTopicIds.length > 0
+                                ? <span className="text-emerald-700">✓ {completedCount}/{chapterTopicIds.length} completed</span>
+                                : `${completedCount}/${chapterTopicIds.length} topics`;
+                            })()}
                           </span>
                         </div>
 
@@ -487,11 +494,17 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
                           <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug">
                             {chapter.name}
                           </h3>
-                          {completedChapterIds.includes(chapter.id) && (
-                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-black text-emerald-700">
-                              ✓
-                            </span>
-                          )}
+                          {(() => {
+                            const chapterTopicIds = (chapter.topics || []).map((topic) => topic.id);
+                            const allCompleted =
+                              chapterTopicIds.length > 0 &&
+                              chapterTopicIds.every((id) => completedTopicIds.includes(id));
+                            return allCompleted ? (
+                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-black text-emerald-700">
+                                ✓
+                              </span>
+                            ) : null;
+                          })()}
                         </div>
 
                         {/* Subtopics List as Interactive Cards */}
