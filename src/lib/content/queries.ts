@@ -469,3 +469,39 @@ export async function getTestQuestionsWithoutAnswerKey(testId: string): Promise<
 
   return testQuestions as unknown as TestQuestion[];
 }
+
+
+export interface LearningProgress {
+  completedChapterIds: string[];
+  completedChapters: number;
+  totalChapters: number;
+  percentage: number;
+}
+
+/**
+ * Fetch the signed-in student's My Learning chapter progress.
+ */
+export async function getLearningProgress(userId: string): Promise<LearningProgress> {
+  const supabase = await createClient();
+
+  const [{ data: chapters }, { data: progress }] = await Promise.all([
+    supabase.from("chapters").select("id"),
+    supabase
+      .from("user_learning_chapter_progress")
+      .select("chapter_id")
+      .eq("user_id", userId),
+  ]);
+
+  const totalChapters = chapters?.length || 0;
+  const completedChapterIds = (progress || []).map((item) => item.chapter_id);
+  const completedChapters = completedChapterIds.length;
+  const percentage =
+    totalChapters > 0 ? Math.round((completedChapters / totalChapters) * 100) : 0;
+
+  return {
+    completedChapterIds,
+    completedChapters,
+    totalChapters,
+    percentage,
+  };
+}
