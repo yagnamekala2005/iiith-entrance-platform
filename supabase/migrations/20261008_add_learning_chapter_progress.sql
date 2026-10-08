@@ -25,6 +25,14 @@ on public.user_learning_chapter_progress
 for insert
 with check (auth.uid() = user_id);
 
+drop policy if exists "Users can update their own learning progress"
+  on public.user_learning_chapter_progress;
+create policy "Users can update their own learning progress"
+on public.user_learning_chapter_progress
+for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
 drop policy if exists "Users can delete their own learning progress"
   on public.user_learning_chapter_progress;
 create policy "Users can delete their own learning progress"
