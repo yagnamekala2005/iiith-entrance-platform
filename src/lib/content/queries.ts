@@ -472,55 +472,55 @@ export async function getTestQuestionsWithoutAnswerKey(testId: string): Promise<
 
 
 export interface LearningProgress {
-  completedChapterIds: string[];
-  completedChapters: number;
-  totalChapters: number;
+  completedTopicIds: string[];
+  completedTopics: number;
+  totalTopics: number;
   percentage: number;
 }
 
 /**
- * Fetch the signed-in student's My Learning chapter progress.
+ * Fetch the signed-in student's topic-based My Learning progress.
  */
 export async function getLearningProgress(userId: string): Promise<LearningProgress> {
   const supabase = await createClient();
 
   const [
-    { data: chapters, error: chaptersError },
+    { data: topics, error: topicsError },
     { data: progress, error: progressError },
   ] = await Promise.all([
-    supabase.from("chapters").select("id"),
+    supabase.from("topics").select("id"),
     supabase
-      .from("user_learning_chapter_progress")
-      .select("chapter_id")
+      .from("user_learning_topic_progress")
+      .select("topic_id")
       .eq("user_id", userId),
   ]);
 
-  if (chaptersError || progressError) {
-    console.error("Failed to load learning progress:", {
-      chaptersError,
+  if (topicsError || progressError) {
+    console.error("Failed to load topic learning progress:", {
+      topicsError,
       progressError,
     });
 
     return {
-      completedChapterIds: [],
-      completedChapters: 0,
-      totalChapters: chapters?.length || 0,
+      completedTopicIds: [],
+      completedTopics: 0,
+      totalTopics: topics?.length || 0,
       percentage: 0,
     };
   }
 
-  const totalChapters = chapters?.length || 0;
-  const completedChapterIds = Array.from(
-    new Set((progress || []).map((item) => item.chapter_id)),
+  const totalTopics = topics?.length || 0;
+  const completedTopicIds = Array.from(
+    new Set((progress || []).map((item) => item.topic_id)),
   );
-  const completedChapters = completedChapterIds.length;
+  const completedTopics = completedTopicIds.length;
   const percentage =
-    totalChapters > 0 ? Math.round((completedChapters / totalChapters) * 100) : 0;
+    totalTopics > 0 ? Math.round((completedTopics / totalTopics) * 100) : 0;
 
   return {
-    completedChapterIds,
-    completedChapters,
-    totalChapters,
+    completedTopicIds,
+    completedTopics,
+    totalTopics,
     percentage,
   };
 }
