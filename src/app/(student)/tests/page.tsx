@@ -25,25 +25,7 @@ export default async function TestsDirectoryPage({ searchParams }: PageProps) {
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 font-sans">
-      {/* 1-Step Back Navigation */}
-      <div className="mb-3">
-        <Link
-          href="/dashboard"
-          prefetch={true}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 active:scale-95 px-3 py-1.5 text-xs font-bold text-slate-700 transition-all shadow-2xs"
-          title="Return to Student Dashboard"
-        >
-          <span className="text-sm font-black leading-none">‹</span>
-          <span>Back to Dashboard</span>
-        </Link>
-      </div>
 
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-        <Link href="/dashboard" prefetch={true} className="hover:text-blue-700">Dashboard</Link>
-        <span>/</span>
-        <span className="text-blue-700">Mock Tests</span>
-      </div>
 
       <div className="mt-4 border-b border-slate-200 pb-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -52,10 +34,10 @@ export default async function TestsDirectoryPage({ searchParams }: PageProps) {
               CBT Simulation Center
             </span>
             <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
-              IIITH UGEE & SPEC Mock Tests
+              Competitive Exam Mock Tests
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-              Realistic computer-based entrance simulations configured with synchronized live countdown timers, 4 core subjects, auto-submission on expiration, and detailed scorecards.
+              Realistic computer-based mock tests for competitive examinations with live countdown timers, auto-submission on expiration, and detailed scorecards.
             </p>
           </div>
           <Link
@@ -78,7 +60,7 @@ export default async function TestsDirectoryPage({ searchParams }: PageProps) {
                 : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
             }`}
           >
-            All Entrance Exams ({tests.length})
+            All Mock Tests ({tests.length})
           </Link>
           {exams.map((exam) => {
             const isSelected = examFilter === exam.slug;
@@ -106,7 +88,7 @@ export default async function TestsDirectoryPage({ searchParams }: PageProps) {
           <div className="col-span-2 rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center shadow-xs">
             <span className="text-4xl">📚</span>
             <h3 className="mt-3 text-lg font-bold text-slate-900">No mock tests found</h3>
-            <p className="mt-1 text-sm text-slate-500">No mock tests currently match the selected entrance program.</p>
+            <p className="mt-1 text-sm text-slate-500">No mock tests currently match the selected competitive exam.</p>
             <Link
               href="/tests"
               className="mt-4 inline-block rounded-xl bg-blue-700 px-5 py-2.5 text-xs font-bold uppercase text-white shadow-md hover:bg-blue-800"
@@ -125,7 +107,7 @@ export default async function TestsDirectoryPage({ searchParams }: PageProps) {
                 <div>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-black uppercase tracking-wider text-blue-800 border border-blue-200">
-                      {test.exam?.slug.toUpperCase() || "ENTRANCE MOCK"} &bull; {test.test_type.toUpperCase()}
+                      {test.exam?.name || "Competitive Exam"} &bull; {test.test_type.toUpperCase()}
                     </span>
                     <span className="rounded-md bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-800 border border-emerald-200 flex items-center gap-1.5">
                       <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -139,27 +121,6 @@ export default async function TestsDirectoryPage({ searchParams }: PageProps) {
                   <p className="mt-2 text-xs sm:text-sm leading-relaxed text-slate-600">
                     {test.description}
                   </p>
-
-                  {/* 4 Core Subjects Covered */}
-                  <div className="mt-5 border-t border-slate-100 pt-4">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-                      Core Subjects Tested:
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      <span className="rounded-lg border border-blue-200 bg-blue-50/70 px-2.5 py-1 text-[11px] font-bold text-blue-900">
-                        📐 Mathematics
-                      </span>
-                      <span className="rounded-lg border border-amber-200 bg-amber-50/70 px-2.5 py-1 text-[11px] font-bold text-amber-900">
-                        ⚡ Physics
-                      </span>
-                      <span className="rounded-lg border border-emerald-200 bg-emerald-50/70 px-2.5 py-1 text-[11px] font-bold text-emerald-900">
-                        🧪 Chemistry
-                      </span>
-                      <span className="rounded-lg border border-purple-200 bg-purple-50/70 px-2.5 py-1 text-[11px] font-bold text-purple-900">
-                        🧠 Aptitude & Reasoning
-                      </span>
-                    </div>
-                  </div>
 
                   {/* Section breakdown pills */}
                   {test.sections && test.sections.length > 0 && (

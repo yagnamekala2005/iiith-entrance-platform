@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import SignOutButton from "@/components/auth/sign-out-button";
+import { LogoutConfirmModal } from "@/components/auth/logout-confirm-modal";
+import { createClient } from "@/lib/supabase/client";
 
 interface StudentNavbarProps {
   userEmail: string;
@@ -12,16 +14,52 @@ interface StudentNavbarProps {
 
 export function StudentNavbar({ userEmail, isAdmin }: StudentNavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isExitConfirmOpen, setIsExitConfirmOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
 
+  // Intercept back navigation when on root dashboard so user is prompted before exiting session
+  useEffect(() => {
+    if (pathname !== "/dashboard" || typeof window === "undefined") return;
+
+    if (window.history.state?.studentDashboard !== true) {
+      window.history.pushState({ studentDashboard: true }, "");
+    }
+
+    const onPopState = () => {
+      setIsExitConfirmOpen(true);
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, [pathname]);
+
   const handleBack = () => {
     if (pathname === "/dashboard") {
-      router.push("/");
-    } else if (typeof window !== "undefined" && window.history.length > 1) {
+      setIsExitConfirmOpen(true);
+      return;
+    }
+    if (typeof window !== "undefined" && window.history.length > 1) {
       router.back();
     } else {
       router.push("/dashboard");
+    }
+  };
+
+  const handleConfirmExit = async () => {
+    try {
+      setIsLoggingOut(true);
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      setIsExitConfirmOpen(false);
+      router.push("/");
+      router.refresh();
+    } catch {
+      setIsLoggingOut(false);
+      setIsExitConfirmOpen(false);
     }
   };
 
@@ -33,21 +71,24 @@ export function StudentNavbar({ userEmail, isAdmin }: StudentNavbarProps) {
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-md">
+    <>
+      <header className="fixed top-0 left-0 right-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-md w-full">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8 py-3.5">
         {/* Brand & Quick Back */}
         <div className="flex items-center gap-2 sm:gap-3">
-          <button
-            type="button"
-            onClick={handleBack}
-            className="flex items-center gap-1 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 active:scale-95 px-2.5 py-1.5 text-xs font-bold text-slate-700 transition-all shadow-2xs"
-            title={pathname === "/dashboard" ? "Return to Entrance Portal" : "Go to previous page"}
-          >
-            <span className="text-sm font-black leading-none">‹</span>
-            <span className="text-[11px] uppercase tracking-wider hidden sm:inline">
-              {pathname === "/dashboard" ? "Portal" : "Back"}
-            </span>
-          </button>
+          {pathname !== "/dashboard" && (
+            <button
+              type="button"
+              onClick={handleBack}
+              className="flex items-center gap-1 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 active:scale-95 px-2.5 py-1.5 text-xs font-bold text-slate-700 transition-all shadow-2xs"
+              title="Go to previous page"
+            >
+              <span className="text-sm font-black leading-none">‹</span>
+              <span className="text-[11px] uppercase tracking-wider hidden sm:inline">
+                Back
+              </span>
+            </button>
+          )}
 
           <Link href="/dashboard" prefetch={true} className="flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-700 text-white font-black text-xs shadow-xs">
@@ -103,18 +144,6 @@ export function StudentNavbar({ userEmail, isAdmin }: StudentNavbarProps) {
           >
             My Attempts
           </Link>
-
-          {isAdmin && (
-            <Link
-              href="/admin"
-              prefetch={true}
-              className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-sky-300 hover:bg-slate-800 transition-all shadow-xs flex items-center gap-1.5"
-            >
-              <span>🛡️</span>
-              <span>Admin Studio</span>
-            </Link>
-          )}
-
           <div className="border-l border-slate-200 pl-4 flex items-center gap-3">
             <span className="text-xs text-slate-400 font-normal truncate max-w-[140px]">
               {userEmail}
@@ -125,14 +154,6 @@ export function StudentNavbar({ userEmail, isAdmin }: StudentNavbarProps) {
 
         {/* Mobile Hamburger Button */}
         <div className="flex md:hidden items-center gap-2">
-          {isAdmin && (
-            <Link
-              href="/admin"
-              className="rounded-lg bg-slate-900 px-2.5 py-1 text-[11px] font-bold text-sky-300"
-            >
-              Admin
-            </Link>
-          )}
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -157,17 +178,19 @@ export function StudentNavbar({ userEmail, isAdmin }: StudentNavbarProps) {
           </div>
 
           <nav className="flex flex-col space-y-2 text-sm font-semibold text-slate-700">
-            <button
-              type="button"
-              onClick={() => {
-                setMobileMenuOpen(false);
-                handleBack();
-              }}
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-slate-700 hover:bg-slate-50 font-bold text-left border border-slate-200"
-            >
-              <span className="text-base font-black">‹</span>
-              <span>{pathname === "/dashboard" ? "Back to Entrance Portal" : "Back to Previous Screen"}</span>
-            </button>
+            {pathname !== "/dashboard" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  handleBack();
+                }}
+                className="flex items-center gap-2 rounded-lg px-3 py-2 text-slate-700 hover:bg-slate-50 font-bold text-left border border-slate-200"
+              >
+                <span className="text-base font-black">‹</span>
+                <span>Back to Previous Screen</span>
+              </button>
+            )}
             <Link
               href="/dashboard"
               prefetch={true}
@@ -205,16 +228,6 @@ export function StudentNavbar({ userEmail, isAdmin }: StudentNavbarProps) {
             >
               📈 My Exam Scorecards & Attempts
             </Link>
-
-            {isAdmin && (
-              <Link
-                href="/admin"
-                onClick={() => setMobileMenuOpen(false)}
-                className="rounded-lg bg-slate-900 px-3 py-2 text-sky-300 font-bold"
-              >
-                🛡️ Open Admin Studio & Question Authoring
-              </Link>
-            )}
           </nav>
 
           <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
@@ -223,6 +236,27 @@ export function StudentNavbar({ userEmail, isAdmin }: StudentNavbarProps) {
           </div>
         </div>
       )}
+
+      {/* Exit Dashboard / Log Out Confirmation Modal */}
+      <LogoutConfirmModal
+        isOpen={isExitConfirmOpen}
+        onClose={() => {
+          setIsExitConfirmOpen(false);
+          if (pathname === "/dashboard" && typeof window !== "undefined") {
+            window.history.pushState({ studentDashboard: true }, "");
+          }
+        }}
+        onConfirm={handleConfirmExit}
+        isLoading={isLoggingOut}
+        title="Log Out Confirmation"
+        message="You are exiting from the student portal. Are you sure you want to log out and return to the entrance portal?"
+        confirmText="Yes, Log Out"
+        cancelText="Cancel"
+      />
     </header>
+
+    {/* Spacer to preserve document layout height so content is not obscured */}
+    <div className="h-[60px] sm:h-[64px] w-full shrink-0" aria-hidden="true" />
+  </>
   );
 }

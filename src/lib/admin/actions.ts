@@ -32,12 +32,20 @@ export async function createAdminQuestion(input: CreateQuestionInput) {
       return { success: false, error: "Authentication required." };
     }
 
-    // Check admin status
-    const { data: adminMembership } = await supabase
+    // Use the service-role client for the admin membership check.
+    // The normal user client may be blocked by RLS on admin_users, which
+    // incorrectly made valid admins appear unauthorized.
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: adminCheckError } = await adminClient
       .from("admin_users")
       .select("user_id")
       .eq("user_id", user.id)
       .maybeSingle();
+
+    if (adminCheckError) {
+      console.error("Admin membership check failed:", adminCheckError);
+      return { success: false, error: "Unable to verify admin authorization." };
+    }
 
     if (!adminMembership) {
       return { success: false, error: "Admin authorization required." };
@@ -50,8 +58,6 @@ export async function createAdminQuestion(input: CreateQuestionInput) {
     if (!input.options || input.options.length < 2) {
       return { success: false, error: "At least 2 options are required." };
     }
-
-    const adminClient = createAdminClient();
 
     // 1. Insert question into `questions`
     const { data: newQ, error: qErr } = await adminClient
@@ -211,11 +217,17 @@ export async function createAdminPracticeQuestion(input: CreatePracticeQuestionI
       return { success: false, error: "Authentication required." };
     }
 
-    const { data: adminMembership } = await createAdminClient()
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: adminCheckError } = await adminClient
       .from("admin_users")
       .select("user_id")
       .eq("user_id", user.id)
       .maybeSingle();
+
+    if (adminCheckError) {
+      console.error("Admin membership check failed:", adminCheckError);
+      return { success: false, error: "Unable to verify admin authorization." };
+    }
 
     if (!adminMembership) {
       return { success: false, error: "Admin authorization required." };
@@ -241,7 +253,6 @@ export async function createAdminPracticeQuestion(input: CreatePracticeQuestionI
       return { success: false, error: "All 4 options (A, B, C, D) are required." };
     }
 
-    const adminClient = createAdminClient();
 
     const { data: newQuestion, error: questionError } = await adminClient
       .from("practice_questions")
@@ -357,11 +368,17 @@ export async function getAdminTopicPracticeQuestions(topicId: string) {
       };
     }
 
-    const { data: adminMembership } = await createAdminClient()
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: adminCheckError } = await adminClient
       .from("admin_users")
       .select("user_id")
       .eq("user_id", user.id)
       .maybeSingle();
+
+    if (adminCheckError) {
+      console.error("Admin membership check failed:", adminCheckError);
+      return { success: false, error: "Unable to verify admin authorization." };
+    }
 
     if (!adminMembership) {
       return {
@@ -379,7 +396,6 @@ export async function getAdminTopicPracticeQuestions(topicId: string) {
       };
     }
 
-    const adminClient = createAdminClient();
 
     const { data, error } = await adminClient
       .from("practice_questions")
@@ -454,11 +470,17 @@ export async function updateAdminPracticeQuestion(
 
     if (!user) return { success: false, error: "Authentication required." };
 
-    const { data: adminMembership } = await createAdminClient()
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: adminCheckError } = await adminClient
       .from("admin_users")
       .select("user_id")
       .eq("user_id", user.id)
       .maybeSingle();
+
+    if (adminCheckError) {
+      console.error("Admin membership check failed:", adminCheckError);
+      return { success: false, error: "Unable to verify admin authorization." };
+    }
 
     if (!adminMembership) {
       return { success: false, error: "Admin authorization required." };
@@ -478,8 +500,6 @@ export async function updateAdminPracticeQuestion(
     ) {
       return { success: false, error: "All 4 options (A, B, C, D) are required." };
     }
-
-    const adminClient = createAdminClient();
 
     const { data: existingQuestion, error: existingQuestionError } = await adminClient
       .from("practice_questions")
@@ -903,18 +923,66 @@ export async function cleanAllOldMockTests() {
 
 export async function publishAdminMockTest(testId: string) {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { success: false, error: "Authentication required." };
+    }
+
+    const { data: adminMembership } = await supabase
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!adminMembership) {
+      return { success: false, error: "Admin authorization required." };
+    }
+
     const adminClient = createAdminClient();
+
+    // Publishing a mock test also publishes its linked competitive exam.
+    // This keeps the admin "Live / Published" state consistent with the
+    // student tests directory.
+    const { data: testRow, error: testLookupError } = await adminClient
+      .from("tests")
+      .select("id, exam_id")
+      .eq("id", testId)
+      .maybeSingle();
+
+    if (testLookupError || !testRow) {
+      return {
+        success: false,
+        error: testLookupError?.message || "Mock test not found.",
+      };
+    }
 
     const { data: updatedTest, error: updateErr } = await adminClient
       .from("tests")
       .update({ status: "published" })
       .eq("id", testId)
-      .select("id, name, status")
+      .select("id, name, status, exam_id")
       .single();
 
     if (updateErr) {
       console.error("Error publishing test:", updateErr);
       return { success: false, error: updateErr.message };
+    }
+
+    if (testRow.exam_id) {
+      const { error: examUpdateError } = await adminClient
+        .from("exams")
+        .update({ published: true })
+        .eq("id", testRow.exam_id);
+
+      if (examUpdateError) {
+        console.error("Error publishing linked exam:", examUpdateError);
+        return {
+          success: false,
+          error: `Mock test was published, but its linked exam could not be published: ${examUpdateError.message}`,
+        };
+      }
     }
 
     revalidatePath("/admin");
@@ -1201,6 +1269,67 @@ export interface TopicLearningContentInput {
   }[];
 }
 
+export async function uploadLearningPdf(formData: FormData) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { success: false, error: "Authentication required." };
+
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: adminCheckError } = await adminClient
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (adminCheckError) {
+      console.error("Admin membership check failed:", adminCheckError);
+      return { success: false, error: "Unable to verify admin authorization." };
+    }
+
+    if (!adminMembership) return { success: false, error: "Admin authorization required." };
+
+    const file = formData.get("file");
+    const topicId = String(formData.get("topic_id") || "").trim();
+
+    if (!(file instanceof File)) return { success: false, error: "Please select a PDF file." };
+    if (!topicId) return { success: false, error: "Topic ID is required." };
+    if (file.type !== "application/pdf") return { success: false, error: "Only PDF files are allowed." };
+
+    const maxSize = 20 * 1024 * 1024;
+    if (file.size > maxSize) return { success: false, error: "PDF must be 20 MB or smaller." };
+
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/_+/g, "_").slice(-160);
+    const path = `topics/${topicId}/${Date.now()}-${safeName || "document.pdf"}`;
+
+    const { error: uploadError } = await adminClient.storage
+      .from("learning-materials")
+      .upload(path, await file.arrayBuffer(), {
+        contentType: file.type || "application/octet-stream",
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error("Learning PDF upload failed:", uploadError);
+      return { success: false, error: uploadError.message };
+    }
+
+    const { data: { publicUrl } } = adminClient.storage
+      .from("learning-materials")
+      .getPublicUrl(path);
+
+    return {
+      success: true,
+      url: publicUrl,
+      title: file.name.replace(/\.[^.]+$/, "").trim() || "Learning Document",
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to upload PDF.";
+    return { success: false, error: msg };
+  }
+}
 export async function updateTopicLearningContent(
   topicId: string,
   content: TopicLearningContentInput
@@ -1211,17 +1340,21 @@ export async function updateTopicLearningContent(
 
     if (!user) return { success: false, error: "Authentication required." };
 
-    const { data: adminMembership } = await supabase
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: adminCheckError } = await adminClient
       .from("admin_users")
       .select("user_id")
       .eq("user_id", user.id)
       .maybeSingle();
 
+    if (adminCheckError) {
+      console.error("Admin membership check failed:", adminCheckError);
+      return { success: false, error: "Unable to verify admin authorization." };
+    }
+
     if (!adminMembership) {
       return { success: false, error: "Admin authorization required." };
     }
-
-    const adminClient = createAdminClient();
 
     const payload = JSON.stringify({
       summary: content.summary || "",

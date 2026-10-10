@@ -4,14 +4,16 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { parseTopicLearningContent, type LearningResource } from "@/lib/learning/topic-content";
 import { checkTopicPracticeAnswer, getTopicPracticeQuestions, type PracticeQuestion } from "@/lib/practice/actions";
-import type { SubjectWithHierarchy } from "@/lib/content/queries";
+import type { LearningProgress, SubjectWithHierarchy } from "@/lib/content/queries";
+import { markTopicCompleted } from "@/lib/learning/progress-actions";
 import type { Topic } from "@/types/content";
 
 interface StudentLearningViewProps {
   subjects: SubjectWithHierarchy[];
+  learningProgress: LearningProgress;
 }
 
-export function StudentLearningView({ subjects }: StudentLearningViewProps) {
+export function StudentLearningView({ subjects, learningProgress }: StudentLearningViewProps) {
   const [selectedSubjectSlug, setSelectedSubjectSlug] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedTopic, setSelectedTopic] = useState<{
@@ -21,7 +23,12 @@ export function StudentLearningView({ subjects }: StudentLearningViewProps) {
     subjectSlug: string;
   } | null>(null);
 
-  const [activeModalTab, setActiveModalTab] = useState<"explanation" | "formulas" | "resources">("explanation");
+  const [completedTopicIds, setCompletedTopicIds] = useState<string[]>(
+    learningProgress.completedTopicIds
+  );
+  const [completingTopicId, setCompletingTopicId] = useState<string | null>(null);
+  const [learningPercentage, setLearningPercentage] = useState<number>(learningProgress.percentage);
+  const topicReaderRef = useRef<HTMLDivElement | null>(null);
 
   // Topic Practice Session State
   const [practiceTopic, setPracticeTopic] = useState<{
@@ -47,6 +54,13 @@ export function StudentLearningView({ subjects }: StudentLearningViewProps) {
   useEffect(() => {
     practiceTopicRef.current = practiceTopic;
   }, [practiceTopic]);
+
+  useEffect(() => {
+    if (!selectedTopic) return;
+    const reader = topicReaderRef.current;
+    if (!reader) return;
+    reader.scrollTop = 0;
+  }, [selectedTopic]);
 
   useEffect(() => {
     selectedTopicRef.current = selectedTopic;
@@ -91,43 +105,7 @@ export function StudentLearningView({ subjects }: StudentLearningViewProps) {
     subjectSlug: string;
   }) => {
     setSelectedTopic(topicData);
-    setActiveModalTab("explanation");
     window.history.pushState({ topicModal: topicData.topic.id }, "");
-  };
-
-  const startTopicPractice = async () => {
-    if (!selectedTopic) return;
-
-    const topicData = {
-      topic: selectedTopic.topic,
-      chapterName: selectedTopic.chapterName,
-      subjectName: selectedTopic.subjectName,
-    };
-
-    setSelectedTopic(null);
-    setPracticeTopic(topicData);
-    setPracticeQuestions([]);
-    setPracticeIndex(0);
-    setPracticeSelectedOption("");
-    setPracticeAnswerResult(null);
-    setPracticeShowExplanation(false);
-    setPracticeCompleted(false);
-    setPracticeError("");
-    setPracticeLoading(true);
-    window.history.pushState({ topicPractice: selectedTopic.topic.id }, "");
-
-    const result = await getTopicPracticeQuestions(selectedTopic.topic.id);
-
-    setPracticeLoading(false);
-
-    if (result.success) {
-      setPracticeQuestions(result.questions);
-      if (result.questions.length === 0) {
-        setPracticeError("No practice questions have been added for this topic yet.");
-      }
-    } else {
-      setPracticeError(result.error || "Failed to load practice questions.");
-    }
   };
 
   const handlePracticeOptionSelect = async (optionId: string) => {
@@ -215,6 +193,82 @@ export function StudentLearningView({ subjects }: StudentLearningViewProps) {
     return parseTopicLearningContent(selectedTopic.topic.description);
   }, [selectedTopic]);
 
+  const allTopics = useMemo(
+    () =>
+      subjects.flatMap((subject) =>
+        (subject.chapters || []).flatMap((chapter) =>
+          (chapter.topics || []).map((topic) => ({
+            topic,
+            chapterName: chapter.name,
+            subjectName: subject.name,
+            subjectSlug: subject.slug,
+          })),
+        ),
+      ),
+    [subjects],
+  );
+
+  const nextTopic = useMemo(() => {
+    if (!selectedTopic) return null;
+    const currentIndex = allTopics.findIndex((item) => item.topic.id === selectedTopic.topic.id);
+    return currentIndex >= 0 && currentIndex < allTopics.length - 1
+      ? allTopics[currentIndex + 1]
+      : null;
+  }, [allTopics, selectedTopic]);
+
+  const completeCurrentTopic = async () => {
+    if (!selectedTopic || completedTopicIds.includes(selectedTopic.topic.id) || completingTopicId) {
+      return;
+    }
+
+    setCompletingTopicId(selectedTopic.topic.id);
+    const result = await markTopicCompleted(selectedTopic.topic.id);
+
+    if (result.success) {
+      setCompletedTopicIds((prev) =>
+        prev.includes(selectedTopic.topic.id) ? prev : [...prev, selectedTopic.topic.id],
+      );
+      if (typeof result.percentage === "number") {
+        setLearningPercentage(result.percentage);
+      }
+    }
+
+    setCompletingTopicId(null);
+  };
+
+  const handleTopicReaderScroll = () => {
+    const reader = topicReaderRef.current;
+    if (!reader || !selectedTopic) return;
+
+    const reachedBottom =
+      reader.scrollTop + reader.clientHeight >= reader.scrollHeight - 8;
+
+    if (reachedBottom) {
+      void completeCurrentTopic();
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedTopic) return;
+
+    const reader = topicReaderRef.current;
+    if (!reader) return;
+
+    const checkInitialBottom = () => {
+      if (reader.scrollTop + reader.clientHeight >= reader.scrollHeight - 8) {
+        void completeCurrentTopic();
+      }
+    };
+
+    const timer = window.setTimeout(checkInitialBottom, 100);
+    window.addEventListener("resize", checkInitialBottom);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("resize", checkInitialBottom);
+    };
+  }, [selectedTopic, activeTopicContent]);
+
   // Counts across platform
   const totalChapters = useMemo(
     () => subjects.reduce((acc, s) => acc + (s.chapters?.length || 0), 0),
@@ -231,23 +285,12 @@ export function StudentLearningView({ subjects }: StudentLearningViewProps) {
     [subjects]
   );
 
+  const completedTopicsCount = completedTopicIds.length;
+
   return (
     <div className="space-y-8 w-full max-w-full overflow-x-hidden">
       {/* Header Banner */}
       <div className="border-b border-slate-200 pb-6">
-        {/* Step-Back: Return to Dashboard */}
-        <div className="mb-3">
-          <Link
-            href="/dashboard"
-            prefetch={true}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 active:scale-95 px-3 py-1.5 text-xs font-bold text-slate-700 transition-all shadow-2xs"
-            title="Return to Student Dashboard (1 step back)"
-          >
-            <span className="text-sm font-black leading-none">‹</span>
-            <span>Back to Dashboard</span>
-          </Link>
-        </div>
-
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
@@ -277,6 +320,27 @@ export function StudentLearningView({ subjects }: StudentLearningViewProps) {
           </div>
         </div>
 
+        {/* Learning Progress */}
+        <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-700">
+                Learning Progress
+              </span>
+              <p className="mt-1 text-sm font-bold text-slate-900">
+                {completedTopicsCount} of {totalTopics} topics completed
+              </p>
+            </div>
+            <span className="text-2xl font-black text-blue-700">{learningPercentage}%</span>
+          </div>
+          <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white">
+            <div
+              className="h-full rounded-full bg-blue-700 transition-all duration-500"
+              style={{ width: `${learningPercentage}%` }}
+            />
+          </div>
+        </div>
+
         {/* Global Stats Summary Bar */}
         <div className="mt-6 flex flex-wrap items-center gap-3 sm:gap-6 rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-4 text-xs font-semibold text-slate-600 shadow-2xs">
           <div>
@@ -291,7 +355,7 @@ export function StudentLearningView({ subjects }: StudentLearningViewProps) {
           <div className="h-6 w-px bg-slate-200"></div>
           <div>
             <span className="text-slate-400 uppercase text-[10px] block">Subtopics</span>
-            <span className="text-sm font-black text-slate-900">{totalTopics} Subtopics</span>
+            <span className="text-sm font-black text-slate-900">{totalTopics} Topics</span>
           </div>
         </div>
       </div>
@@ -413,14 +477,35 @@ export function StudentLearningView({ subjects }: StudentLearningViewProps) {
                           <span className="rounded bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 border border-slate-200">
                             Chapter
                           </span>
-                          <span className="text-[11px] font-semibold text-slate-400">
-                            {chapter.topics?.length || 0} subtopics
+                          <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
+                            {(() => {
+                              const chapterTopicIds = (chapter.topics || []).map((topic) => topic.id);
+                              const completedCount = chapterTopicIds.filter((id) =>
+                                completedTopicIds.includes(id)
+                              ).length;
+                              return completedCount === chapterTopicIds.length && chapterTopicIds.length > 0
+                                ? <span className="text-emerald-700">✓ {completedCount}/{chapterTopicIds.length} completed</span>
+                                : `${completedCount}/${chapterTopicIds.length} topics`;
+                            })()}
                           </span>
                         </div>
 
-                        <h3 className="mt-2 text-sm sm:text-base font-bold text-slate-900 leading-snug">
-                          {chapter.name}
-                        </h3>
+                        <div className="mt-2 flex items-start justify-between gap-2">
+                          <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug">
+                            {chapter.name}
+                          </h3>
+                          {(() => {
+                            const chapterTopicIds = (chapter.topics || []).map((topic) => topic.id);
+                            const allCompleted =
+                              chapterTopicIds.length > 0 &&
+                              chapterTopicIds.every((id) => completedTopicIds.includes(id));
+                            return allCompleted ? (
+                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-black text-emerald-700">
+                                ✓
+                              </span>
+                            ) : null;
+                          })()}
+                        </div>
 
                         {/* Subtopics List as Interactive Cards */}
                         <div className="mt-3 space-y-2 border-t border-slate-200/60 pt-3">
@@ -432,6 +517,8 @@ export function StudentLearningView({ subjects }: StudentLearningViewProps) {
                               const hasNotes = Boolean(content.explanation && content.explanation.trim());
                               const hasFormulas = Boolean(content.formulas && content.formulas.trim());
                               const resourceCount = content.resources?.length || 0;
+
+                              const isTopicCompleted = completedTopicIds.includes(topic.id);
 
                               return (
                                 <button
@@ -451,8 +538,12 @@ export function StudentLearningView({ subjects }: StudentLearningViewProps) {
                                     <span className="text-xs font-bold text-slate-800 group-hover:text-blue-900">
                                       {topic.name}
                                     </span>
-                                    <span className="text-slate-400 group-hover:text-blue-600 font-bold text-xs">
-                                      &rarr;
+                                    <span className="flex items-center gap-1 text-xs font-bold">
+                                      {isTopicCompleted ? (
+                                        <span className="text-emerald-600">✓ Completed</span>
+                                      ) : (
+                                        <span className="text-slate-400 group-hover:text-blue-600">&rarr;</span>
+                                      )}
                                     </span>
                                   </div>
 
@@ -495,152 +586,104 @@ export function StudentLearningView({ subjects }: StudentLearningViewProps) {
       </div>
 
       {/* ========================================================================= */}
-      {/* RICH STUDY MATERIAL READER MODAL (FOR STUDENTS) */}
+      {/* FULL-PAGE TOPIC LEARNING READER */}
       {/* ========================================================================= */}
       {selectedTopic && activeTopicContent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-in fade-in">
-          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-2xl space-y-6">
-            {/* Modal Header */}
-            <div className="flex items-start justify-between border-b border-slate-100 pb-4">
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedTopic(null)}
-                  className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:text-blue-900 mb-2"
-                >
-                  <span className="text-sm font-black leading-none">‹</span>
-                  <span>Back to Topics List</span>
-                </button>
-                <div className="flex items-center gap-2">
-                  <span className="rounded-md bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-800 border border-blue-200">
-                    {selectedTopic.subjectName}
-                  </span>
-                  <span className="text-xs text-slate-400">&bull;</span>
-                  <span className="text-xs font-semibold text-slate-500">
-                    {selectedTopic.chapterName}
+        <div className="fixed inset-0 z-50 bg-slate-50 animate-in fade-in">
+          <div
+            ref={topicReaderRef}
+            onScroll={handleTopicReaderScroll}
+            className="h-full w-full overflow-y-auto"
+          >
+            <div className="mx-auto min-h-full w-full max-w-5xl bg-white px-5 py-6 sm:px-8 sm:py-8 lg:px-12">
+              <div className="sticky top-0 z-10 -mx-5 mb-8 border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur sm:-mx-8 sm:px-8 lg:-mx-12 lg:px-12">
+                <div className="flex items-center justify-between gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTopic(null)}
+                    className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:text-blue-900"
+                  >
+                    <span className="text-base font-black">‹</span>
+                    <span>Back to Topics</span>
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-blue-800 border border-blue-200">
+                      {selectedTopic.subjectName}
+                    </span>
+                    <span className="hidden text-xs text-slate-400 sm:inline">•</span>
+                    <span className="hidden text-xs font-semibold text-slate-500 sm:inline">
+                      {selectedTopic.chapterName}
+                    </span>
+                  </div>
+
+                  <span className="text-xs font-black text-blue-700">
+                    {learningPercentage}% Overall
                   </span>
                 </div>
-                <h3 className="mt-2 text-2xl font-black text-slate-900 leading-tight">
-                  {selectedTopic.topic.name}
-                </h3>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setSelectedTopic(null)}
-                className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-                title="Close"
-              >
-                ✕
-              </button>
-            </div>
+              <article className="pb-20">
+                <div className="border-b border-slate-200 pb-8">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">
+                    {selectedTopic.subjectName} · {selectedTopic.chapterName}
+                  </p>
+                  <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950 sm:text-5xl">
+                    {selectedTopic.topic.name}
+                  </h1>
+                  <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-500">
+                    Read the complete topic content. The topic is automatically marked as completed when you reach the bottom of this page.
+                  </p>
+                </div>
 
-            {/* Navigation Tabs within Modal: Explanations | Formulas | Books & PDFs */}
-            <div className="flex border-b border-slate-200">
-              <button
-                type="button"
-                onClick={() => setActiveModalTab("explanation")}
-                className={`px-4 py-2 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-1.5 ${
-                  activeModalTab === "explanation"
-                    ? "border-blue-700 text-blue-700 bg-blue-50/50"
-                    : "border-transparent text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                <span>📝</span>
-                <span>Detailed Explanation</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveModalTab("formulas")}
-                className={`px-4 py-2 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-1.5 ${
-                  activeModalTab === "formulas"
-                    ? "border-blue-700 text-blue-700 bg-blue-50/50"
-                    : "border-transparent text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                <span>⚡</span>
-                <span>Formulas &amp; Rules</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveModalTab("resources")}
-                className={`px-4 py-2 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-1.5 ${
-                  activeModalTab === "resources"
-                    ? "border-blue-700 text-blue-700 bg-blue-50/50"
-                    : "border-transparent text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                <span>📚</span>
-                <span>PDFs &amp; Books</span>
-                {activeTopicContent.resources && activeTopicContent.resources.length > 0 && (
-                  <span className="rounded-full bg-blue-100 text-blue-800 px-1.5 py-0.2 text-[10px]">
-                    {activeTopicContent.resources.length}
-                  </span>
-                )}
-              </button>
-            </div>
-
-            {/* TAB 1: Detailed Explanations & Theory Notes */}
-            {activeModalTab === "explanation" && (
-              <div className="space-y-4 animate-in fade-in">
-                {activeTopicContent.explanation && activeTopicContent.explanation.trim() ? (
-                  <div className="rounded-xl border border-blue-100 bg-blue-50/20 p-5 text-sm sm:text-base leading-relaxed text-slate-800 whitespace-pre-wrap">
-                    {activeTopicContent.explanation}
+                <section className="mt-10">
+                  <div className="mb-4 flex items-center gap-2">
+                    <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-blue-800 border border-blue-200">
+                      Detailed Explanation
+                    </span>
                   </div>
-                ) : activeTopicContent.summary ? (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm sm:text-base text-slate-700 leading-relaxed">
-                    <p className="font-semibold text-slate-900 mb-1">Topic Summary:</p>
-                    {activeTopicContent.summary}
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-                    <span className="text-3xl">📝</span>
-                    <h4 className="mt-2 text-sm font-bold text-slate-700">No detailed theory notes added yet</h4>
-                    <p className="mt-1 text-xs text-slate-400">
-                      Administrators are updating the syllabus notes for this topic. Check back shortly.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* TAB 2: Formulas & Key Rules */}
-            {activeModalTab === "formulas" && (
-              <div className="space-y-4 animate-in fade-in">
-                {activeTopicContent.formulas && activeTopicContent.formulas.trim() ? (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50/30 p-5">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="rounded bg-amber-100 px-2 py-0.5 text-[11px] font-bold uppercase text-amber-900">
-                        Formula Cheat-Sheet &amp; Shortcuts
-                      </span>
+                  {activeTopicContent.explanation && activeTopicContent.explanation.trim() ? (
+                    <div className="rounded-2xl border border-blue-100 bg-blue-50/30 p-6 text-sm leading-8 text-slate-800 whitespace-pre-wrap sm:p-8 sm:text-base">
+                      {activeTopicContent.explanation}
                     </div>
-                    <pre className="font-mono text-xs sm:text-sm text-slate-900 whitespace-pre-wrap leading-relaxed overflow-x-auto bg-white p-4 rounded-lg border border-amber-200">
+                  ) : activeTopicContent.summary ? (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm leading-8 text-slate-700 sm:p-8 sm:text-base">
+                      <p className="mb-2 font-black text-slate-900">Topic Summary</p>
+                      {activeTopicContent.summary}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
+                      <span className="text-3xl">📝</span>
+                      <p className="mt-2 text-sm font-bold text-slate-700">No detailed theory notes added yet.</p>
+                    </div>
+                  )}
+                </section>
+
+                <section className="mt-10">
+                  <div className="mb-4 flex items-center gap-2">
+                    <span className="rounded-lg bg-amber-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-800 border border-amber-200">
+                      Formulas &amp; Key Rules
+                    </span>
+                  </div>
+                  {activeTopicContent.formulas && activeTopicContent.formulas.trim() ? (
+                    <pre className="overflow-x-auto whitespace-pre-wrap rounded-2xl border border-amber-200 bg-amber-50/30 p-6 font-mono text-sm leading-7 text-slate-900 sm:p-8">
                       {activeTopicContent.formulas}
                     </pre>
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-                    <span className="text-3xl">⚡</span>
-                    <h4 className="mt-2 text-sm font-bold text-slate-700">No formula sheet added yet</h4>
-                    <p className="mt-1 text-xs text-slate-400">
-                      Formula rules and speed math shortcuts will appear here once configured by the admin.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+                      <p className="text-sm font-bold text-slate-700">No formula sheet added yet.</p>
+                    </div>
+                  )}
+                </section>
 
-            {/* TAB 3: PDFs, Reference Books & Old Exam Materials */}
-            {activeModalTab === "resources" && (
-              <div className="space-y-4 animate-in fade-in">
-                {activeTopicContent.resources && activeTopicContent.resources.length > 0 ? (
-                  <div className="space-y-3">
-                    <p className="text-xs text-slate-500 font-medium">
-                      Download or access reference materials and previous year formulas linked to this topic:
-                    </p>
-                    <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
+                <section className="mt-10">
+                  <div className="mb-4 flex items-center gap-2">
+                    <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-800 border border-emerald-200">
+                      PDFs &amp; Reference Materials
+                    </span>
+                  </div>
+                  {activeTopicContent.resources && activeTopicContent.resources.length > 0 ? (
+                    <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white">
                       {activeTopicContent.resources.map((res: LearningResource, idx: number) => {
                         const icon =
                           res.type === "pdf"
@@ -651,89 +694,89 @@ export function StudentLearningView({ subjects }: StudentLearningViewProps) {
                             ? "⚡"
                             : "📝";
 
-                        const typeLabel =
-                          res.type === "pdf"
-                            ? "PDF Document"
-                            : res.type === "book"
-                            ? "Reference Book"
-                            : res.type === "formula_sheet"
-                            ? "Formula Sheet"
-                            : "Notes";
-
                         return (
-                          <div
-                            key={idx}
-                            className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 p-4 hover:bg-slate-50 transition-colors"
-                          >
+                          <div key={idx} className="flex flex-wrap items-center justify-between gap-4 p-5">
                             <div className="flex items-center gap-3">
-                              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-xl border border-blue-100">
+                              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-xl border border-blue-100">
                                 {icon}
                               </span>
                               <div>
-                                <h4 className="text-sm font-bold text-slate-900 leading-snug">
-                                  {res.title}
-                                </h4>
-                                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                                  {typeLabel}
-                                </span>
+                                <h3 className="text-sm font-bold text-slate-900">{res.title}</h3>
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                                  {res.type.replace("_", " ")}
+                                </p>
                               </div>
                             </div>
-
                             <a
                               href={res.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-blue-800 transition-all flex items-center gap-1.5"
+                              className="rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-blue-800"
                             >
-                              <span>Open / Download</span>
-                              <span>↗</span>
+                              Open / Download ↗
                             </a>
                           </div>
                         );
                       })}
                     </div>
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-                    <span className="text-3xl">📚</span>
-                    <h4 className="mt-2 text-sm font-bold text-slate-700">No PDF or book materials linked</h4>
-                    <p className="mt-1 text-xs text-slate-400">
-                      External reference books, PDFs, and PYQ materials will appear here once uploaded by administrators.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+                      <p className="text-sm font-bold text-slate-700">No PDF or book materials linked.</p>
+                    </div>
+                  )}
+                </section>
 
-            {/* Modal Footer */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100">
-              <span className="text-xs text-slate-500">
-                Official IIITH Entrance Preparation Syllabus
-              </span>
+                <div className="mt-14 rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center">
+                  {completedTopicIds.includes(selectedTopic.topic.id) ? (
+                    <>
+                      <p className="text-sm font-black text-emerald-800">✓ Topic Completed</p>
+                      <p className="mt-1 text-xs text-emerald-700">
+                        Your completion has been saved to your learning progress.
+                      </p>
+                    </>
+                  ) : completingTopicId === selectedTopic.topic.id ? (
+                    <>
+                      <p className="text-sm font-black text-emerald-800">Saving completion...</p>
+                      <p className="mt-1 text-xs text-emerald-700">Your progress is being saved.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-black text-emerald-800">Almost there</p>
+                      <p className="mt-1 text-xs text-emerald-700">
+                        Scroll to the very bottom to automatically complete this topic.
+                      </p>
+                    </>
+                  )}
+                </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={startTopicPractice}
-                  className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-emerald-600/20 hover:bg-emerald-700 transition-all"
-                >
-                  📝 Start Topic Practice
-                </button>
-                <Link
-                  href="/tests"
-                  prefetch={true}
-                  className="rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 transition-all"
-                >
-                  Take Practice Mock Test &rarr;
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => setSelectedTopic(null)}
-                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50"
-                >
-                  Close
-                </button>
-              </div>
+                <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-6">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTopic(null)}
+                    className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50"
+                  >
+                    Back to Topics
+                  </button>
+
+                  {nextTopic ? (
+                    <button
+                      type="button"
+                      disabled={!completedTopicIds.includes(selectedTopic.topic.id)}
+                      onClick={() => {
+                        openTopicModal(nextTopic);
+                        topicReaderRef.current?.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+                      }}
+                      className="rounded-xl bg-blue-700 px-6 py-3 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Next Topic →
+                    </button>
+                  ) : (
+                    <span className="rounded-xl bg-emerald-100 px-6 py-3 text-xs font-black uppercase tracking-wider text-emerald-800">
+                      ✓ All Topics Completed
+                    </span>
+                  )}
+                </div>
+              </article>
             </div>
           </div>
         </div>

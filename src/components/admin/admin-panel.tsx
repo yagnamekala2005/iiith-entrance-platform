@@ -21,12 +21,15 @@ import {
   createAdminTopic,
   deleteAdminTopic,
   updateTopicLearningContent,
+  uploadLearningPdf,
+  type AdminPracticeQuestionItem,
 } from "@/lib/admin/actions";
 import {
   parseTopicLearningContent,
   type LearningResource,
 } from "@/lib/learning/topic-content";
 import { createClient } from "@/lib/supabase/client";
+import { LogoutConfirmModal } from "@/components/auth/logout-confirm-modal";
 
 interface SubjectItem {
   id: string;
@@ -137,8 +140,12 @@ export function AdminPanel({
   const [newTestExamId, setNewTestExamId] = useState<string>(adminExams[0]?.id || "");
   const [newTestDuration, setNewTestDuration] = useState<number>(180);
   const [newTestDescription, setNewTestDescription] = useState<string>("");
-  const [testSuccessMessage, setTestSuccessMessage] = useState<string>("");
+  const [testSuccessMessage, setTestSuccessMessage] = useState<string>("" );
   const [testErrorMessage, setTestErrorMessage] = useState<string>("");
+
+  // Logout Confirmation Modal State
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState<boolean>(false);
+  const [isSigningOut, setIsSigningOut] = useState<boolean>(false);
 
   // My Learning State (Subjects, Chapters, Subtopics)
   const [adminSubjects, setAdminSubjects] = useState<SubjectItem[]>(subjects);
@@ -164,7 +171,7 @@ export function AdminPanel({
   const [practiceExplanation, setPracticeExplanation] = useState<string>("");
   const [practiceSuccessMessage, setPracticeSuccessMessage] = useState<string>("");
   const [practiceErrorMessage, setPracticeErrorMessage] = useState<string>("");
-  const [practiceQuestions, setPracticeQuestions] = useState<Awaited<ReturnType<typeof getAdminTopicPracticeQuestions>>["questions"]>([]);
+  const [practiceQuestions, setPracticeQuestions] = useState<AdminPracticeQuestionItem[]>([]);
   const [practiceQuestionIndex, setPracticeQuestionIndex] = useState<number>(0);
   const [practiceEditingId, setPracticeEditingId] = useState<string | null>(null);
   const [practiceQuestionsLoading, setPracticeQuestionsLoading] = useState<boolean>(false);
@@ -176,6 +183,9 @@ export function AdminPanel({
   const [editFormulas, setEditFormulas] = useState<string>("");
   const [editResources, setEditResources] = useState<LearningResource[]>([]);
   const [isSavingTopicContent, setIsSavingTopicContent] = useState<boolean>(false);
+  const [uploadingPdfIndex, setUploadingPdfIndex] = useState<number | null>(null);
+  const learningPdfInputRef = useRef<HTMLInputElement | null>(null);
+  const [pdfUploadTargetIndex, setPdfUploadTargetIndex] = useState<number | null>(null);
 
   // References to keep event handlers current without re-attaching listeners
   const activeTabRef = useRef<"tests" | "create" | "learning" | "admins">(activeTab);
@@ -218,12 +228,12 @@ export function AdminPanel({
         return;
       }
 
-      // 4. If already on the root "tests" tab and called from UI button, return to Entrance Portal
+      // 4. If already on the root "tests" tab and called from UI button, prompt logout confirmation
       if (!e) {
-        router.push("/");
+        setIsLogoutModalOpen(true);
       }
     },
-    [router]
+    []
   );
 
   // Intercept back navigation so mobile phone gestures / back buttons come back 1 step instead of exiting app
@@ -258,8 +268,8 @@ export function AdminPanel({
         return;
       }
 
-      // 5. If already on the root "tests" tab, safely navigate back to Entrance Portal instead of exiting!
-      router.push("/");
+      // 5. If already on the root "tests" tab, prompt confirmation modal before leaving!
+      setIsLogoutModalOpen(true);
     };
 
     const onAdminStepBack = (e: Event) => {
@@ -330,11 +340,21 @@ export function AdminPanel({
   const isEditingExisting = activeQuestionIndex < currentTestQuestions.length;
   const currentEditingQuestion = isEditingExisting ? currentTestQuestions[activeQuestionIndex] : null;
 
-  // Sign out handler
-  const handleSignOut = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    window.location.href = "/login?role=admin";
+  // Sign out handlers (prompts confirmation modal before ending session)
+  const handleSignOut = () => {
+    setIsLogoutModalOpen(true);
+  };
+
+  const handleConfirmSignOut = async () => {
+    try {
+      setIsSigningOut(true);
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      window.location.href = "/login?role=admin";
+    } catch {
+      setIsSigningOut(false);
+      setIsLogoutModalOpen(false);
+    }
   };
 
   // Populate form with question data
@@ -446,7 +466,7 @@ export function AdminPanel({
     setOptions(updated);
   };
 
-  const populatePracticeQuestionForm = (question: Awaited<ReturnType<typeof getAdminTopicPracticeQuestions>>["questions"][number]) => {
+  const populatePracticeQuestionForm = (question: AdminPracticeQuestionItem) => {
     setPracticeEditingId(question.id);
     setPracticeQuestionText(question.question_text || "");
     setPracticeOptions([
@@ -483,9 +503,9 @@ export function AdminPanel({
       setPracticeQuestionsLoading(false);
 
       if (res.success) {
-        setPracticeQuestions(res.questions);
-        if (res.questions.length > 0) {
-          populatePracticeQuestionForm(res.questions[0]);
+        setPracticeQuestions(res.questions ?? []);
+        if ((res.questions ?? []).length > 0) {
+          populatePracticeQuestionForm((res.questions ?? [])[0]);
         }
       } else {
         setPracticeErrorMessage(res.error || "Failed to load practice questions.");
@@ -581,13 +601,14 @@ export function AdminPanel({
 
         const refreshed = await getAdminTopicPracticeQuestions(practiceTopic.id);
         if (refreshed.success) {
-          setPracticeQuestions(refreshed.questions);
+          setPracticeQuestions(refreshed.questions ?? []);
           const targetIndex = practiceEditingId
-            ? Math.max(0, refreshed.questions.findIndex((q) => q.id === practiceEditingId))
-            : Math.max(0, refreshed.questions.length - 1);
+            ? Math.max(0, (refreshed.questions ?? []).findIndex((q) => q.id === practiceEditingId))
+            : Math.max(0, (refreshed.questions ?? []).length - 1);
           setPracticeQuestionIndex(targetIndex);
-          if (refreshed.questions[targetIndex]) {
-            populatePracticeQuestionForm(refreshed.questions[targetIndex]);
+          const refreshedQuestions = refreshed.questions ?? [];
+          if (refreshedQuestions[targetIndex]) {
+            populatePracticeQuestionForm(refreshedQuestions[targetIndex]);
           }
         }
       } else {
@@ -1059,10 +1080,48 @@ export function AdminPanel({
 
   // Add Resource Row in Topic Editor Modal
   const handleAddResourceRow = () => {
-    setEditResources((prev) => [
-      ...prev,
-      { title: "", url: "", type: "pdf" },
-    ]);
+    setEditResources((prev) => {
+      const newIndex = prev.length;
+      setPdfUploadTargetIndex(newIndex);
+      setTimeout(() => learningPdfInputRef.current?.click(), 0);
+      return [...prev, { title: "", url: "", type: "pdf" }];
+    });
+  };
+
+  // Upload a PDF from the administrator's device into Supabase Storage
+  const handlePdfFileSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    const targetIndex = pdfUploadTargetIndex;
+    event.target.value = "";
+    setPdfUploadTargetIndex(null);
+
+    if (!file || targetIndex === null || !editingTopic) return;
+
+    setUploadingPdfIndex(targetIndex);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("topic_id", editingTopic.id);
+
+    const result = await uploadLearningPdf(formData);
+    setUploadingPdfIndex(null);
+
+    if (!result.success || !result.url) {
+      setLearningErrorMessage(result.error || "Failed to upload PDF.");
+      return;
+    }
+
+    setEditResources((prev) => {
+      const copy = [...prev];
+      copy[targetIndex] = {
+        ...copy[targetIndex],
+        title: result.title || file.name.replace(/\.pdf$/i, ""),
+        url: result.url,
+        type: "pdf",
+      };
+      return copy;
+    });
+    setLearningErrorMessage("");
+    setLearningSuccessMessage(`PDF "${file.name}" uploaded successfully. Save the topic to attach it to students' My Learning.`);
   };
 
   // Update Resource Row
@@ -2679,7 +2738,7 @@ export function AdminPanel({
                           PDFs, Reference Books &amp; Old Exam Materials
                         </label>
                         <p className="text-[11px] text-slate-500">
-                          Add links to PDF textbooks, formula booklets, or reference documents for students.
+                          Add documents and reference materials directly from your device.
                         </p>
                       </div>
 
@@ -2688,13 +2747,20 @@ export function AdminPanel({
                         onClick={handleAddResourceRow}
                         className="rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-800 transition-all flex items-center gap-1 shadow-xs"
                       >
-                        <span>+ Add Material</span>
+                        <span>+ Add Document from Device</span>
                       </button>
+                      <input
+                        ref={learningPdfInputRef}
+                        type="file"
+                        
+                        className="hidden"
+                        onChange={handlePdfFileSelected}
+                      />
                     </div>
 
                     {editResources.length === 0 ? (
                       <p className="text-xs text-slate-400 italic py-2">
-                        No materials attached yet. Click &quot;+ Add Material&quot; to link PDFs, books, or formula guides.
+                        No materials attached yet. Click &quot;+ Add Document from Device&quot; to attach a document.
                       </p>
                     ) : (
                       <div className="space-y-2.5">
@@ -2703,19 +2769,6 @@ export function AdminPanel({
                             key={idx}
                             className="flex flex-wrap sm:flex-nowrap items-center gap-2 rounded-lg border border-slate-200 bg-white p-2.5 shadow-2xs"
                           >
-                            <select
-                              value={res.type}
-                              onChange={(e) =>
-                                handleUpdateResourceRow(idx, "type", e.target.value)
-                              }
-                              className="rounded-md border border-slate-200 bg-slate-50 p-2 text-xs font-semibold text-slate-700 outline-none"
-                            >
-                              <option value="pdf">📄 PDF Document</option>
-                              <option value="book">📖 Reference Book</option>
-                              <option value="formula_sheet">⚡ Formula Sheet</option>
-                              <option value="notes">📝 Revision Notes</option>
-                            </select>
-
                             <input
                               type="text"
                               value={res.title}
@@ -2726,15 +2779,33 @@ export function AdminPanel({
                               className="flex-1 min-w-[150px] rounded-md border border-slate-200 p-2 text-xs text-slate-800 outline-none focus:border-blue-600"
                             />
 
-                            <input
-                              type="url"
-                              value={res.url}
-                              onChange={(e) =>
-                                handleUpdateResourceRow(idx, "url", e.target.value)
-                              }
-                              placeholder="URL (https://...)"
-                              className="flex-1 min-w-[150px] rounded-md border border-slate-200 p-2 text-xs text-slate-800 outline-none focus:border-blue-600"
-                            />
+                            {res.type === "pdf" ? (
+                              <button
+                                type="button"
+                                disabled={uploadingPdfIndex === idx}
+                                onClick={() => {
+                                  setPdfUploadTargetIndex(idx);
+                                  learningPdfInputRef.current?.click();
+                                }}
+                                className="flex-1 min-w-[150px] rounded-md border border-blue-200 bg-blue-50 p-2 text-left text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+                              >
+                                {uploadingPdfIndex === idx
+                                  ? "Uploading PDF..."
+                                  : res.url
+                                    ? `📄 ${res.title || "PDF uploaded"} — Click to replace`
+                                    : "📎 Select PDF from device"}
+                              </button>
+                            ) : (
+                              <input
+                                type="url"
+                                value={res.url}
+                                onChange={(e) =>
+                                  handleUpdateResourceRow(idx, "url", e.target.value)
+                                }
+                                placeholder="URL (https://...)"
+                                className="flex-1 min-w-[150px] rounded-md border border-slate-200 p-2 text-xs text-slate-800 outline-none focus:border-blue-600"
+                              />
+                            )}
 
                             <button
                               type="button"
@@ -2846,6 +2917,23 @@ export function AdminPanel({
           </div>
         )}
       </main>
+
+      {/* Admin Log Out Confirmation Modal */}
+      <LogoutConfirmModal
+        isOpen={isLogoutModalOpen}
+        onClose={() => {
+          setIsLogoutModalOpen(false);
+          if (typeof window !== "undefined") {
+            window.history.pushState({ adminStudio: true, tab: activeTab }, "");
+          }
+        }}
+        onConfirm={handleConfirmSignOut}
+        isLoading={isSigningOut}
+        title="Admin Log Out Confirmation"
+        message="You are exiting from Administrator Studio. Are you sure you want to log out and end your admin session?"
+        confirmText="Yes, Log Out"
+        cancelText="Cancel"
+      />
     </div>
   );
 }

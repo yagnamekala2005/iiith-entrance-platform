@@ -11,6 +11,26 @@ import type {
   TestWithDetails,
 } from "@/types/content";
 
+type AnswerKeyRelation =
+  | { correct_option_id: string }
+  | { correct_option_id: string }[]
+  | null
+  | undefined;
+
+function getCorrectOptionId(answerKey: AnswerKeyRelation): string | undefined {
+  if (!answerKey) return undefined;
+  if (Array.isArray(answerKey)) {
+    return answerKey[0]?.correct_option_id;
+  }
+  return answerKey.correct_option_id;
+}
+
+function getRelationRecord<T>(relation: T | T[] | null | undefined): T | null {
+  if (!relation) return null;
+  return Array.isArray(relation) ? relation[0] ?? null : relation;
+}
+
+
 /**
  * Fetch an in-progress attempt for active taking.
  * CRITICAL SECURITY: Never queries or returns answer keys or explanations.
@@ -192,7 +212,9 @@ export async function getAttemptResult(attemptId: string): Promise<AttemptResult
 
   if (!test) return null;
 
-  // Fetch section and subject breakdown
+  // Fetch section and subject breakdown.
+  // Answer keys are fetched separately to avoid Supabase nested-relation
+  // shape differences causing correct answers to be treated as incorrect.
   const { data: attemptQuestions } = await supabase
     .from("attempt_questions")
     .select(`
@@ -203,11 +225,32 @@ export async function getAttemptResult(attemptId: string): Promise<AttemptResult
       section:exam_sections(name),
       question:questions(
         id,
-        subject:subjects(id, name, slug),
-        answer_key:question_answer_keys(correct_option_id)
+        subject:subjects(id, name, slug)
       )
     `)
     .eq("attempt_id", attemptId);
+
+  const resultQuestionIds = (attemptQuestions || [])
+    .map((aq) => {
+      const q = getRelationRecord(
+        aq.question as unknown as {
+          id: string;
+        } | null
+      );
+      return q?.id;
+    })
+    .filter((id): id is string => Boolean(id));
+
+  const { data: resultAnswerKeys } = resultQuestionIds.length
+    ? await supabase
+        .from("question_answer_keys")
+        .select("question_id, correct_option_id")
+        .in("question_id", resultQuestionIds)
+    : { data: [] };
+
+  const resultAnswerKeyMap = new Map(
+    (resultAnswerKeys || []).map((key) => [key.question_id, key.correct_option_id])
+  );
 
   const sectionMap = new Map<string, AttemptSectionResult>();
   const subjectMap = new Map<string, AttemptSubjectResult>();
@@ -217,13 +260,17 @@ export async function getAttemptResult(attemptId: string): Promise<AttemptResult
 
   (attemptQuestions || []).forEach((aq) => {
     const secId = aq.section_id || "general";
-    const secName = (aq.section as unknown as { name: string } | null)?.name || "General Section";
-    const q = aq.question as unknown as {
-      id: string;
-      subject?: { id: string; name: string; slug: string } | null;
-      answer_key: { correct_option_id: string }[] | null;
-    } | null;
-    const correctOptId = q?.answer_key?.[0]?.correct_option_id;
+    const sec = getRelationRecord(
+      aq.section as unknown as { name: string } | { name: string }[] | null
+    );
+    const secName = sec?.name || "General Section";
+    const q = getRelationRecord(
+      aq.question as unknown as {
+        id: string;
+        subject?: { id: string; name: string; slug: string } | null;
+      } | null
+    );
+    const correctOptId = q?.id ? resultAnswerKeyMap.get(q.id) : undefined;
 
     // Section calculations
     const current = sectionMap.get(secId) || {
@@ -358,29 +405,42 @@ export async function getAttemptReview(attemptId: string): Promise<AttemptReview
         difficulty,
         explanation,
         subject:subjects(id, name, slug),
-        options:question_options(*),
-        answer_key:question_answer_keys(correct_option_id)
+        options:question_options(*)
       )
     `)
     .eq("attempt_id", attemptId)
     .order("display_order", { ascending: true });
+
+  const reviewQuestionIds = (attemptQuestions || [])
+    .map((aq) => aq.question_id)
+    .filter((id): id is string => Boolean(id));
+
+  const { data: reviewAnswerKeys } = reviewQuestionIds.length
+    ? await supabase
+        .from("question_answer_keys")
+        .select("question_id, correct_option_id")
+        .in("question_id", reviewQuestionIds)
+    : { data: [] };
+
+  const reviewAnswerKeyMap = new Map(
+    (reviewAnswerKeys || []).map((key) => [key.question_id, key.correct_option_id])
+  );
 
   const subjectMap = new Map<string, AttemptSubjectResult>();
   let calculatedAttempted = 0;
   let calculatedUnattempted = 0;
 
   const formattedQuestions: AttemptReviewQuestion[] = (attemptQuestions || []).map((aq) => {
-    const q = aq.question as unknown as {
+    const q = getRelationRecord(aq.question as unknown as {
       id: string;
       question_text: string;
       difficulty: "easy" | "medium" | "hard";
       explanation: string | null;
       subject?: { id: string; name: string; slug: string } | null;
       options: { id: string; question_id: string; option_label: string; option_text: string; display_order: number; created_at: string }[];
-      answer_key: { correct_option_id: string }[] | null;
-    };
-    const sec = aq.section as unknown as { name: string } | null;
-    const correctOptId = q?.answer_key?.[0]?.correct_option_id || "";
+    } | null);
+    const sec = getRelationRecord(aq.section as unknown as { name: string } | { name: string }[] | null);
+    const correctOptId = reviewAnswerKeyMap.get(aq.question_id) || "";
     const isCorrect = Boolean(aq.selected_option_id && aq.selected_option_id === correctOptId);
     const isUnanswered = aq.selected_option_id === null;
 
