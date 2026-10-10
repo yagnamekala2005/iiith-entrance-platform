@@ -544,3 +544,50 @@ input, textarea, select {
     filter: none !important;
   }
 }
+
+
+/* Cohesive landing page color system: soft blue surfaces, readable contrast */
+.landing-page {
+  background: #f4f7fc;
+  background-image:
+    radial-gradient(ellipse at 8% 14%, rgba(191, 219, 254, .24), transparent 34%),
+    radial-gradient(ellipse at 92% 58%, rgba(199, 210, 254, .18), transparent 32%);
+}
+.landing-section {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.landing-section > div {
+  position: relative;
+  z-index: 1;
+}
+.landing-subjects {
+  border-color: #dbe6f5;
+  background:
+    radial-gradient(ellipse at 8% 0%, rgba(219,234,254,.72), transparent 42%),
+    radial-gradient(ellipse at 92% 100%, rgba(224,231,255,.68), transparent 40%),
+    linear-gradient(135deg, #f8fbff 0%, #eef4fd 52%, #f8faff 100%);
+}
+.landing-features {
+  background:
+    radial-gradient(ellipse at 0% 15%, rgba(191,219,254,.42), transparent 42%),
+    radial-gradient(ellipse at 100% 85%, rgba(221,214,254,.38), transparent 42%),
+    linear-gradient(135deg, #edf3fb 0%, #f4f6fc 48%, #eef3fb 100%);
+}
+.landing-portals {
+  border-color: #dbe6f5;
+  background:
+    radial-gradient(ellipse at 5% 10%, rgba(219,234,254,.55), transparent 36%),
+    radial-gradient(ellipse at 95% 95%, rgba(204,251,241,.32), transparent 38%),
+    linear-gradient(135deg, #f8fbff 0%, #f0f5fc 55%, #f8fbff 100%);
+}
+.landing-section .text-slate-600 { color: #475569; }
+.landing-section .text-slate-500 { color: #52637b; }
+.landing-section .border-slate-200 { border-color: #d6e1ef; }
+.landing-section .landing-interactive-card {
+  box-shadow: 0 8px 22px rgba(30, 64, 115, .055);
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-page, .landing-section { scroll-behavior: auto; }
+}
