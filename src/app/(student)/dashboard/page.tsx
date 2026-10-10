@@ -170,21 +170,6 @@ export default async function DashboardPage() {
                       {test.description}
                     </p>
 
-                    {/* 4 Subjects Pills */}
-                    <div className="mt-4 flex flex-wrap gap-1.5">
-                      <span className="rounded-lg border border-blue-200 bg-blue-50/60 px-2.5 py-1 text-[11px] font-bold text-blue-900">
-                        📐 Mathematics
-                      </span>
-                      <span className="rounded-lg border border-amber-200 bg-amber-50/60 px-2.5 py-1 text-[11px] font-bold text-amber-900">
-                        ⚡ Physics
-                      </span>
-                      <span className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-2.5 py-1 text-[11px] font-bold text-emerald-900">
-                        🧪 Chemistry
-                      </span>
-                      <span className="rounded-lg border border-purple-200 bg-purple-50/60 px-2.5 py-1 text-[11px] font-bold text-purple-900">
-                        🧠 Aptitude
-                      </span>
-                    </div>
                   </div>
 
                   <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4">
