@@ -591,3 +591,52 @@ input, textarea, select {
 @media (prefers-reduced-motion: reduce) {
   .landing-page, .landing-section { scroll-behavior: auto; }
 }
+
+/* Seamless landing backdrop: one continuous light surface below the dark hero */
+.landing-page {
+  background: #f2f6fc;
+  background-image:
+    radial-gradient(ellipse at 12% 22%, rgba(219,234,254,.38), transparent 42%),
+    radial-gradient(ellipse at 88% 72%, rgba(224,231,255,.28), transparent 40%);
+}
+.landing-section {
+  background: transparent !important;
+  border-color: #dce6f3 !important;
+}
+.landing-subjects,
+.landing-features,
+.landing-portals {
+  background: transparent !important;
+}
+.landing-page #subjects,
+.landing-page #features,
+.landing-page #portals {
+  background: transparent !important;
+}
+.landing-page #subjects::before,
+.landing-page #features::before,
+.landing-page #portals::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(226,235,248,.14));
+}
+.landing-page #subjects::before { background: radial-gradient(ellipse at 50% 0%, rgba(255,255,255,.42), transparent 72%); }
+.landing-page #features::before { background: radial-gradient(ellipse at 50% 50%, rgba(255,255,255,.12), transparent 78%); }
+.landing-page #portals::before { background: radial-gradient(ellipse at 80% 100%, rgba(204,251,241,.16), transparent 55%); }
+.landing-page .landing-interactive-card {
+  background-color: rgba(255,255,255,.94);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 24px rgba(30,58,95,.075);
+}
+.landing-page #subjects .landing-interactive-card {
+  background-image: linear-gradient(145deg, rgba(255,255,255,.98), rgba(248,251,255,.95));
+}
+.landing-page #features .landing-interactive-card {
+  background-image: linear-gradient(145deg, rgba(255,255,255,.98), rgba(247,250,255,.95));
+}
+.landing-page #portals .landing-interactive-card {
+  box-shadow: 0 12px 30px rgba(30,58,95,.09);
+}
