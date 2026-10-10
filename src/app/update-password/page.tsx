@@ -14,12 +14,13 @@ function UpdatePasswordContent() {
   const authError = searchParams.get("error");
   const authErrorCode = searchParams.get("error_code");
   const recoveryCode = code;
+  const isCallbackRecovery = searchParams.get("recovery") === "1";
 
   const [status, setStatus] = useState<RecoveryStatus>(() =>
-    !recoveryCode || authError || authErrorCode ? "invalid" : "checking",
+    (!recoveryCode && !isCallbackRecovery) || authError || authErrorCode ? "invalid" : "checking",
   );
   const [message, setMessage] = useState(() =>
-    !recoveryCode || authError || authErrorCode
+    (!recoveryCode && !isCallbackRecovery) || authError || authErrorCode
       ? authErrorCode === "otp_expired"
         ? "This password reset link has expired. Request a new link to continue."
         : "This password reset link is invalid. Request a new link to continue."
@@ -32,11 +33,49 @@ function UpdatePasswordContent() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (recoveryCode === null || authError || authErrorCode) return;
+    if (authError || authErrorCode) return;
 
     let active = true;
-    let isPasswordRecovery = false;
     const supabase = createClient();
+
+    // The shared server callback has already exchanged the recovery code and
+    // stored the session in cookies. Verify that session before enabling reset.
+    if (isCallbackRecovery) {
+      void supabase.auth
+        .getUser()
+        .then(({ data, error }) => {
+          if (!active) return;
+
+          if (error || !data.user) {
+            setStatus("invalid");
+            setMessage(
+              "This password reset link is invalid or has expired. Request a new link to continue.",
+            );
+            return;
+          }
+
+          setEmail(data.user.email ?? "");
+          setStatus("ready");
+          window.history.replaceState(window.history.state, "", window.location.pathname);
+        })
+        .catch((error: unknown) => {
+          console.error("Password recovery session verification failed:", error);
+          if (!active) return;
+          setStatus("invalid");
+          setMessage(
+            "We couldn't verify this password reset link. Request a new link to continue.",
+          );
+        });
+
+      return () => {
+        active = false;
+      };
+    }
+
+    // Support existing Supabase recovery links that land directly on this page.
+    if (recoveryCode === null) return;
+
+    let isPasswordRecovery = false;
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
@@ -86,7 +125,7 @@ function UpdatePasswordContent() {
       active = false;
       subscription.unsubscribe();
     };
-  }, [authError, authErrorCode, recoveryCode]);
+  }, [authError, authErrorCode, isCallbackRecovery, recoveryCode]);
 
   async function handleUpdatePassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
