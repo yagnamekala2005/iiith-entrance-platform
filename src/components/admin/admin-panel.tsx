@@ -1208,11 +1208,7 @@ export function AdminPanel({
                   : "Return to Entrance Portal"
               }
             >
-              <span className="text-sm font-black leading-none">‹</span>
-              <span className="text-[11px] uppercase tracking-wider font-bold">
-                {activeTab !== "tests" ? "Back" : "Portal"}
-              </span>
-            </button>
+   </button>
 
             <span className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-black uppercase tracking-wider text-white shadow-xs hidden sm:inline-block">
               ADMIN CONTROL
