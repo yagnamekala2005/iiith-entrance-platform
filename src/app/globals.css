@@ -200,3 +200,69 @@ input, textarea, select {
 
 .immersive-scene-fallback { background: radial-gradient(circle at 50% 45%, rgba(56, 124, 255, .42), transparent 28%), radial-gradient(circle at 60% 60%, rgba(118, 88, 255, .25), transparent 42%), #070b18; }
 .immersive-scene-fallback::after { content: ""; position: absolute; inset: 20% 28%; border: 1px solid rgba(126, 231, 255, .55); border-radius: 50%; transform: rotate(-28deg) scaleY(.45); box-shadow: 0 0 70px rgba(68, 126, 255, .2); pointer-events: none; }
+
+/* Immersive login experience */
+.login-experience { isolation: isolate; }
+.login-grid-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: .22;
+  background-image: linear-gradient(rgba(137, 165, 255, .08) 1px, transparent 1px), linear-gradient(90deg, rgba(137, 165, 255, .08) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: linear-gradient(to bottom, black, transparent 88%);
+}
+.login-ambient {
+  position: absolute;
+  z-index: 0;
+  width: 30rem;
+  height: 30rem;
+  border-radius: 50%;
+  filter: blur(110px);
+  opacity: .18;
+  pointer-events: none;
+}
+.login-ambient-blue { top: -13rem; left: -10rem; background: #2563eb; }
+.login-ambient-violet { right: -14rem; bottom: -14rem; background: #7c3aed; }
+.login-gradient-text {
+  background: linear-gradient(100deg, #f8fafc 5%, #91e9ff 48%, #b4a5ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.login-card {
+  background: linear-gradient(145deg, rgba(17, 25, 49, .94), rgba(7, 12, 28, .94));
+  box-shadow: 0 30px 100px rgba(0, 0, 0, .38), inset 0 1px 0 rgba(255,255,255,.055);
+  backdrop-filter: blur(24px);
+}
+.login-card-header {
+  background: radial-gradient(ellipse at 0% 0%, rgba(57, 112, 255, .13), transparent 65%);
+}
+.login-field {
+  background: rgba(255,255,255,.045);
+  border-color: rgba(255,255,255,.12);
+}
+.login-field:focus { background: rgba(255,255,255,.07); }
+.login-submit {
+  background: linear-gradient(100deg, #2563eb, #4f46e5 58%, #7554ed);
+  box-shadow: 0 12px 30px rgba(37, 99, 235, .23), inset 0 1px 0 rgba(255,255,255,.2);
+}
+.login-submit:hover { box-shadow: 0 16px 36px rgba(65, 95, 255, .34), inset 0 1px 0 rgba(255,255,255,.24); }
+.login-scene-wrap .immersive-scene-shell { min-height: 390px; }
+.login-scene-wrap .scene-stat-left { left: 14px; bottom: 60px; }
+.login-scene-wrap .scene-stat-right { right: 14px; top: 70px; }
+@media (min-width: 1024px) {
+  .login-scene-wrap .immersive-scene-shell { min-height: 440px; }
+}
+@media (max-width: 1023px) {
+  .login-visual-panel { max-width: 720px; margin-inline: auto; width: 100%; }
+  .login-scene-wrap .immersive-scene-shell { min-height: 290px; }
+  .login-scene-wrap .scene-stat-card { display: none; }
+}
+@media (max-width: 640px) {
+  .login-scene-wrap .immersive-scene-shell { min-height: 230px; border-radius: 20px; }
+  .login-scene-wrap .scene-label-bottom { bottom: 15px; }
+  .login-scene-wrap .scene-label-top { top: 15px; }
+}
+
