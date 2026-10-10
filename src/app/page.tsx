@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { LoginMotionScene } from "@/components/landing/login-motion-scene";
+import { SpaceBackground } from "@/components/landing/space-background";
 
 export default function Home() {
   return (
     <div className="landing-page min-h-screen text-slate-900 flex flex-col font-sans selection:bg-blue-600 selection:text-white relative overflow-x-hidden w-full max-w-full">
+      <SpaceBackground />
       {/* Main Navigation */}
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8 py-3.5">
