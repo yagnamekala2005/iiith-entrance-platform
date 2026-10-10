@@ -889,7 +889,7 @@ input, textarea, select {
     radial-gradient(1px 1px at 54% 91%, #fff 99%, transparent);
   background-size: 270px 250px, 340px 310px, 390px 290px, 460px 390px, 520px 420px;
   animation: space-star-drift-far 95s linear infinite;
-  transform: translate3d(calc(var(--mouse-x) * -7px), calc(var(--mouse-y) * -6px), 0);
+  transform: translate3d(var(--parallax-far-x, 0px), var(--parallax-far-y, 0px), 0);
 }
 .space-background-stars-near {
   opacity: .82;
@@ -899,7 +899,7 @@ input, textarea, select {
     radial-gradient(1.5px 1.5px at 45% 73%, #c4b5fd 99%, transparent);
   background-size: 490px 410px, 620px 530px, 700px 570px;
   animation: space-star-drift-near 58s linear infinite;
-  transform: translate3d(calc(var(--mouse-x) * -18px), calc(var(--mouse-y) * -14px), 0);
+  transform: translate3d(var(--parallax-near-x, 0px), var(--parallax-near-y, 0px), 0);
 }
 .space-background-nebula {
   position: absolute;
@@ -916,7 +916,7 @@ input, textarea, select {
   opacity: .25;
   background: radial-gradient(circle, rgba(37,99,235,.7), rgba(30,64,175,.18) 42%, transparent 70%);
   animation: space-nebula-float-blue 24s ease-in-out infinite alternate;
-  transform: translate3d(calc(var(--mouse-x) * 32px), calc(var(--mouse-y) * 24px), 0);
+  transform: translate3d(var(--parallax-blue-x, 0px), var(--parallax-blue-y, 0px), 0);
 }
 .space-background-nebula-violet {
   right: -20%;
@@ -924,7 +924,7 @@ input, textarea, select {
   opacity: .21;
   background: radial-gradient(circle, rgba(124,58,237,.72), rgba(79,70,229,.15) 45%, transparent 72%);
   animation: space-nebula-float-violet 30s ease-in-out infinite alternate;
-  transform: translate3d(calc(var(--mouse-x) * -38px), calc(var(--mouse-y) * -26px), 0);
+  transform: translate3d(var(--parallax-violet-x, 0px), var(--parallax-violet-y, 0px), 0);
 }
 .space-background-planet {
   position: absolute;
@@ -940,7 +940,7 @@ input, textarea, select {
   box-shadow: inset -32px -12px 55px rgba(0,0,0,.85), 0 0 75px rgba(59,130,246,.2);
   will-change: transform;
   animation: space-planet-hover 15s ease-in-out infinite alternate;
-  transform: translate3d(calc(var(--mouse-x) * -24px), calc(var(--mouse-y) * -18px), 0);
+  transform: translate3d(var(--parallax-planet-x, 0px), var(--parallax-planet-y, 0px), 0);
 }
 .space-background-planet-ring {
   position: absolute;
@@ -979,8 +979,8 @@ input, textarea, select {
   position: absolute;
   width: 360px;
   height: 360px;
-  left: calc(50% + var(--mouse-x) * 30%);
-  top: calc(50% + var(--mouse-y) * 30%);
+  left: var(--cursor-glow-x, 50%);
+  top: var(--cursor-glow-y, 50%);
   border-radius: 50%;
   opacity: .2;
   background: radial-gradient(circle, rgba(56,189,248,.16), rgba(99,102,241,.06) 40%, transparent 70%);
