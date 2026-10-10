@@ -461,70 +461,81 @@ input, textarea, select {
 
 
 
-/* Smooth, accessible motion for landing-page feature, subject and portal cards */
+/* Strong, visible interactive motion for landing-page cards */
 .landing-interactive-card {
   position: relative;
-  transform: translateZ(0);
+  isolation: isolate;
+  overflow: hidden;
+  transform: translate3d(0, 0, 0);
   transform-style: preserve-3d;
-  transition: transform 420ms cubic-bezier(.2,.75,.25,1), box-shadow 420ms ease, border-color 320ms ease, background-color 320ms ease;
-  will-change: transform;
+  transition: transform 360ms cubic-bezier(.2,.8,.2,1), box-shadow 360ms ease, border-color 280ms ease;
+  animation: landing-card-enter 720ms cubic-bezier(.2,.75,.25,1) both;
+}
+.landing-interactive-card::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  opacity: .0;
+  background: radial-gradient(circle at 15% 0%, rgba(59,130,246,.15), transparent 52%);
+  transition: opacity 350ms ease;
 }
 .landing-interactive-card::after {
   content: "";
   position: absolute;
-  inset: 0;
-  border-radius: inherit;
+  z-index: 4;
+  top: -70%;
+  left: -60%;
+  width: 42%;
+  height: 240%;
   pointer-events: none;
   opacity: 0;
-  background: linear-gradient(125deg, rgba(255,255,255,.52), transparent 38%, rgba(96,165,250,.08));
-  transition: opacity 350ms ease;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.48), transparent);
+  transform: rotate(24deg);
+  transition: left 650ms cubic-bezier(.2,.75,.25,1), opacity 250ms ease;
+}
+#subjects .landing-interactive-card:nth-child(2) { animation-delay: 90ms; }
+#subjects .landing-interactive-card:nth-child(3) { animation-delay: 180ms; }
+#subjects .landing-interactive-card:nth-child(4) { animation-delay: 270ms; }
+#features .landing-interactive-card:nth-child(2) { animation-delay: 100ms; }
+#features .landing-interactive-card:nth-child(3) { animation-delay: 200ms; }
+#portals .landing-interactive-card:nth-child(2) { animation-delay: 140ms; }
+.landing-interactive-card .h-12,
+.landing-interactive-card .h-10 {
+  transition: transform 380ms cubic-bezier(.2,.8,.2,1), box-shadow 380ms ease;
 }
 @media (hover: hover) and (pointer: fine) {
   .landing-interactive-card:hover {
-    transform: translateY(-8px) scale(1.012);
-    box-shadow: 0 22px 48px rgba(15, 23, 42, .12);
+    transform: perspective(900px) translateY(-11px) rotateX(2deg) scale(1.018);
+    box-shadow: 0 24px 52px rgba(15,23,42,.16), 0 0 0 1px rgba(96,165,250,.18);
   }
-  .landing-interactive-card:hover::after { opacity: 1; }
-  .landing-interactive-card:hover > div:first-child > div:first-child > span:first-child {
-    transform: translateY(-2px);
-  }
-}
-.landing-interactive-card:focus-within {
-  outline: 3px solid rgba(59,130,246,.45);
-  outline-offset: 3px;
-}
-.landing-interactive-card > div:first-child > div:first-child > span:first-child {
-  transition: transform 280ms ease;
-}
-.landing-interactive-card .h-12,
-.landing-interactive-card .h-10 {
-  transition: transform 360ms cubic-bezier(.2,.8,.2,1), box-shadow 360ms ease;
-}
-@media (hover: hover) and (pointer: fine) {
+  .landing-interactive-card:hover::before { opacity: 1; }
+  .landing-interactive-card:hover::after { left: 130%; opacity: 1; }
   .landing-interactive-card:hover .h-12,
   .landing-interactive-card:hover .h-10 {
-    transform: translateY(-3px) rotate(-5deg) scale(1.07);
-    box-shadow: 0 10px 24px rgba(37,99,235,.18);
+    transform: translateY(-5px) rotate(-8deg) scale(1.12);
+    box-shadow: 0 12px 25px rgba(37,99,235,.24);
   }
+  .landing-interactive-card:hover h3 { transform: translateX(3px); }
 }
-.reveal-on-scroll {
-  animation: landing-card-enter both;
-  animation-timeline: view();
-  animation-range: entry 0% entry 32%;
+.landing-interactive-card h3 {
+  transition: transform 300ms ease;
 }
-#subjects .landing-interactive-card:nth-child(2) { animation-delay: 70ms; }
-#subjects .landing-interactive-card:nth-child(3) { animation-delay: 140ms; }
-#subjects .landing-interactive-card:nth-child(4) { animation-delay: 210ms; }
-#features .landing-interactive-card:nth-child(2) { animation-delay: 90ms; }
-#features .landing-interactive-card:nth-child(3) { animation-delay: 180ms; }
-#portals .landing-interactive-card:nth-child(2) { animation-delay: 120ms; }
+.landing-interactive-card:focus-within {
+  outline: 3px solid rgba(59,130,246,.55);
+  outline-offset: 4px;
+}
 @keyframes landing-card-enter {
-  from { opacity: .25; translate: 0 26px; filter: blur(3px); }
-  to { opacity: 1; translate: 0 0; filter: blur(0); }
+  0% { opacity: 0; transform: translate3d(0, 30px, 0) scale(.975); filter: blur(5px); }
+  70% { opacity: 1; }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); filter: blur(0); }
 }
 @media (prefers-reduced-motion: reduce) {
   .landing-interactive-card,
+  .landing-interactive-card::before,
   .landing-interactive-card::after,
+  .landing-interactive-card h3,
   .landing-interactive-card .h-12,
   .landing-interactive-card .h-10 {
     transition: none !important;
