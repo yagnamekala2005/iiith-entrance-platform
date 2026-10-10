@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getSafeInternalRedirect } from "@/lib/auth/redirect";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
@@ -6,6 +7,7 @@ export async function GET(request: Request) {
   const { searchParams } = callbackUrl;
   const code = searchParams.get("code");
   const providerError = searchParams.get("error");
+  const requestedDestination = searchParams.get("next");
   const loginWithError = (error: string) =>
     NextResponse.redirect(new URL(`/login?authError=${error}`, callbackUrl.origin));
 
@@ -82,9 +84,13 @@ export async function GET(request: Request) {
       return loginWithError("role_lookup_failed");
     }
 
-    return NextResponse.redirect(
-      new URL(adminMembership ? "/admin" : "/dashboard", callbackUrl.origin),
+    const fallbackDestination = adminMembership ? "/admin" : "/dashboard";
+    const destination = getSafeInternalRedirect(
+      requestedDestination,
+      fallbackDestination,
     );
+
+    return NextResponse.redirect(new URL(destination, callbackUrl.origin));
   } catch (error) {
     console.error("OAuth callback failed:", error);
     return loginWithError("oauth_failed");
