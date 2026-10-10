@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { InteractiveExamPreview } from "@/components/landing/interactive-preview";
+import { ImmersiveExamScene } from "@/components/landing/immersive-3d-scene";
 
 export default function Home() {
   return (
@@ -66,24 +66,24 @@ export default function Home() {
       </header>
 
       {/* Hero Section with Interactive Mockup */}
-      <section className="relative overflow-hidden pt-12 pb-16 lg:pt-20 lg:pb-24 bg-gradient-to-b from-white via-slate-50 to-[#f8fafc]">
+      <section className="relative overflow-hidden pt-12 pb-16 lg:pt-20 lg:pb-24 bg-[#070b18] text-white">
         {/* Subtle decorative grid */}
-        <div className="absolute inset-0 bg-grid-pattern opacity-60 pointer-events-none"></div>
+        <div className="absolute inset-0 bg-grid-pattern opacity-20 pointer-events-none"></div><div className="absolute -top-48 right-0 h-[34rem] w-[34rem] rounded-full bg-blue-600/10 blur-3xl pointer-events-none"></div>
 
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid gap-12 lg:grid-cols-12 lg:items-center">
             {/* Left Column: Headlines & Call to Action */}
             <div className="lg:col-span-6 space-y-6">
-              <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50/80 px-3.5 py-1 text-xs font-bold text-blue-900 shadow-xs">
+              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3.5 py-1 text-xs font-bold text-cyan-100 shadow-xs">
                 <span>🎯</span>
                 <span>Authentic IIITH Exam Simulation Platform</span>
               </div>
 
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-slate-950 leading-[1.08]">
-                Ace UGEE & SPEC with <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-800">Real-Time Mock Tests.</span>
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-[1.08]">
+                Ace UGEE & SPEC with <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-blue-400 to-violet-400">Real-Time Mock Tests.</span>
               </h1>
 
-              <p className="text-base sm:text-lg leading-relaxed text-slate-600 font-normal max-w-xl">
+              <p className="text-base sm:text-lg leading-relaxed text-slate-300 font-normal max-w-xl">
                 Experience real Computer-Based Tests (CBT) featuring live countdown timers, 4 core subjects (Maths, Physics, Chemistry, Aptitude), auto-submission on timer expiry, and in-depth performance scorecards with attempted vs. unattempted metrics.
               </p>
 
@@ -112,10 +112,10 @@ export default function Home() {
               </div>
 
               {/* Trust Badges */}
-              <div className="pt-4 grid grid-cols-3 gap-4 border-t border-slate-200 max-w-md">
+              <div className="pt-4 grid grid-cols-3 gap-4 border-t border-white/10 max-w-md">
                 <div>
-                  <p className="text-2xl font-black text-slate-900">4</p>
-                  <p className="text-xs font-semibold text-slate-500">Core Subjects</p>
+                  <p className="text-2xl font-black text-white">4</p>
+                  <p className="text-xs font-semibold text-slate-400">Core Subjects</p>
                 </div>
                 <div>
                   <p className="text-2xl font-black text-slate-900">3 hrs</p>
@@ -130,7 +130,7 @@ export default function Home() {
 
             {/* Right Column: Live Interactive Exam Preview */}
             <div className="lg:col-span-6">
-              <InteractiveExamPreview />
+              <ImmersiveExamScene />
             </div>
           </div>
         </div>
