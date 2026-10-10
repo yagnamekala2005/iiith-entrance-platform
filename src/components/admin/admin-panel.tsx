@@ -1145,6 +1145,8 @@ export function AdminPanel({
   // Save Topic Rich Learning Content to Supabase
   const handleSaveTopicContent = async () => {
     if (!editingTopic) return;
+    setLearningErrorMessage("");
+    setLearningSuccessMessage("");
     setIsSavingTopicContent(true);
 
     const validResources = editResources.filter(
@@ -1161,6 +1163,7 @@ export function AdminPanel({
     setIsSavingTopicContent(false);
 
     if (res.success && res.topic) {
+      setLearningErrorMessage("");
       setAdminTopics((prev) =>
         prev.map((t) => (t.id === editingTopic.id ? { ...t, ...res.topic } : t))
       );
