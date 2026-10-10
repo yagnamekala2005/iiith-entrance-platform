@@ -20,6 +20,7 @@ export default async function ResetPasswordPage({
     }
   }
 
-  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  const queryString = query.toString();
+  const suffix = queryString ? `?${queryString}` : "";
   redirect(`/update-password${suffix}`);
 }
