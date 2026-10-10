@@ -276,7 +276,7 @@ function LoginFormContent() {
       </div>
     </main>
   );
-
+}
 
 export default function LoginPage() {
   return (
