@@ -5,7 +5,7 @@ import { FormEvent, useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { GoogleOAuthButton } from "@/components/auth/google-oauth-button";
-import { ImmersiveExamScene } from "@/components/landing/immersive-3d-scene";
+import { LoginMotionScene } from "@/components/landing/login-motion-scene";
 
 function LoginFormContent() {
   const router = useRouter();
@@ -114,7 +114,7 @@ function LoginFormContent() {
             Prepare with focus. Practice with purpose. Turn every mock test into a clearer path forward.
           </p>
           <div className="login-scene-wrap mt-7 sm:mt-9">
-            <ImmersiveExamScene />
+            <LoginMotionScene />
           </div>
           <div className="mt-5 hidden items-center gap-5 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 sm:flex">
             <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-cyan-300" />Focused practice</span>
