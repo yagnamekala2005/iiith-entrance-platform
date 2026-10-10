@@ -8,7 +8,10 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   const providerError = searchParams.get("error");
   const requestedDestination = searchParams.get("next");
-  const isRecoveryFlow = searchParams.get("flow") === "recovery";
+  const isRecoveryFlow =
+    searchParams.get("flow") === "recovery" ||
+    searchParams.get("type") === "recovery" ||
+    searchParams.get("next") === "/update-password";
   const loginWithError = (error: string) =>
     NextResponse.redirect(new URL(`/login?authError=${error}`, callbackUrl.origin));
   const recoveryWithError = () =>
