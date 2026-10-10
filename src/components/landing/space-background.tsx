@@ -24,8 +24,18 @@ export function SpaceBackground() {
     const animate = () => {
       currentX += (targetX - currentX) * 0.045;
       currentY += (targetY - currentY) * 0.045;
-      root.style.setProperty("--mouse-x", currentX.toFixed(4));
-      root.style.setProperty("--mouse-y", currentY.toFixed(4));
+      root.style.setProperty("--parallax-far-x", `${(-currentX * 7).toFixed(2)}px`);
+      root.style.setProperty("--parallax-far-y", `${(-currentY * 6).toFixed(2)}px`);
+      root.style.setProperty("--parallax-near-x", `${(-currentX * 18).toFixed(2)}px`);
+      root.style.setProperty("--parallax-near-y", `${(-currentY * 14).toFixed(2)}px`);
+      root.style.setProperty("--parallax-blue-x", `${(currentX * 32).toFixed(2)}px`);
+      root.style.setProperty("--parallax-blue-y", `${(currentY * 24).toFixed(2)}px`);
+      root.style.setProperty("--parallax-violet-x", `${(-currentX * 38).toFixed(2)}px`);
+      root.style.setProperty("--parallax-violet-y", `${(-currentY * 26).toFixed(2)}px`);
+      root.style.setProperty("--parallax-planet-x", `${(-currentX * 24).toFixed(2)}px`);
+      root.style.setProperty("--parallax-planet-y", `${(-currentY * 18).toFixed(2)}px`);
+      root.style.setProperty("--cursor-glow-x", `${50 + currentX * 30}%`);
+      root.style.setProperty("--cursor-glow-y", `${50 + currentY * 30}%`);
       frame = window.requestAnimationFrame(animate);
     };
 
