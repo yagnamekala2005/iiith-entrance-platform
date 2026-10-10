@@ -1587,67 +1587,41 @@ export async function purgeDuplicateAndOrphanQuestions() {
 }
 
 /**
- * Direct password reset action:
- * Updates the user's password directly in Supabase auth without requiring localhost redirects.
- */
-export async function directResetPasswordAction(email: string, newPassword: string) {
-  try {
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail) {
-      return { success: false, error: "Email address is required." };
-    }
-    if (!newPassword || newPassword.length < 6) {
-      return { success: false, error: "Password must be at least 6 characters long." };
-    }
-
-    const adminClient = createAdminClient();
-    const { data: usersData, error: listErr } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
-
-    if (listErr) {
-      console.error("List users error:", listErr);
-      return { success: false, error: listErr.message };
-    }
-
-    const targetUser = (usersData?.users || []).find(
-      (u) => (u.email || "").trim().toLowerCase() === normalizedEmail
-    );
-
-    if (!targetUser) {
-      return {
-        success: false,
-        error: `No account registered with "${normalizedEmail}". Please make sure you entered the email you used to register.`,
-      };
-    }
-
-    const { error: updateErr } = await adminClient.auth.admin.updateUserById(targetUser.id, {
-      password: newPassword,
-    });
-
-    if (updateErr) {
-      console.error("Update password error in Supabase:", updateErr);
-      return { success: false, error: updateErr.message };
-    }
-
-    return { success: true };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Failed to reset password.";
-    return { success: false, error: msg };
-  }
-}
-
-/**
  * Send password reset email and generate recovery link:
  * Validates the email exists in Supabase, triggers reset password email,
  * and provides a fallback link if Supabase email rate limits are encountered.
  */
 export async function sendPasswordResetEmailAction(email: string, origin: string) {
   try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { success: false, error: "Authentication required." };
+    }
+
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: adminCheckError } = await adminClient
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (adminCheckError || !adminMembership) {
+      if (adminCheckError) {
+        console.error("Password recovery admin authorization check failed:", adminCheckError);
+      }
+      return { success: false, error: "Administrator authorization required." };
+    }
+
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) {
       return { success: false, error: "Please enter your registered email address." };
     }
 
-    const adminClient = createAdminClient();
     const { data: usersData, error: listErr } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
 
     if (listErr) {
@@ -1689,7 +1663,6 @@ export async function sendPasswordResetEmailAction(email: string, origin: string
     }
 
     // 2. Trigger standard Supabase reset password email
-    const supabase = await createClient();
     const { error: emailErr } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
       redirectTo: redirectUrl,
     });
