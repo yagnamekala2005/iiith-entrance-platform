@@ -26,7 +26,7 @@ function ForgotPasswordForm() {
     try {
       const supabase = createClient();
       const configuredOrigin = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-      const appOrigin = (configuredOrigin || window.location.origin).replace(/\\/$/, "");
+      const appOrigin = (configuredOrigin || window.location.origin).replace(/\/$/, "");
       const callbackUrl = new URL("/auth/callback", appOrigin);
       callbackUrl.searchParams.set("flow", "recovery");
       callbackUrl.searchParams.set("next", "/update-password");
