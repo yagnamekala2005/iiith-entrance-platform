@@ -211,12 +211,35 @@ export interface CreatePracticeQuestionInput {
  */
 export async function sendPasswordResetEmailAction(email: string, origin: string) {
   try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { success: false, error: "Authentication required." };
+    }
+
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: adminCheckError } = await adminClient
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (adminCheckError || !adminMembership) {
+      if (adminCheckError) {
+        console.error("Password recovery admin authorization check failed:", adminCheckError);
+      }
+      return { success: false, error: "Administrator authorization required." };
+    }
+
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) {
       return { success: false, error: "Please enter your registered email address." };
     }
 
-    const adminClient = createAdminClient();
     const { data: usersData, error: listErr } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
 
     if (listErr) {
@@ -258,7 +281,6 @@ export async function sendPasswordResetEmailAction(email: string, origin: string
     }
 
     // 2. Trigger standard Supabase reset password email
-    const supabase = await createClient();
     const { error: emailErr } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
       redirectTo: redirectUrl,
     });
