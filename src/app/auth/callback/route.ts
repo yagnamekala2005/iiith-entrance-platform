@@ -8,17 +8,24 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   const providerError = searchParams.get("error");
   const requestedDestination = searchParams.get("next");
+  const isRecoveryFlow = searchParams.get("flow") === "recovery";
   const loginWithError = (error: string) =>
     NextResponse.redirect(new URL(`/login?authError=${error}`, callbackUrl.origin));
+  const recoveryWithError = () =>
+    NextResponse.redirect(
+      new URL("/forgot-password?recoveryError=1", callbackUrl.origin),
+    );
 
   if (providerError) {
+    if (isRecoveryFlow) return recoveryWithError();
+
     return loginWithError(
       providerError === "access_denied" ? "oauth_cancelled" : "oauth_failed",
     );
   }
 
   if (!code) {
-    return loginWithError("oauth_failed");
+    return isRecoveryFlow ? recoveryWithError() : loginWithError("oauth_failed");
   }
 
   try {
@@ -27,8 +34,24 @@ export async function GET(request: Request) {
       await supabase.auth.exchangeCodeForSession(code);
 
     if (exchangeError || !data.user) {
-      if (exchangeError) console.error("OAuth code exchange failed:", exchangeError);
-      return loginWithError("oauth_failed");
+      if (exchangeError) {
+        console.error(
+          isRecoveryFlow
+            ? "Password recovery code exchange failed:"
+            : "OAuth code exchange failed:",
+          exchangeError,
+        );
+      }
+      return isRecoveryFlow ? recoveryWithError() : loginWithError("oauth_failed");
+    }
+
+    // Recovery links use the same PKCE callback as OAuth, but must not run
+    // the Google profile/role provisioning flow or redirect to a dashboard.
+    // The update-password page verifies the session before allowing a change.
+    if (isRecoveryFlow) {
+      return NextResponse.redirect(
+        new URL("/update-password?recovery=1", callbackUrl.origin),
+      );
     }
 
     const user = data.user;
@@ -92,7 +115,10 @@ export async function GET(request: Request) {
 
     return NextResponse.redirect(new URL(destination, callbackUrl.origin));
   } catch (error) {
-    console.error("OAuth callback failed:", error);
-    return loginWithError("oauth_failed");
+    console.error(
+      isRecoveryFlow ? "Password recovery callback failed:" : "OAuth callback failed:",
+      error,
+    );
+    return isRecoveryFlow ? recoveryWithError() : loginWithError("oauth_failed");
   }
 }
