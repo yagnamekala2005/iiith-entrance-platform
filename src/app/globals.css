@@ -850,3 +850,160 @@ input, textarea, select {
 @media (prefers-reduced-motion: reduce) {
   .landing-page::before, .landing-page::after { animation: none !important; }
 }
+
+/* Interactive parallax space layer: stars, nebulae and planet react to pointer position */
+.landing-page { background: #030712 !important; }
+.landing-page > .space-background {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+  background:
+    radial-gradient(ellipse at 50% 45%, rgba(10,22,53,.34), transparent 62%),
+    linear-gradient(180deg, #02040d 0%, #070d20 52%, #030712 100%);
+  --mouse-x: 0;
+  --mouse-y: 0;
+}
+.landing-page > header,
+.landing-page > section,
+.landing-page > footer,
+.landing-page > main {
+  position: relative;
+  z-index: 1;
+}
+.space-background-stars {
+  position: absolute;
+  inset: -12%;
+  will-change: transform;
+  background-repeat: repeat;
+}
+.space-background-stars-far {
+  opacity: .68;
+  background-image:
+    radial-gradient(1px 1px at 8% 17%, #fff 99%, transparent),
+    radial-gradient(1px 1px at 34% 61%, #c7d2fe 99%, transparent),
+    radial-gradient(1px 1px at 67% 29%, #fff 99%, transparent),
+    radial-gradient(1.5px 1.5px at 87% 76%, #bae6fd 99%, transparent),
+    radial-gradient(1px 1px at 54% 91%, #fff 99%, transparent);
+  background-size: 270px 250px, 340px 310px, 390px 290px, 460px 390px, 520px 420px;
+  animation: space-star-drift-far 95s linear infinite;
+  transform: translate3d(calc(var(--mouse-x) * -7px), calc(var(--mouse-y) * -6px), 0);
+}
+.space-background-stars-near {
+  opacity: .82;
+  background-image:
+    radial-gradient(1.5px 1.5px at 15% 22%, #fff 99%, transparent),
+    radial-gradient(2px 2px at 72% 55%, #a5f3fc 99%, transparent),
+    radial-gradient(1.5px 1.5px at 45% 73%, #c4b5fd 99%, transparent);
+  background-size: 490px 410px, 620px 530px, 700px 570px;
+  animation: space-star-drift-near 58s linear infinite;
+  transform: translate3d(calc(var(--mouse-x) * -18px), calc(var(--mouse-y) * -14px), 0);
+}
+.space-background-nebula {
+  position: absolute;
+  width: min(62vw, 760px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  filter: blur(68px);
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+.space-background-nebula-blue {
+  top: -22%;
+  left: -12%;
+  opacity: .25;
+  background: radial-gradient(circle, rgba(37,99,235,.7), rgba(30,64,175,.18) 42%, transparent 70%);
+  animation: space-nebula-float-blue 24s ease-in-out infinite alternate;
+  transform: translate3d(calc(var(--mouse-x) * 32px), calc(var(--mouse-y) * 24px), 0);
+}
+.space-background-nebula-violet {
+  right: -20%;
+  top: 24%;
+  opacity: .21;
+  background: radial-gradient(circle, rgba(124,58,237,.72), rgba(79,70,229,.15) 45%, transparent 72%);
+  animation: space-nebula-float-violet 30s ease-in-out infinite alternate;
+  transform: translate3d(calc(var(--mouse-x) * -38px), calc(var(--mouse-y) * -26px), 0);
+}
+.space-background-planet {
+  position: absolute;
+  width: clamp(150px, 22vw, 340px);
+  aspect-ratio: 1;
+  top: 34%;
+  left: 70%;
+  border-radius: 50%;
+  opacity: .36;
+  background:
+    radial-gradient(ellipse at 30% 24%, rgba(191,219,254,.75), transparent 8%),
+    radial-gradient(circle at 32% 28%, #1d4ed8 0%, #172554 30%, #080d20 67%, #02040c 78%);
+  box-shadow: inset -32px -12px 55px rgba(0,0,0,.85), 0 0 75px rgba(59,130,246,.2);
+  will-change: transform;
+  animation: space-planet-hover 15s ease-in-out infinite alternate;
+  transform: translate3d(calc(var(--mouse-x) * -24px), calc(var(--mouse-y) * -18px), 0);
+}
+.space-background-planet-ring {
+  position: absolute;
+  inset: 22% -28%;
+  border: 1px solid rgba(125,211,252,.45);
+  border-radius: 50%;
+  transform: rotate(-23deg) scaleY(.3);
+  box-shadow: 0 0 18px rgba(56,189,248,.12);
+}
+.space-background-planet-shine {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(120deg, rgba(125,211,252,.12), transparent 42%, rgba(2,6,23,.7) 78%);
+}
+.space-background-comet {
+  position: absolute;
+  width: 100px;
+  height: 1px;
+  opacity: 0;
+  background: linear-gradient(90deg, transparent, rgba(186,230,253,.9), transparent);
+  box-shadow: 0 0 9px rgba(125,211,252,.6);
+  transform: rotate(-32deg);
+}
+.space-background-comet-one {
+  top: 23%; left: 18%;
+  animation: space-comet-flight 11s linear infinite;
+  animation-delay: 2s;
+}
+.space-background-comet-two {
+  top: 62%; left: 62%;
+  animation: space-comet-flight 15s linear infinite;
+  animation-delay: 7s;
+}
+.space-background-cursor-glow {
+  position: absolute;
+  width: 360px;
+  height: 360px;
+  left: calc(50% + var(--mouse-x) * 30%);
+  top: calc(50% + var(--mouse-y) * 30%);
+  border-radius: 50%;
+  opacity: .2;
+  background: radial-gradient(circle, rgba(56,189,248,.16), rgba(99,102,241,.06) 40%, transparent 70%);
+  transform: translate(-50%, -50%);
+  will-change: left, top;
+}
+@keyframes space-star-drift-far { from { background-position: 0 0; } to { background-position: 0 700px; } }
+@keyframes space-star-drift-near { from { background-position: 0 0; } to { background-position: 120px 900px; } }
+@keyframes space-nebula-float-blue { from { margin-top: -2%; } to { margin-top: 5%; } }
+@keyframes space-nebula-float-violet { from { margin-top: 4%; } to { margin-top: -3%; } }
+@keyframes space-planet-hover { from { margin-top: -1%; } to { margin-top: 3%; } }
+@keyframes space-comet-flight {
+  0%, 76% { opacity: 0; transform: translate3d(-20vw, -8vh, 0) rotate(-32deg); }
+  79% { opacity: .8; }
+  91% { opacity: 0; transform: translate3d(70vw, 32vh, 0) rotate(-32deg); }
+  100% { opacity: 0; }
+}
+@media (max-width: 700px) {
+ .space-background-planet { left: 56%; top: 42%; opacity: .22; }
+ .space-background-nebula { filter: blur(48px); }
+ .space-background-cursor-glow { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+ .space-background-stars, .space-background-nebula, .space-background-planet, .space-background-comet { animation: none !important; }
+ .space-background-stars, .space-background-nebula, .space-background-planet { transform: none !important; }
+}
