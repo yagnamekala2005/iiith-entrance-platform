@@ -1211,17 +1211,21 @@ export async function updateTopicLearningContent(
 
     if (!user) return { success: false, error: "Authentication required." };
 
-    const { data: adminMembership } = await supabase
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: membershipError } = await adminClient
       .from("admin_users")
       .select("user_id")
       .eq("user_id", user.id)
       .maybeSingle();
 
+    if (membershipError) {
+      console.error("Failed to verify admin membership:", membershipError);
+      return { success: false, error: "Unable to verify admin authorization." };
+    }
+
     if (!adminMembership) {
       return { success: false, error: "Admin authorization required." };
     }
-
-    const adminClient = createAdminClient();
 
     const payload = JSON.stringify({
       summary: content.summary || "",
