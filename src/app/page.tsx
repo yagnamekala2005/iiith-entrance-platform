@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ImmersiveExamScene } from "@/components/landing/immersive-3d-scene";
+import { LoginMotionScene } from "@/components/landing/login-motion-scene";
 
 export default function Home() {
   return (
@@ -130,7 +130,7 @@ export default function Home() {
 
             {/* Right Column: Live Interactive Exam Preview */}
             <div className="lg:col-span-6">
-              <ImmersiveExamScene />
+              <LoginMotionScene />
             </div>
           </div>
         </div>
