@@ -153,7 +153,7 @@ export default function Home() {
 
           <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {/* Mathematics */}
-            <div className="rounded-2xl border border-blue-200 bg-gradient-to-b from-blue-50/50 to-white p-6 shadow-xs transition-all hover:shadow-md hover:border-blue-300">
+            <div className="rounded-2xl border border-blue-200 bg-gradient-to-b from-blue-50/50 to-white p-6 shadow-xs transition-all hover:shadow-md hover:border-blue-300 landing-interactive-card reveal-on-scroll">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-2xl text-white shadow-md shadow-blue-500/20">
                 📐
               </div>
@@ -168,7 +168,7 @@ export default function Home() {
             </div>
 
             {/* Physics */}
-            <div className="rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/50 to-white p-6 shadow-xs transition-all hover:shadow-md hover:border-amber-300">
+            <div className="rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/50 to-white p-6 shadow-xs transition-all hover:shadow-md hover:border-amber-300 landing-interactive-card reveal-on-scroll">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500 text-2xl text-white shadow-md shadow-amber-500/20">
                 ⚡
               </div>
@@ -183,7 +183,7 @@ export default function Home() {
             </div>
 
             {/* Chemistry */}
-            <div className="rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/50 to-white p-6 shadow-xs transition-all hover:shadow-md hover:border-emerald-300">
+            <div className="rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/50 to-white p-6 shadow-xs transition-all hover:shadow-md hover:border-emerald-300 landing-interactive-card reveal-on-scroll">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-600 text-2xl text-white shadow-md shadow-emerald-500/20">
                 🧪
               </div>
@@ -198,7 +198,7 @@ export default function Home() {
             </div>
 
             {/* Aptitude & Reasoning */}
-            <div className="rounded-2xl border border-purple-200 bg-gradient-to-b from-purple-50/50 to-white p-6 shadow-xs transition-all hover:shadow-md hover:border-purple-300">
+            <div className="rounded-2xl border border-purple-200 bg-gradient-to-b from-purple-50/50 to-white p-6 shadow-xs transition-all hover:shadow-md hover:border-purple-300 landing-interactive-card reveal-on-scroll">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-600 text-2xl text-white shadow-md shadow-purple-500/20">
                 🧠
               </div>
@@ -231,7 +231,7 @@ export default function Home() {
           </div>
 
           <div className="mt-12 grid gap-6 md:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs landing-interactive-card reveal-on-scroll">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-700 font-bold text-lg">
                 ⏱️
               </div>
@@ -241,7 +241,7 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs landing-interactive-card reveal-on-scroll">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 font-bold text-lg">
                 📊
               </div>
@@ -251,7 +251,7 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs landing-interactive-card reveal-on-scroll">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100 text-purple-700 font-bold text-lg">
                 💡
               </div>
@@ -281,7 +281,7 @@ export default function Home() {
 
           <div className="grid gap-8 md:grid-cols-2">
             {/* Student Portal Card */}
-            <div className="rounded-2xl border-2 border-blue-200 bg-gradient-to-b from-blue-50/40 via-white to-white p-6 sm:p-8 shadow-sm flex flex-col justify-between">
+            <div className="rounded-2xl border-2 border-blue-200 bg-gradient-to-b from-blue-50/40 via-white to-white p-6 sm:p-8 shadow-sm flex flex-col justify-between landing-interactive-card reveal-on-scroll">
               <div>
                 <div className="flex items-center justify-between">
                   <span className="rounded-lg bg-blue-100 px-3 py-1 text-xs font-bold text-blue-800">
@@ -327,7 +327,7 @@ export default function Home() {
             </div>
 
             {/* Admin Portal Card */}
-            <div className="rounded-2xl border-2 border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950 p-6 sm:p-8 shadow-xl text-white flex flex-col justify-between">
+            <div className="rounded-2xl border-2 border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950 p-6 sm:p-8 shadow-xl text-white flex flex-col justify-between landing-interactive-card reveal-on-scroll">
               <div>
                 <div className="flex items-center justify-between">
                   <span className="rounded-lg bg-teal-400 px-3 py-1 text-xs font-black text-slate-950 uppercase tracking-wider">
