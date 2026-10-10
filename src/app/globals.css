@@ -699,3 +699,39 @@ input, textarea, select {
 .landing-page .landing-interactive-card {
   box-shadow: 0 10px 28px rgba(30,58,95,.075);
 }
+
+/* Continuous ambient card motion: independent of scrolling, clicking, or hovering */
+.landing-page .reveal-on-scroll { animation: none !important; animation-timeline: auto !important; opacity: 1 !important; filter: none !important; }
+.landing-page .landing-interactive-card {
+  animation: card-idle-float 5.8s ease-in-out infinite !important;
+  transition: transform 380ms cubic-bezier(.2,.8,.2,1), box-shadow 380ms ease;
+}
+.landing-page #subjects .landing-interactive-card:nth-child(2),
+.landing-page #features .landing-interactive-card:nth-child(2) { animation-delay: .7s !important; }
+.landing-page #subjects .landing-interactive-card:nth-child(3),
+.landing-page #features .landing-interactive-card:nth-child(3) { animation-delay: 1.4s !important; }
+.landing-page #subjects .landing-interactive-card:nth-child(4) { animation-delay: 2.1s !important; }
+.landing-page #portals .landing-interactive-card:nth-child(2) { animation-delay: 1s !important; }
+.landing-page .landing-interactive-card::before {
+  opacity: .35;
+  animation: card-ambient-glow 6s ease-in-out infinite alternate;
+}
+.landing-page .landing-interactive-card::after {
+  left: -80%;
+  opacity: .28;
+  animation: card-light-sweep 7s ease-in-out infinite;
+}
+.landing-page .landing-interactive-card .h-12,
+.landing-page .landing-interactive-card .h-10 {
+  animation: icon-idle-float 3.8s ease-in-out infinite;
+}
+@keyframes card-idle-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes card-ambient-glow { from { opacity: .18; } to { opacity: .62; } }
+@keyframes card-light-sweep { 0%,32% { left:-80%; opacity:0; } 45% { opacity:.28; } 72%,100% { left:140%; opacity:0; } }
+@keyframes icon-idle-float { 0%,100% { transform:translateY(0) rotate(0) scale(1); } 50% { transform:translateY(-3px) rotate(-5deg) scale(1.06); } }
+@media (hover:hover) and (pointer:fine) {
+ .landing-page .landing-interactive-card:hover { animation-play-state:paused !important; transform:translateY(-10px) scale(1.02) !important; box-shadow:0 24px 55px rgba(30,58,95,.18); }
+}
+@media (prefers-reduced-motion:reduce) {
+ .landing-page .landing-interactive-card, .landing-page .landing-interactive-card::before, .landing-page .landing-interactive-card::after, .landing-page .landing-interactive-card .h-12, .landing-page .landing-interactive-card .h-10 { animation:none !important; transition:none !important; transform:none !important; }
+}
