@@ -73,14 +73,7 @@ export default async function DashboardPage() {
       <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-6">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="rounded-md bg-blue-50 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-blue-800 border border-blue-200">
-                Student Preparation Center
-              </span>
-              <span className="text-xs text-slate-400">&bull;</span>
-              <span className="text-xs text-slate-500 font-medium">{user.email}</span>
-            </div>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
               IIITH UGEE & SPEC Mock Test Platform
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
