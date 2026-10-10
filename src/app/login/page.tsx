@@ -5,6 +5,7 @@ import { FormEvent, useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { GoogleOAuthButton } from "@/components/auth/google-oauth-button";
+import { ImmersiveExamScene } from "@/components/landing/immersive-3d-scene";
 
 function LoginFormContent() {
   const router = useRouter();
@@ -94,95 +95,112 @@ function LoginFormContent() {
   const isAdminTab = role === "admin";
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 flex items-center justify-center p-4 sm:p-6 lg:p-8 font-sans selection:bg-blue-600 selection:text-white relative overflow-x-hidden w-full max-w-full">
-      {/* Background glow */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 h-96 w-96 rounded-full bg-blue-600/10 blur-[100px] pointer-events-none"></div>
+    <main className="login-experience relative min-h-screen overflow-hidden bg-[#050816] text-white">
+      <div className="login-ambient login-ambient-blue" aria-hidden="true" />
+      <div className="login-ambient login-ambient-violet" aria-hidden="true" />
+      <div className="login-grid-overlay" aria-hidden="true" />
 
-      <div className="relative w-full max-w-md">
-        {/* Back Link */}
-        <div className="mb-4">
-          <button
-            type="button"
-            onClick={() => {
-              if (typeof window !== "undefined" && window.history.length > 1) {
-                router.back();
-              } else {
-                router.push("/");
-              }
-            }}
-            className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-colors active:scale-95"
-            title="Return to previous page"
-          >
-            <span>&larr;</span>
-            <span>Back to Previous Page</span>
-          </button>
-        </div>
+      <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-[1440px] grid-cols-1 items-center gap-8 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(390px,0.9fr)] lg:gap-12 lg:px-12 lg:py-10 xl:gap-16 xl:px-16">
+        <section className="login-visual-panel flex min-w-0 flex-col justify-center">
+          <div className="mb-5 flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.24em] text-cyan-200/80 sm:text-xs">
+            <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_16px_rgba(103,232,249,.95)]" />
+            IIITH ENTRANCE PREPARATION
+          </div>
+          <h2 className="max-w-2xl text-3xl font-black leading-[1.08] tracking-tight sm:text-4xl lg:text-5xl xl:text-6xl">
+            Your next chapter
+            <span className="login-gradient-text block">starts with one attempt.</span>
+          </h2>
+          <p className="mt-4 max-w-xl text-sm leading-7 text-slate-300/80 sm:text-base">
+            Prepare with focus. Practice with purpose. Turn every mock test into a clearer path forward.
+          </p>
+          <div className="login-scene-wrap mt-7 sm:mt-9">
+            <ImmersiveExamScene />
+          </div>
+          <div className="mt-5 hidden items-center gap-5 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 sm:flex">
+            <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-cyan-300" />Focused practice</span>
+            <span className="h-3 w-px bg-white/15" />
+            <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-violet-300" />Progress that matters</span>
+          </div>
+        </section>
 
-        <div className="overflow-hidden rounded-2xl border border-slate-800 bg-white shadow-2xl">
-          {/* Header Area based on Role */}
-          <div className={`p-6 sm:p-8 pb-0 ${isAdminTab ? "bg-slate-900 text-white pb-6" : ""}`}>
-            <div className="flex items-center justify-between">
-              <span
-                className={`rounded-md px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${
-                  isAdminTab
-                    ? "bg-blue-600 text-white shadow-xs"
-                    : "bg-blue-50 text-blue-800 border border-blue-200"
-                }`}
+        <section className="mx-auto w-full max-w-[480px] min-w-0">
+          <div className="mb-5 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== "undefined" && window.history.length > 1) {
+                  router.back();
+                } else {
+                  router.push("/");
+                }
+              }}
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-300 transition hover:border-cyan-300/40 hover:bg-white/[0.08] hover:text-white active:scale-95"
+              title="Return to previous page"
+            >
+              <span aria-hidden="true">←</span>
+              Back
+            </button>
+            {!isAdminTab ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setRole("admin");
+                  setMessage("");
+                }}
+                className="text-xs font-bold text-cyan-200 transition hover:text-white"
               >
-                {isAdminTab ? "🛡️ ADMINISTRATOR ACCESS" : "👨‍🎓 STUDENT ENTRANCE PORTAL"}
-              </span>
-
-              {/* Discreet Switcher Link - only visible from student portal */}
-              {!isAdminTab && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRole("admin");
-                    setMessage("");
-                  }}
-                  className="text-xs font-bold text-slate-500 hover:text-blue-700 transition-colors"
-                >
-                  Admin Portal &rarr;
-                </button>
-              )}
-            </div>
-
-            <h1 className={`mt-3 text-2xl sm:text-3xl font-extrabold tracking-tight ${isAdminTab ? "text-white" : "text-slate-900"}`}>
-              {isAdminTab ? "Admin Portal Sign In" : "Student Sign In"}
-            </h1>
-
-            <p className={`mt-1.5 text-xs leading-relaxed ${isAdminTab ? "text-slate-300" : "text-slate-500"}`}>
-              {isAdminTab
-                ? "Sign in with verified administrator credentials to author questions, verify answer keys, and manage mock tests."
-                : "Sign in to access real-time timed mock tests across Maths, Physics, Chemistry, and Aptitude."}
-            </p>
+                Admin Portal <span aria-hidden="true">↗</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setRole("student");
+                  setMessage("");
+                }}
+                className="text-xs font-bold text-cyan-200 transition hover:text-white"
+              >
+                Student Login <span aria-hidden="true">↗</span>
+              </button>
+            )}
           </div>
 
-          {/* Form Area */}
-          <form className="p-6 sm:p-8 pt-4 space-y-5" onSubmit={handleSubmit}>
-
-            {/* Error Message */}
-            {message && (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-xs font-semibold text-rose-800 animate-in fade-in leading-relaxed">
-                {message}
+          <div className="login-card overflow-hidden rounded-[28px] border border-white/10">
+            <div className="login-card-header px-6 pb-6 pt-7 sm:px-8 sm:pt-9">
+              <div className="flex items-center gap-2">
+                <span className="rounded-full border border-cyan-200/20 bg-cyan-200/[0.08] px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100">
+                  {isAdminTab ? "Administrator access" : "Student entrance portal"}
+                </span>
+                <span className="ml-auto hidden h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-sm text-cyan-100 sm:flex" aria-hidden="true">✦</span>
               </div>
-            )}
-
-            <GoogleOAuthButton disabled={loading} />
-            <div className="flex items-center gap-3" aria-hidden="true">
-              <span className="h-px flex-1 bg-slate-200" />
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Or use email
-              </span>
-              <span className="h-px flex-1 bg-slate-200" />
+              <h1 className="mt-5 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
+                {isAdminTab ? "Welcome back, Admin" : "Welcome back"}
+              </h1>
+              <p className="mt-2 text-xs leading-6 text-slate-300/75 sm:text-sm">
+                {isAdminTab
+                  ? "Sign in with verified administrator credentials to manage questions and mock tests."
+                  : "Sign in to continue your preparation and access your mock tests."}
+              </p>
             </div>
 
-            {/* Email Field */}
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700" htmlFor="email">
-                Email Address
-              </label>
-              <div className="mt-1.5 relative">
+            <form className="space-y-5 px-6 pb-7 sm:px-8 sm:pb-9" onSubmit={handleSubmit}>
+              {message && (
+                <div role="alert" className="rounded-xl border border-rose-300/25 bg-rose-400/10 p-3.5 text-xs font-semibold leading-relaxed text-rose-100">
+                  {message}
+                </div>
+              )}
+
+              <GoogleOAuthButton disabled={loading} />
+              <div className="flex items-center gap-3" aria-hidden="true">
+                <span className="h-px flex-1 bg-white/10" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">or use email</span>
+                <span className="h-px flex-1 bg-white/10" />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-300" htmlFor="email">
+                  Email address
+                </label>
                 <input
                   id="email"
                   type="email"
@@ -191,79 +209,74 @@ function LoginFormContent() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder={isAdminTab ? "admin@iiith.ac.in" : "student@example.com"}
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50/50 px-3.5 py-3 text-sm text-slate-900 outline-none focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 transition-all"
+                  className="login-field mt-2 w-full rounded-xl border px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/70 focus:ring-2 focus:ring-cyan-300/10"
                 />
               </div>
-            </div>
 
-            {/* Password Field */}
-            <div>
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700" htmlFor="password">
-                  Password
-                </label>
-                <Link
-                  className="text-xs font-semibold text-blue-700 hover:text-blue-900"
-                  href={email.trim() ? `/forgot-password?email=${encodeURIComponent(email.trim())}` : "/forgot-password"}
-                >
-                  Forgot password?
-                </Link>
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <label className="block text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-300" htmlFor="password">
+                    Password
+                  </label>
+                  <Link
+                    className="text-xs font-semibold text-cyan-200 transition hover:text-white"
+                    href={email.trim() ? `/forgot-password?email=${encodeURIComponent(email.trim())}` : "/forgot-password"}
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+                <div className="relative mt-2">
+                  <input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    minLength={6}
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    className="login-field w-full rounded-xl border px-4 py-3.5 pr-16 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/70 focus:ring-2 focus:ring-cyan-300/10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs font-bold text-slate-400 transition hover:text-white"
+                  >
+                    {showPassword ? "Hide" : "Show"}
+                  </button>
+                </div>
               </div>
 
-              <div className="mt-1.5 relative">
-                <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  required
-                  minLength={6}
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50/50 px-3.5 py-3 pr-12 text-sm text-slate-900 outline-none focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 transition-all"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-600 p-1"
-                >
-                  {showPassword ? "Hide" : "Show"}
-                </button>
-              </div>
-            </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="login-submit w-full rounded-xl px-4 py-4 text-xs font-extrabold uppercase tracking-[0.13em] text-white transition duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loading
+                  ? "Authenticating..."
+                  : isAdminTab
+                  ? "Sign in to Admin Studio  →"
+                  : "Sign in to Dashboard  →"}
+              </button>
 
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className={`w-full rounded-xl py-3.5 text-xs font-bold uppercase tracking-wider text-white shadow-md active:scale-95 disabled:opacity-50 transition-all ${
-                isAdminTab
-                  ? "bg-slate-900 hover:bg-slate-800 shadow-slate-900/20"
-                  : "bg-blue-700 hover:bg-blue-800 shadow-blue-700/25"
-              }`}
-            >
-              {loading
-                ? "Authenticating..."
-                : isAdminTab
-                ? "Sign In to Admin Studio →"
-                : "Sign In to Dashboard →"}
-            </button>
-
-            {/* Student registration link only - Admin creation removed */}
-            {!isAdminTab && (
-              <div className="pt-2 text-center text-xs text-slate-500 border-t border-slate-100">
-                New aspirant?{" "}
-                <Link className="font-bold text-blue-700 hover:text-blue-900" href="/register">
-                  Create a student account &rarr;
-                </Link>
-              </div>
-            )}
-          </form>
-        </div>
+              {!isAdminTab && (
+                <div className="border-t border-white/10 pt-5 text-center text-xs text-slate-400">
+                  New aspirant?{" "}
+                  <Link className="font-bold text-cyan-200 transition hover:text-white" href="/register">
+                    Create a student account <span aria-hidden="true">→</span>
+                  </Link>
+                </div>
+              )}
+            </form>
+          </div>
+          <p className="mt-5 text-center text-[10px] font-medium tracking-wide text-slate-500">
+            YOUR PREPARATION. YOUR PACE. YOUR NEXT MILESTONE.
+          </p>
+        </section>
       </div>
     </main>
   );
-}
+
 
 export default function LoginPage() {
   return (
