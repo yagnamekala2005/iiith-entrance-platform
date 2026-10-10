@@ -735,3 +735,118 @@ input, textarea, select {
 @media (prefers-reduced-motion:reduce) {
  .landing-page .landing-interactive-card, .landing-page .landing-interactive-card::before, .landing-page .landing-interactive-card::after, .landing-page .landing-interactive-card .h-12, .landing-page .landing-interactive-card .h-10 { animation:none !important; transition:none !important; transform:none !important; }
 }
+
+/* Cosmic landing-page atmosphere with autonomous motion */
+.landing-page {
+  position: relative;
+  isolation: isolate;
+  color: #eaf2ff;
+  background: #030712 !important;
+  background-image:
+    radial-gradient(ellipse at 18% 8%, rgba(30,64,175,.32), transparent 35%),
+    radial-gradient(ellipse at 82% 32%, rgba(91,33,182,.20), transparent 34%),
+    radial-gradient(ellipse at 50% 78%, rgba(8,145,178,.12), transparent 42%),
+    linear-gradient(180deg, #030712 0%, #081126 46%, #050b18 100%) !important;
+}
+.landing-page::before,
+.landing-page::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+.landing-page::before {
+  opacity: .72;
+  background-image:
+    radial-gradient(1px 1px at 7% 13%, #fff 99%, transparent),
+    radial-gradient(1px 1px at 19% 67%, #bfdbfe 99%, transparent),
+    radial-gradient(1.5px 1.5px at 32% 28%, #fff 99%, transparent),
+    radial-gradient(1px 1px at 45% 82%, #c4b5fd 99%, transparent),
+    radial-gradient(1px 1px at 61% 18%, #fff 99%, transparent),
+    radial-gradient(1.5px 1.5px at 76% 56%, #bfdbfe 99%, transparent),
+    radial-gradient(1px 1px at 88% 22%, #fff 99%, transparent),
+    radial-gradient(1px 1px at 94% 78%, #a5f3fc 99%, transparent);
+  background-size: 340px 280px, 420px 350px, 510px 400px, 390px 320px, 460px 360px, 550px 430px, 370px 300px, 490px 390px;
+  animation: cosmic-star-drift 90s linear infinite;
+}
+.landing-page::after {
+  opacity: .3;
+  background: radial-gradient(ellipse at 50% 15%, rgba(59,130,246,.17), transparent 48%);
+  animation: cosmic-nebula-pulse 12s ease-in-out infinite alternate;
+}
+@keyframes cosmic-star-drift {
+  from { background-position: 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0; }
+  to { background-position: 120px 600px, -160px 500px, 200px 700px, -100px 650px, 140px 480px, -180px 720px, 90px 560px, -120px 680px; }
+}
+@keyframes cosmic-nebula-pulse { from { opacity: .18; transform: scale(1); } to { opacity: .42; transform: scale(1.08); } }
+.landing-page > header {
+  background: rgba(3,7,18,.82) !important;
+  border-color: rgba(148,163,184,.18) !important;
+  box-shadow: 0 8px 35px rgba(0,0,0,.22) !important;
+}
+.landing-page header .text-slate-950,
+.landing-page header .text-slate-700,
+.landing-page header .text-slate-600 { color: #e2e8f0 !important; }
+.landing-page header a.border-slate-300 {
+  color: #e2e8f0 !important;
+  background: rgba(15,23,42,.72) !important;
+  border-color: rgba(148,163,184,.35) !important;
+}
+.landing-page .landing-hero {
+  color: #f8fafc;
+  background: transparent !important;
+  border-color: rgba(148,163,184,.16) !important;
+}
+.landing-page .landing-hero h1,
+.landing-page .landing-hero .text-slate-950 { color: #f8fafc !important; }
+.landing-page .landing-hero p.text-slate-600 { color: #cbd5e1 !important; }
+.landing-page .landing-hero .border-t { border-color: rgba(148,163,184,.24) !important; }
+.landing-page .landing-hero .text-slate-500 { color: #a5b4fc !important; }
+.landing-page .landing-hero .bg-white\/80 { background: rgba(15,23,42,.76) !important; border-color: rgba(125,211,252,.28) !important; color: #bae6fd !important; }
+.landing-page #subjects,
+.landing-page #features,
+.landing-page #portals {
+  background: transparent !important;
+  border-color: rgba(148,163,184,.16) !important;
+}
+.landing-page #subjects::before,
+.landing-page #features::before,
+.landing-page #portals::before { background: radial-gradient(ellipse at 50% 0%, rgba(59,130,246,.10), transparent 70%) !important; }
+.landing-page #subjects h2,
+.landing-page #features h2,
+.landing-page #portals h2,
+.landing-page #subjects > div > p,
+.landing-page #features > div > p,
+.landing-page #portals > div > p { color: #e2e8f0 !important; }
+.landing-page .landing-interactive-card {
+  background-color: rgba(12,20,39,.9) !important;
+  background-image: linear-gradient(145deg, rgba(15,23,42,.96), rgba(10,17,33,.94)) !important;
+  border-color: rgba(125,211,252,.24) !important;
+  color: #e5eefc !important;
+  box-shadow: 0 14px 38px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.035) !important;
+  backdrop-filter: blur(14px);
+}
+.landing-page .landing-interactive-card h2,
+.landing-page .landing-interactive-card h3,
+.landing-page .landing-interactive-card .text-slate-900,
+.landing-page .landing-interactive-card .text-slate-800 { color: #f1f5f9 !important; }
+.landing-page .landing-interactive-card .text-slate-600,
+.landing-page .landing-interactive-card .text-slate-500 { color: #b6c4d9 !important; }
+.landing-page .landing-interactive-card .border-slate-200 { border-color: rgba(148,163,184,.22) !important; }
+.landing-page #portals .landing-interactive-card.bg-gradient-to-b.from-blue-50\/40 {
+  background-image: linear-gradient(145deg, rgba(15,30,57,.98), rgba(9,18,36,.96)) !important;
+}
+.landing-page .landing-interactive-card::before {
+  background: radial-gradient(circle at 15% 0%, rgba(56,189,248,.20), transparent 58%) !important;
+}
+.landing-page .landing-interactive-card::after {
+  background: linear-gradient(90deg, transparent, rgba(125,211,252,.20), transparent) !important;
+}
+.landing-page .landing-interactive-card:hover {
+  border-color: rgba(125,211,252,.56) !important;
+  box-shadow: 0 22px 55px rgba(0,0,0,.35), 0 0 28px rgba(59,130,246,.12) !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-page::before, .landing-page::after { animation: none !important; }
+}
