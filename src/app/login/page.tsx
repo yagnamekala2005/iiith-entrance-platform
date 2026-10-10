@@ -5,7 +5,6 @@ import { FormEvent, useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { GoogleOAuthButton } from "@/components/auth/google-oauth-button";
-import { getSafeInternalRedirect } from "@/lib/auth/redirect";
 
 function LoginFormContent() {
   const router = useRouter();
@@ -13,25 +12,12 @@ function LoginFormContent() {
   const initialRole = searchParams.get("role") === "admin" ? "admin" : "student";
   const nextUrl = searchParams.get("next");
   const authError = searchParams.get("authError");
-  const passwordReset = searchParams.get("passwordReset");
-  const isPasswordResetNotice =
-    !authError && ["success", "signout-warning"].includes(passwordReset ?? "");
-  const oauthReturnTo = nextUrl
-    ? getSafeInternalRedirect(nextUrl, "")
-    : null;
 
   const [role, setRole] = useState<"student" | "admin">(initialRole);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState(() => {
-    if (!authError && passwordReset === "success") {
-      return "Your password was updated. Sign in with your new password.";
-    }
-    if (!authError && passwordReset === "signout-warning") {
-      return "Your password was updated, but the recovery session could not be ended. Sign out before continuing.";
-    }
-
     switch (authError) {
       case "oauth_cancelled":
         return "Google sign-in was cancelled. You can try again or use email and password.";
@@ -46,26 +32,6 @@ function LoginFormContent() {
     }
   });
   const [loading, setLoading] = useState(false);
-  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user }, error }) => {
-      if (error && error.name !== "AuthSessionMissingError") {
-        console.error("Login page session lookup failed:", error);
-      }
-      if (active && user?.email) {
-        setCurrentUserEmail(user.email);
-      }
-    }).catch((error: unknown) => {
-      console.error("Login page session lookup failed:", error);
-    });
-
-    return () => {
-      active = false;
-    };
-  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -73,78 +39,55 @@ function LoginFormContent() {
     setMessage("");
 
     const normalizedEmail = email.trim().toLowerCase();
+    const supabase = createClient();
 
-    try {
-      const supabase = createClient();
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password,
-      });
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
 
-      if (error) {
-        const errorMessage = error.message.toLowerCase();
-
-        if (
-          errorMessage.includes("invalid login credentials") ||
-          errorMessage.includes("invalid credentials")
-        ) {
-          setMessage("Incorrect email or password. Please verify your credentials and try again.");
-        } else {
-          console.error("Password sign-in failed:", error);
-          setMessage("We couldn't sign you in. Please try again.");
-        }
-        return;
-      }
-
-      if (!data.user) {
-        setMessage("We couldn't sign you in. Please try again.");
-        return;
-      }
-
-      if (role === "admin") {
-        const { data: adminMembership, error: roleError } = await supabase
-          .from("admin_users")
-          .select("user_id")
-          .eq("user_id", data.user.id)
-          .maybeSingle();
-
-        if (roleError) {
-          console.error("Admin role lookup failed during sign-in:", roleError);
-          const { error: signOutError } = await supabase.auth.signOut();
-          if (signOutError) {
-            console.error("Sign-out after failed admin lookup failed:", signOutError);
-          }
-          setCurrentUserEmail(null);
-          setMessage("We couldn't verify administrator access. Please try again.");
-          return;
-        }
-
-        if (!adminMembership) {
-          const { error: signOutError } = await supabase.auth.signOut();
-          if (signOutError) {
-            console.error("Sign-out after rejected admin login failed:", signOutError);
-            setMessage(
-              "This account doesn't have administrator access, and we couldn't end the session. Please sign out and try again.",
-            );
-            return;
-          }
-          setCurrentUserEmail(null);
-          setMessage(
-            "This account doesn't have administrator access. Sign in through the student portal instead.",
-          );
-          return;
-        }
-      }
-
-      router.replace(
-        getSafeInternalRedirect(nextUrl, role === "admin" ? "/admin" : "/dashboard"),
-      );
-      router.refresh();
-    } catch (error) {
-      console.error("Password sign-in failed:", error);
-      setMessage("We couldn't sign you in. Please check your connection and try again.");
-    } finally {
+    if (error) {
       setLoading(false);
+      const errorMessage = error.message.toLowerCase();
+
+      if (
+        errorMessage.includes("invalid login credentials") ||
+        errorMessage.includes("invalid credentials")
+      ) {
+        setMessage("Incorrect email or password. Please verify your credentials and try again.");
+      } else {
+        setMessage(error.message);
+      }
+      return;
+    }
+
+    if (!data.user) {
+      setLoading(false);
+      setMessage("Login failed. Please try again.");
+      return;
+    }
+
+    // Role-based routing and verification with instant SPA redirect
+    if (role === "admin") {
+      const { data: adminMembership } = await supabase
+        .from("admin_users")
+        .select("user_id")
+        .eq("user_id", data.user.id)
+        .maybeSingle();
+
+      if (!adminMembership) {
+        setLoading(false);
+        setMessage(
+          "⚠️ This account is not enrolled as an administrator. Please toggle to the Student Login tab to access your dashboard."
+        );
+        return;
+      }
+
+      router.push(nextUrl || "/admin");
+      router.refresh();
+    } else {
+      router.push(nextUrl || "/dashboard");
+      router.refresh();
     }
   }
 
@@ -218,62 +161,14 @@ function LoginFormContent() {
           {/* Form Area */}
           <form className="p-6 sm:p-8 pt-4 space-y-5" onSubmit={handleSubmit}>
 
-            {/* Active Session Notice when navigating back while signed in */}
-            {currentUserEmail && (
-              <div className="rounded-xl border border-blue-200 bg-blue-50/90 p-4 text-xs shadow-2xs">
-                <p className="font-semibold text-blue-900 leading-snug">
-                  You are currently logged in as <strong className="font-bold underline">{currentUserEmail}</strong>
-                </p>
-                <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                  <Link
-                    href={isAdminTab ? "/admin" : "/dashboard"}
-                    className="rounded-lg bg-blue-700 px-3 py-1.5 font-bold text-white hover:bg-blue-800 transition-all text-xs shadow-xs"
-                  >
-                    Go to {isAdminTab ? "Admin Studio" : "Student Dashboard"} &rarr;
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      setMessage("");
-                      try {
-                        const supabase = createClient();
-                        const { error } = await supabase.auth.signOut();
-                        if (error) {
-                          console.error("Account switch sign-out failed:", error);
-                          setMessage("We couldn't sign out this account. Please try again.");
-                          return;
-                        }
-                        setCurrentUserEmail(null);
-                      } catch (error) {
-                        console.error("Account switch sign-out failed:", error);
-                        setMessage("We couldn't sign out this account. Please try again.");
-                      }
-                    }}
-                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 font-bold text-slate-700 hover:bg-slate-50 transition-all text-xs"
-                  >
-                    Switch Account
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* Error Message */}
             {message && (
-              <div
-                role={isPasswordResetNotice ? "status" : "alert"}
-                className={`rounded-xl p-3.5 text-xs font-semibold animate-in fade-in leading-relaxed ${
-                  isPasswordResetNotice
-                    ? passwordReset === "success"
-                      ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
-                      : "border border-amber-200 bg-amber-50 text-amber-800"
-                    : "border border-rose-200 bg-rose-50 text-rose-800"
-                }`}
-              >
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-xs font-semibold text-rose-800 animate-in fade-in leading-relaxed">
                 {message}
               </div>
             )}
 
-            <GoogleOAuthButton disabled={loading} returnTo={oauthReturnTo} />
+            <GoogleOAuthButton disabled={loading} />
             <div className="flex items-center gap-3" aria-hidden="true">
               <span className="h-px flex-1 bg-slate-200" />
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -309,7 +204,7 @@ function LoginFormContent() {
                 </label>
                 <Link
                   className="text-xs font-semibold text-blue-700 hover:text-blue-900"
-                  href="/forgot-password"
+                  href={email.trim() ? `/forgot-password?email=${encodeURIComponent(email.trim())}` : "/forgot-password"}
                 >
                   Forgot password?
                 </Link>
