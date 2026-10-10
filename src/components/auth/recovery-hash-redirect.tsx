@@ -7,19 +7,27 @@ export function RecoveryHashRedirect() {
   const router = useRouter();
 
   useEffect(() => {
-    // Supabase may put recovery errors in either the query string or URL
-    // fragment. The fragment is client-only, so inspect both before rendering
-    // the homepage as the destination.
     const queryParams = new URLSearchParams(window.location.search);
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     const getParam = (key: string) => hashParams.get(key) ?? queryParams.get(key);
 
+    const code = queryParams.get("code");
     const error = getParam("error");
     const errorCode = getParam("error_code");
     const description = getParam("error_description");
 
-    // Only redirect Supabase auth errors that indicate a recovery-link failure.
-    // Do not intercept unrelated query parameters on the homepage.
+    // Some Supabase email templates redirect to the site root with a PKCE
+    // code. Send that code through the server callback so it can establish the
+    // recovery session before the Update Password page loads.
+    if (code) {
+      const callback = new URL("/auth/callback", window.location.origin);
+      callback.searchParams.set("flow", "recovery");
+      callback.searchParams.set("next", "/update-password");
+      callback.searchParams.set("code", code);
+      window.location.replace(callback.toString());
+      return;
+    }
+
     const isRecoveryError =
       errorCode === "otp_expired" ||
       (error === "access_denied" &&
