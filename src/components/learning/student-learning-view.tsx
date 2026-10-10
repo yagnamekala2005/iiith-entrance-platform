@@ -455,9 +455,6 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
                   </div>
                 </div>
 
-                <span className={`rounded-md border px-3 py-1 text-xs font-bold uppercase tracking-wider ${meta.badgeClass}`}>
-                  Core Discipline
-                </span>
               </div>
 
               {/* Chapters & Subtopics Grid */}
