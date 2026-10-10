@@ -14,7 +14,13 @@ export function ImmersiveExamScene() {
     const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
     camera.position.set(0, 0, 7.4);
 
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "low-power" });
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "low-power" });
+    } catch {
+      mount.classList.add("immersive-scene-fallback");
+      return;
+    }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -126,7 +132,7 @@ export function ImmersiveExamScene() {
     mount.addEventListener("pointermove", onPointerMove);
 
     const animate = () => {
-      animationId = window.requestAnimationFrame(animate);
+      if (!reduceMotion) animationId = window.requestAnimationFrame(animate);
       frame += 0.008;
       targetX += (pointerY - targetX) * 0.025;
       targetY += (pointerX - targetY) * 0.025;
