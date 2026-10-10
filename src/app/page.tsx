@@ -3,7 +3,7 @@ import { LoginMotionScene } from "@/components/landing/login-motion-scene";
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col font-sans selection:bg-blue-600 selection:text-white relative overflow-x-hidden w-full max-w-full">
+    <div className="landing-page min-h-screen text-slate-900 flex flex-col font-sans selection:bg-blue-600 selection:text-white relative overflow-x-hidden w-full max-w-full">
       {/* Main Navigation */}
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8 py-3.5">
@@ -118,12 +118,12 @@ export default function Home() {
                   <p className="text-xs font-semibold text-slate-400">Core Subjects</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-black text-slate-900">3 hrs</p>
-                  <p className="text-xs font-semibold text-slate-500">Official Pattern</p>
+                  <p className="text-2xl font-black text-white">3 hrs</p>
+                  <p className="text-xs font-semibold text-slate-400">Official Pattern</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-black text-slate-900">100%</p>
-                  <p className="text-xs font-semibold text-slate-500">Verified Solutions</p>
+                  <p className="text-2xl font-black text-white">100%</p>
+                  <p className="text-xs font-semibold text-slate-400">Verified Solutions</p>
                 </div>
               </div>
             </div>
@@ -137,7 +137,7 @@ export default function Home() {
       </section>
 
       {/* 4 Subjects Showcase */}
-      <section id="subjects" className="py-16 sm:py-20 bg-white border-y border-slate-200/80">
+      <section id="subjects" className="landing-section landing-subjects py-16 sm:py-20 border-y">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto">
             <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-blue-700 border border-blue-200">
@@ -216,7 +216,7 @@ export default function Home() {
       </section>
 
       {/* CBT Real-Time Exam Features */}
-      <section id="features" className="py-16 sm:py-20 bg-slate-50">
+      <section id="features" className="landing-section landing-features py-16 sm:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto">
             <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-800 border border-emerald-200">
@@ -265,7 +265,7 @@ export default function Home() {
       </section>
 
       {/* Dual Portals Spotlight: Student vs Admin */}
-      <section id="portals" className="py-16 sm:py-20 bg-white border-t border-slate-200">
+      <section id="portals" className="landing-section landing-portals py-16 sm:py-20 border-t">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-12">
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-700">
