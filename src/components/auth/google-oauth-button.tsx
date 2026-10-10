@@ -5,9 +5,13 @@ import { createClient } from "@/lib/supabase/client";
 
 interface GoogleOAuthButtonProps {
   disabled?: boolean;
+  returnTo?: string | null;
 }
 
-export function GoogleOAuthButton({ disabled = false }: GoogleOAuthButtonProps) {
+export function GoogleOAuthButton({
+  disabled = false,
+  returnTo = null,
+}: GoogleOAuthButtonProps) {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -25,10 +29,15 @@ export function GoogleOAuthButton({ disabled = false }: GoogleOAuthButtonProps) 
 
     try {
       const supabase = createClient();
+      const callbackUrl = new URL("/auth/callback", window.location.origin);
+      if (returnTo) {
+        callbackUrl.searchParams.set("next", returnTo);
+      }
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: callbackUrl.toString(),
         },
       });
 
