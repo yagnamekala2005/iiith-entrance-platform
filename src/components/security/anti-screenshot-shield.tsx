@@ -52,10 +52,40 @@ function isMobileDevice(): boolean {
   return isTouchDevice && isSmallScreen && !isDesktopPlatform;
 }
 
-export function AntiScreenshotShield({ strictExamMode = false }: AntiScreenshotShieldProps) {
+export function AntiScreenshotShield({ strictExamMode = true }: AntiScreenshotShieldProps) {
   const [showWarning, setShowWarning] = useState<boolean>(false);
   const [warningMessage, setWarningMessage] = useState<string>("");
   const [isScreenObscured, setIsScreenObscured] = useState<boolean>(false);
+
+  // Toggle hardware screenshot restriction on Android Capacitor app strictly during mock test
+  useEffect(() => {
+    const enableBridge = () => {
+      const win = typeof window !== "undefined" ? (window as unknown as { AndroidSecurityBridge?: { enableScreenshotRestriction?: () => void; disableScreenshotRestriction?: () => void } }) : null;
+      if (win?.AndroidSecurityBridge?.enableScreenshotRestriction) {
+        win.AndroidSecurityBridge.enableScreenshotRestriction();
+        return true;
+      }
+      return false;
+    };
+
+    if (!enableBridge()) {
+      const timer = setTimeout(enableBridge, 350);
+      return () => {
+        clearTimeout(timer);
+        const win = typeof window !== "undefined" ? (window as unknown as { AndroidSecurityBridge?: { disableScreenshotRestriction?: () => void } }) : null;
+        if (win?.AndroidSecurityBridge?.disableScreenshotRestriction) {
+          win.AndroidSecurityBridge.disableScreenshotRestriction();
+        }
+      };
+    }
+
+    return () => {
+      const win = typeof window !== "undefined" ? (window as unknown as { AndroidSecurityBridge?: { disableScreenshotRestriction?: () => void } }) : null;
+      if (win?.AndroidSecurityBridge?.disableScreenshotRestriction) {
+        win.AndroidSecurityBridge.disableScreenshotRestriction();
+      }
+    };
+  }, []);
 
   const triggerSecurityWarning = (msg: string) => {
     setWarningMessage(msg);
