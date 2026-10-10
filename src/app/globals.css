@@ -197,3 +197,6 @@ input, textarea, select {
 @media (prefers-reduced-motion: reduce) {
   .immersive-scene-shell *, .immersive-scene-shell *::before, .immersive-scene-shell *::after { scroll-behavior: auto !important; }
 }
+
+.immersive-scene-fallback { background: radial-gradient(circle at 50% 45%, rgba(56, 124, 255, .42), transparent 28%), radial-gradient(circle at 60% 60%, rgba(118, 88, 255, .25), transparent 42%), #070b18; }
+.immersive-scene-fallback::after { content: ""; position: absolute; inset: 20% 28%; border: 1px solid rgba(126, 231, 255, .55); border-radius: 50%; transform: rotate(-28deg) scaleY(.45); box-shadow: 0 0 70px rgba(68, 126, 255, .2); pointer-events: none; }
