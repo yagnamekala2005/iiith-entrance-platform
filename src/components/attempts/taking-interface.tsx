@@ -51,18 +51,13 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
       setIsSubmitModalOpen(false);
       return;
     }
-    // 4. If Exit Modal is open, safely return to previous page (1 step back)
+    // 4. If Exit/Submit Modal is open, close it to keep writing exam
     if (isExitModalOpen) {
       if (e) e.preventDefault();
       setIsExitModalOpen(false);
-      if (typeof window !== "undefined" && window.history.length > 1) {
-        router.back();
-      } else {
-        router.push("/tests");
-      }
       return;
     }
-    // 5. Open safe Pause & Return to Previous Page dialog
+    // 5. Open Submit Exam confirmation dialog
     if (e) e.preventDefault();
     setIsExitModalOpen(true);
   };
@@ -757,45 +752,50 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
         timeRemainingFormatted={formatTime(secondsRemaining)}
       />
 
-      {/* Safe Exit Confirmation Modal (1 Step Back from Exam) */}
+      {/* Safe Exit / Submit Confirmation Modal */}
       {isExitModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4 animate-in fade-in">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 sm:p-7 shadow-2xl text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-2xl">
-              ⏸️
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-2xl text-emerald-700">
+              📝
             </div>
             <h3 className="mt-4 text-xl font-extrabold text-slate-900">
-              Return to Previous Page?
+              Submit Exam?
             </h3>
             <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
-              Your test is safely paused. All answered questions and remaining time are preserved in real-time. You can resume this exam at any time.
+              Your test is safely saved. All answered questions and remaining time are preserved in real-time. Would you like to submit your exam now, or continue writing?
             </p>
+            <div className="mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-1.5 text-xs font-bold text-slate-700">
+              <span className="text-blue-700 font-black">{totalAttemptedCount}</span> Attempted &bull; <span className="text-amber-700 font-black">{totalQuestions - totalAttemptedCount}</span> Unattempted
+            </div>
             <div className="mt-6 flex flex-col sm:flex-row gap-3">
               <button
                 type="button"
+                disabled={isSubmitting}
                 onClick={() => {
                   setIsExitModalOpen(false);
                   if (typeof window !== "undefined" && window.history.state?.cbtTaking !== true) {
                     window.history.pushState({ cbtTaking: true }, "");
                   }
                 }}
-                className="flex-1 rounded-xl bg-blue-700 py-3 text-xs font-bold uppercase tracking-wider text-white hover:bg-blue-800 shadow-md shadow-blue-700/20 active:scale-95 transition-all"
+                className="flex-1 rounded-xl bg-blue-700 py-3 text-xs font-bold uppercase tracking-wider text-white hover:bg-blue-800 shadow-md shadow-blue-700/20 active:scale-95 transition-all disabled:opacity-50"
               >
                 Keep Writing Exam
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setIsExitModalOpen(false);
-                  if (typeof window !== "undefined" && window.history.length > 1) {
-                    router.back();
-                  } else {
-                    router.push("/tests");
-                  }
-                }}
-                className="flex-1 rounded-xl border border-slate-300 bg-slate-100 py-3 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-200 active:scale-95 transition-all"
+                disabled={isSubmitting}
+                onClick={handleConfirmSubmit}
+                className="flex-1 rounded-xl bg-emerald-600 py-3 text-xs font-bold uppercase tracking-wider text-white hover:bg-emerald-700 shadow-md shadow-emerald-600/20 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                ← Return to Previous Page
+                {isSubmitting ? (
+                  <>
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>Submitting...</span>
+                  </>
+                ) : (
+                  <span>Submit Exam</span>
+                )}
               </button>
             </div>
           </div>
