@@ -5,6 +5,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
@@ -62,16 +63,29 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // Hardware-accelerated window rendering for high refresh rates (60/120Hz)
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED, WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED);
+
         // By default, ALLOW screenshots for the entire app
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
 
         // Register bridge to allow mock test to dynamically toggle screenshot restriction
+        // and configure WebView hardware acceleration, local caching & DOM storage
         new Handler(Looper.getMainLooper()).post(new Runnable() {
             @Override
             public void run() {
                 WebView webView = getBridge() != null ? getBridge().getWebView() : null;
                 if (webView != null) {
                     webView.addJavascriptInterface(new AndroidSecurityBridge(), "AndroidSecurityBridge");
+
+                    WebSettings webSettings = webView.getSettings();
+                    webSettings.setDomStorageEnabled(true);
+                    webSettings.setDatabaseEnabled(true);
+                    webSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
+                    webSettings.setLoadsImagesAutomatically(true);
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                        webSettings.setOffscreenPreRaster(true);
+                    }
                 }
             }
         });

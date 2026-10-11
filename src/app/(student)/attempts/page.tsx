@@ -1,17 +1,16 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getCachedAuthUser } from "@/lib/auth/session";
 import { getUserAttempts } from "@/lib/attempts/queries";
 
 export default async function StudentAttemptsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCachedAuthUser();
 
   if (!user) {
     redirect("/login");
   }
 
-  const attempts = await getUserAttempts();
+  const attempts = await getUserAttempts(user.id);
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 font-sans">

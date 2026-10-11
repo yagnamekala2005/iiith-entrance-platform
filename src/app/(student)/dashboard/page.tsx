@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCachedAuthUser } from "@/lib/auth/session";
-import { getPublishedExams, getPublishedTests, getPublishedQuestions, getLearningProgress } from "@/lib/content/queries";
+import { getPublishedExams, getPublishedTests, getLearningProgress } from "@/lib/content/queries";
 import { getUserAttempts } from "@/lib/attempts/queries";
 import { StartAttemptButton } from "@/components/attempts/start-attempt-button";
 
@@ -20,15 +20,15 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const [exams, rawTests, questions, attempts, learningProgress] = await Promise.all([
+  const [exams, rawTests, attempts, learningProgress] = await Promise.all([
     getPublishedExams(),
     getPublishedTests(),
-    getPublishedQuestions({ limit: 20 }),
     getUserAttempts(user.id),
     getLearningProgress(user.id),
   ]);
 
   const tests = rawTests.filter((t) => !OLD_TEST_IDS.has(t.id));
+  const totalQuestionsCount = tests.reduce((acc, t) => acc + (t.total_questions || 0), 0) || 40;
   // getPublishedTests() orders tests by created_at ascending, so the last test is the latest.
   const latestTest = tests[tests.length - 1];
 
@@ -120,7 +120,7 @@ export default async function DashboardPage() {
           </div>
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Question Bank</p>
-            <p className="mt-1 text-2xl font-black text-slate-900">{questions.length} Questions</p>
+            <p className="mt-1 text-2xl font-black text-slate-900">{totalQuestionsCount} Questions</p>
             <p className="text-xs text-slate-500">With verified explanations</p>
           </div>
           <div>
