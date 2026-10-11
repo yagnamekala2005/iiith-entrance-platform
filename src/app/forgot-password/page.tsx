@@ -153,7 +153,7 @@ function ForgotPasswordForm() {
                 required
                 maxLength={10}
                 value={otp}
-                onChange={(event) => setOtp(event.target.value.replace(/\\s/g, ""))}
+                onChange={(event) => setOtp(event.target.value.replace(/\s/g, ""))}
                 placeholder="Enter the code from your email"
                 className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-3 text-center text-lg tracking-[0.3em] text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600"
               />
