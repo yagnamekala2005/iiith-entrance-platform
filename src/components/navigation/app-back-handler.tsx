@@ -14,7 +14,7 @@ export function AppBackHandler() {
     const handleHardwareBack = (e: Event) => {
       e.preventDefault();
 
-      // Live Exam Attempt: Dispatch exam-step-back event so TakingInterface can close modals or return to previous page
+      // Live Exam Attempt: Dispatch exam-step-back event so TakingInterface can trigger exam submission confirmation
       if (
         pathname.startsWith("/attempts/") &&
         !pathname.endsWith("/result") &&
@@ -22,15 +22,6 @@ export function AppBackHandler() {
       ) {
         const ev = new CustomEvent("exam-step-back", { cancelable: true });
         window.dispatchEvent(ev);
-        if (ev.defaultPrevented) {
-          return;
-        }
-
-        if (typeof window !== "undefined" && window.history.length > 1) {
-          window.history.back();
-        } else {
-          router.push("/tests");
-        }
         return;
       }
 

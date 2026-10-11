@@ -31,7 +31,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [autoSubmitTriggered, setAutoSubmitTriggered] = useState<boolean>(false);
 
-  // Unified Step-Back Handler (Navigates 1 step back to previous page instead of exiting app)
+  // Unified Step-Back Handler (Opens Submit Exam confirmation on back gesture or exit)
   const handleStepBack = (e?: Event | React.SyntheticEvent) => {
     // 1. If Scientific Calculator is open, close it (1 step back)
     if (isCalculatorOpen) {
@@ -355,13 +355,13 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
             <button
               type="button"
               onClick={() => handleStepBack()}
-              className="flex items-center gap-1 sm:gap-1.5 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 active:scale-95 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-slate-800 transition-all shadow-xs shrink-0"
-              title="Pause and return to previous page"
-              aria-label="Return to previous page"
+              className="flex items-center gap-1 sm:gap-1.5 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 active:scale-95 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-slate-700 transition-all shadow-xs shrink-0"
+              title="Exit and Submit Exam"
+              aria-label="Exit and Submit Exam"
             >
-              <span className="text-sm font-black leading-none">‹</span>
-              <span className="hidden sm:inline">Previous Page</span>
-              <span className="sm:hidden text-[11px]">Back</span>
+              <span className="text-xs">🚪</span>
+              <span className="hidden sm:inline">Exit Exam</span>
+              <span className="sm:hidden text-[11px]">Exit</span>
             </button>
 
             <span className="rounded-lg bg-blue-700 px-2 sm:px-2.5 py-1 text-[10px] sm:text-xs font-black tracking-widest text-white uppercase shadow-xs shrink-0">
@@ -768,7 +768,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
             <div className="mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-1.5 text-xs font-bold text-slate-700">
               <span className="text-blue-700 font-black">{totalAttemptedCount}</span> Attempted &bull; <span className="text-amber-700 font-black">{totalQuestions - totalAttemptedCount}</span> Unattempted
             </div>
-            <div className="mt-6 flex flex-col sm:flex-row gap-3">
+            <div className="mt-6 flex flex-col gap-3">
               <button
                 type="button"
                 disabled={isSubmitting}
@@ -778,7 +778,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                     window.history.pushState({ cbtTaking: true }, "");
                   }
                 }}
-                className="flex-1 rounded-xl bg-blue-700 py-3 text-xs font-bold uppercase tracking-wider text-white hover:bg-blue-800 shadow-md shadow-blue-700/20 active:scale-95 transition-all disabled:opacity-50"
+                className="w-full rounded-xl bg-blue-700 py-3.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-blue-800 shadow-md shadow-blue-700/20 active:scale-95 transition-all disabled:opacity-50"
               >
                 Keep Writing Exam
               </button>
@@ -786,7 +786,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                 type="button"
                 disabled={isSubmitting}
                 onClick={handleConfirmSubmit}
-                className="flex-1 rounded-xl bg-emerald-600 py-3 text-xs font-bold uppercase tracking-wider text-white hover:bg-emerald-700 shadow-md shadow-emerald-600/20 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full rounded-xl bg-emerald-600 py-3.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-emerald-700 shadow-md shadow-emerald-600/20 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {isSubmitting ? (
                   <>
