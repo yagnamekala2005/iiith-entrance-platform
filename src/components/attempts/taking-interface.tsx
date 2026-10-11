@@ -353,38 +353,56 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
 
       {/* Top CBT Real-Time Navigation Bar */}
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md shadow-xs">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3.5">
-          {/* Left: 1-Step Back Navigation & Test Info */}
-          <div className="flex items-center gap-2 sm:gap-3">
+        {/* Main Header Bar */}
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 sm:px-6 py-2 sm:py-3.5">
+          {/* Left: 1-Step Back Navigation & Test Identity */}
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
             <button
               type="button"
               onClick={() => handleStepBack()}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 active:scale-95 px-3 py-1.5 text-xs font-bold text-slate-800 transition-all shadow-xs"
+              className="flex items-center gap-1 sm:gap-1.5 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 active:scale-95 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-slate-800 transition-all shadow-xs shrink-0"
               title="Pause and return to previous page"
               aria-label="Return to previous page"
             >
               <span className="text-sm font-black leading-none">‹</span>
-              <span className="text-xs font-bold">Previous Page</span>
+              <span className="hidden sm:inline">Previous Page</span>
+              <span className="sm:hidden text-[11px]">Back</span>
             </button>
 
-            <span className="rounded-lg bg-blue-700 px-2 sm:px-2.5 py-1 text-[10px] sm:text-xs font-black tracking-widest text-white uppercase shadow-xs">
+            <span className="rounded-lg bg-blue-700 px-2 sm:px-2.5 py-1 text-[10px] sm:text-xs font-black tracking-widest text-white uppercase shadow-xs shrink-0">
               CBT
             </span>
-            <div>
-              <h1 className="text-xs sm:text-base font-extrabold text-slate-900 truncate max-w-[130px] sm:max-w-xs md:max-w-md">
+
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xs sm:text-base font-extrabold text-slate-900 truncate" title={data.test.name}>
                 {data.test.name}
               </h1>
-              <p className="text-[10px] text-slate-500 hidden sm:block">
+              <p className="text-[10px] text-slate-500 hidden sm:block truncate">
                 {data.test.exam?.name || "IIITH Entrance"} &bull; Real-Time Evaluated
               </p>
             </div>
           </div>
 
-          {/* Right: Timer, Calculator (STEM), Mobile Palette Toggle, Submit */}
-          <div className="flex items-center gap-2 sm:gap-3.5">
-            {/* Real-Time Countdown Timer */}
+          {/* Right on Desktop (md+): Timer, Calculator (STEM), Sync, Submit */}
+          <div className="hidden md:flex items-center gap-2.5 sm:gap-3.5 shrink-0">
+            {/* Sync state badge (Desktop) */}
+            <div className="flex items-center gap-1.5 text-xs">
+              {saveStatus === "saving" && (
+                <span className="flex items-center gap-1 text-amber-600 font-medium">
+                  <span className="h-2 w-2 animate-ping rounded-full bg-amber-500"></span>
+                  Saving...
+                </span>
+              )}
+              {saveStatus === "saved" && (
+                <span className="flex items-center gap-1 text-emerald-700 font-semibold text-[11px]">
+                  ✓ Saved
+                </span>
+              )}
+            </div>
+
+            {/* Real-Time Countdown Timer (Desktop) */}
             <div
-              className={`flex items-center gap-1.5 sm:gap-2 rounded-xl border px-2.5 sm:px-3.5 py-1 sm:py-1.5 transition-all ${
+              className={`flex items-center gap-1.5 sm:gap-2 rounded-xl border px-3 sm:px-3.5 py-1 sm:py-1.5 transition-all shrink-0 ${
                 isTimeLow
                   ? "border-rose-400 bg-rose-50 text-rose-700 animate-pulse"
                   : isTimeWarning
@@ -403,56 +421,93 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
               </div>
             </div>
 
-            {/* Scientific Calculator Quick Action (Maths, Physics, Chemistry only) */}
+            {/* Scientific Calculator Quick Action (Desktop) */}
             {canUseCalculator && (
               <button
                 type="button"
                 onClick={() => setIsCalculatorOpen((prev) => !prev)}
-                className={`flex items-center gap-1.5 rounded-xl border px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs font-bold transition-all shadow-xs ${
+                className={`flex items-center gap-1.5 rounded-xl border px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs font-bold transition-all shadow-xs shrink-0 ${
                   isCalculatorOpen
                     ? "border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/20"
                     : "border-slate-300 bg-white text-slate-800 hover:border-blue-500 hover:bg-blue-50/60"
                 }`}
-                title="Open Scientific Calculator (Maths, Physics & Chemistry)"
+                title="Open Scientific Calculator"
               >
                 <span className="text-sm sm:text-base">🧮</span>
-                <span className="hidden sm:inline">Calculator</span>
+                <span>Calculator</span>
               </button>
             )}
 
-            {/* Sync state badge (Desktop) */}
-            <div className="hidden lg:flex items-center gap-1.5 text-xs">
-              {saveStatus === "saving" && (
-                <span className="flex items-center gap-1 text-amber-600 font-medium">
-                  <span className="h-2 w-2 animate-ping rounded-full bg-amber-500"></span>
-                  Saving...
-                </span>
-              )}
-              {saveStatus === "saved" && (
-                <span className="flex items-center gap-1 text-emerald-700 font-semibold text-[11px]">
-                  ✓ Saved
-                </span>
-              )}
-            </div>
-
-            {/* Mobile Palette Open Button */}
-            <button
-              type="button"
-              onClick={() => setIsMobilePaletteOpen(true)}
-              className="lg:hidden rounded-lg border border-slate-200 bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-700"
-              aria-label="Open Question Palette"
-            >
-              📋 {totalAttemptedCount}/{totalQuestions}
-            </button>
-
-            {/* Finish & Submit Button */}
+            {/* Finish & Submit Button (Desktop) */}
             <button
               type="button"
               onClick={() => setIsSubmitModalOpen(true)}
-              className="rounded-xl bg-emerald-600 px-3 sm:px-4 py-1.5 sm:py-2 text-xs font-bold uppercase tracking-wider text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition-all"
+              className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all shrink-0"
+            >
+              Submit Exam
+            </button>
+          </div>
+
+          {/* Right on Mobile (< md): Submit Button directly in top row */}
+          <div className="flex md:hidden items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsSubmitModalOpen(true)}
+              className="rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all"
             >
               Submit
             </button>
+          </div>
+        </div>
+
+        {/* Mobile Dedicated Utilities Row (< md): Timer, Calculator & Question Palette */}
+        <div className="md:hidden border-t border-slate-100 bg-slate-50/95 px-3 py-1.5">
+          <div className="mx-auto flex items-center justify-between gap-2">
+            {/* Real-Time Countdown Timer (Mobile) */}
+            <div
+              className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-1 transition-all shrink-0 ${
+                isTimeLow
+                  ? "border-rose-400 bg-rose-50 text-rose-700 animate-pulse"
+                  : isTimeWarning
+                  ? "border-amber-300 bg-amber-50 text-amber-900"
+                  : "border-slate-300 bg-white text-slate-900 shadow-2xs"
+              }`}
+            >
+              <span className="text-xs">⏱️</span>
+              <span className="font-mono text-xs font-black tracking-tight">
+                {formatTime(secondsRemaining)}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* Scientific Calculator (Mobile) */}
+              {canUseCalculator && (
+                <button
+                  type="button"
+                  onClick={() => setIsCalculatorOpen((prev) => !prev)}
+                  className={`flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-bold transition-all shadow-2xs ${
+                    isCalculatorOpen
+                      ? "border-blue-600 bg-blue-600 text-white"
+                      : "border-slate-300 bg-white text-slate-800 active:bg-slate-100"
+                  }`}
+                  title="Open Scientific Calculator"
+                >
+                  <span className="text-xs">🧮</span>
+                  <span className="text-[11px]">Calc</span>
+                </button>
+              )}
+
+              {/* Mobile Question Palette Toggle */}
+              <button
+                type="button"
+                onClick={() => setIsMobilePaletteOpen(true)}
+                className="flex items-center gap-1 rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-800 shadow-2xs active:bg-slate-100"
+                aria-label="Open Question Palette"
+              >
+                <span>📋</span>
+                <span>{totalAttemptedCount}/{totalQuestions}</span>
+              </button>
+            </div>
           </div>
         </div>
 

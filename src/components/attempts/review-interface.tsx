@@ -45,28 +45,28 @@ export function ReviewInterface({ data }: ReviewInterfaceProps) {
     <div className="min-h-screen bg-[#f1f5f9] flex flex-col font-sans">
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white px-4 py-3.5 sm:px-6 shadow-xs">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
-              <Link href={`/attempts/${attempt.id}/result`} className="hover:text-blue-700 flex items-center gap-1">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider truncate">
+              <Link href={`/attempts/${attempt.id}/result`} className="hover:text-blue-700 flex items-center gap-1 shrink-0">
                 <span>&larr;</span>
                 <span>Scorecard</span>
               </Link>
               <span>/</span>
-              <span className="text-blue-700">Answer Review & Explanations</span>
+              <span className="text-blue-700 truncate">Solutions</span>
             </div>
-            <h1 className="mt-0.5 text-base sm:text-lg font-bold text-slate-900 truncate max-w-md">
+            <h1 className="mt-0.5 text-sm sm:text-lg font-bold text-slate-900 truncate" title={test.name}>
               {test.name}
             </h1>
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-1.5 text-xs font-bold text-blue-900">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <span className="rounded-lg bg-blue-50 border border-blue-200 px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs font-bold text-blue-900">
               Score: {attempt.score.toFixed(2)} / {attempt.max_score.toFixed(2)}
             </span>
             <Link
               href="/dashboard"
-              className="rounded-lg border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-bold uppercase text-slate-700 hover:bg-slate-50 transition-all"
+              className="rounded-lg border border-slate-300 bg-white px-3 sm:px-3.5 py-1 sm:py-1.5 text-xs font-bold uppercase text-slate-700 hover:bg-slate-50 transition-all"
             >
               Dashboard
             </Link>
