@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getCachedAuthUser } from "@/lib/auth/session";
 import { getAttemptResult } from "@/lib/attempts/queries";
 
 interface PageProps {
@@ -10,8 +10,7 @@ interface PageProps {
 export default async function AttemptResultPage({ params }: PageProps) {
   const { attemptId } = await params;
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCachedAuthUser();
 
   if (!user) {
     redirect("/login");

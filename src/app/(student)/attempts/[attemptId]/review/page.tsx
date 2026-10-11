@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getCachedAuthUser } from "@/lib/auth/session";
 import { getAttemptReview } from "@/lib/attempts/queries";
 import { ReviewInterface } from "@/components/attempts/review-interface";
 
@@ -10,8 +10,7 @@ interface PageProps {
 export default async function AttemptReviewPage({ params }: PageProps) {
   const { attemptId } = await params;
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCachedAuthUser();
 
   if (!user) {
     redirect("/login");
