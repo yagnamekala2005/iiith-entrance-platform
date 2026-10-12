@@ -17,8 +17,10 @@ export async function GET(request: Request) {
   const forwardedHost = request.headers.get("x-forwarded-host");
   const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
   const isLocal = process.env.NODE_ENV === "development";
-  const origin = !isLocal && forwardedHost
-    ? `${forwardedProto}://${forwardedHost}`
+  const host = forwardedHost ? forwardedHost.split(",")[0].trim() : null;
+  const proto = forwardedProto ? forwardedProto.split(",")[0].trim() : "https";
+  const origin = !isLocal && host
+    ? `${proto}://${host}`
     : requestUrl.origin;
 
   const loginWithError = (errorType: string, details?: string | null) => {
@@ -98,23 +100,13 @@ export async function GET(request: Request) {
       const errMsg = exchangeError?.message || "Exchange failed";
       console.warn("OAuth server code exchange failed:", errMsg);
 
-      // On mobile browsers, cross-site redirects sometimes drop the cookie header.
-      // If code_verifier was missing or challenge failed, seamlessly delegate to client-side callback.
-      const isPkceError =
-        errMsg.toLowerCase().includes("code_verifier") ||
-        errMsg.toLowerCase().includes("code challenge") ||
-        errMsg.toLowerCase().includes("non-empty") ||
-        errMsg.toLowerCase().includes("invalid grant");
-
-      if (isPkceError) {
-        const clientCallbackUrl = new URL("/auth/callback-client", origin);
-        clientCallbackUrl.searchParams.set("code", code);
-        if (requestedRole) clientCallbackUrl.searchParams.set("role", requestedRole);
-        if (nextParam) clientCallbackUrl.searchParams.set("next", nextParam);
-        return NextResponse.redirect(clientCallbackUrl);
-      }
-
-      return loginWithError("oauth_failed", errMsg);
+      // On mobile and desktop browsers, cross-site redirects often omit the PKCE code verifier cookie in server request headers.
+      // Seamlessly delegate to client-side callback page to exchange session using browser cookies.
+      const clientCallbackUrl = new URL("/auth/callback-client", origin);
+      clientCallbackUrl.searchParams.set("code", code);
+      if (requestedRole) clientCallbackUrl.searchParams.set("role", requestedRole);
+      if (nextParam) clientCallbackUrl.searchParams.set("next", nextParam);
+      return NextResponse.redirect(clientCallbackUrl);
     }
 
     const user = data.user;
@@ -183,6 +175,9 @@ export async function GET(request: Request) {
     } else {
       redirectUrl.pathname = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("/admin") ? nextParam : "/dashboard";
     }
+
+    // Ensure final location header is updated
+    response.headers.set("Location", redirectUrl.toString());
 
     // Set cache control headers to prevent proxy caching
     response.headers.set("x-middleware-cache", "no-cache");

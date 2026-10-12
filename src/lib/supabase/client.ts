@@ -8,5 +8,14 @@ export function createClient() {
   return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     supabaseKey,
+    {
+      cookieOptions: {
+        path: "/",
+        sameSite: "lax",
+        secure:
+          (typeof window !== "undefined" && window.location.protocol === "https:") ||
+          process.env.NODE_ENV === "production",
+      },
+    }
   );
 }

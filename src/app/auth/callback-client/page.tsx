@@ -13,6 +13,8 @@ function CallbackClientContent() {
   const [statusText, setStatusText] = useState("Completing Google Sign-in...");
 
   useEffect(() => {
+    let cancelled = false;
+
     async function exchangeCode() {
       if (!code) {
         router.push(`/login?role=${role}&authError=oauth_failed&errorDetails=No+code+received`);
@@ -22,44 +24,97 @@ function CallbackClientContent() {
       try {
         const supabase = createClient();
         setStatusText("Verifying session with Google...");
-        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
-        if (error || !data.user) {
-          console.error("Client code exchange error:", error);
-          const errDetail = error?.message || "Failed to exchange session";
-          router.push(`/login?role=${role}&authError=oauth_failed&errorDetails=${encodeURIComponent(errDetail)}`);
-          return;
+        // Check if session is already active
+        const { data: existingSession } = await supabase.auth.getSession();
+        let user = existingSession?.session?.user;
+
+        // Exchange code if no active session
+        if (!user) {
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+          if (error || !data?.user) {
+            // Check if session was established concurrently or detected from URL
+            const retry = await supabase.auth.getSession();
+            if (retry.data?.session?.user) {
+              user = retry.data.session.user;
+            } else {
+              console.error("Client code exchange error:", error);
+              const errDetail = error?.message || "Failed to exchange session";
+              if (!cancelled) {
+                router.push(
+                  `/login?role=${role}&authError=oauth_failed&errorDetails=${encodeURIComponent(errDetail)}`
+                );
+              }
+              return;
+            }
+          } else {
+            user = data.user;
+          }
         }
 
+        if (cancelled) return;
         setStatusText("Sign-in successful! Redirecting to app...");
+
+        // Ensure profile exists/updated
+        try {
+          const metadata = user.user_metadata ?? {};
+          const fullName = [metadata.full_name, metadata.name].find(
+            (v): v is string => typeof v === "string" && v.trim().length > 0
+          )?.trim() || user.email?.split("@")[0] || "User";
+          const avatarUrl = [metadata.avatar_url, metadata.picture].find(
+            (v): v is string => typeof v === "string" && v.trim().length > 0
+          )?.trim() || null;
+
+          await supabase.from("profiles").upsert(
+            {
+              id: user.id,
+              display_name: fullName,
+              avatar_url: avatarUrl,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "id" }
+          );
+        } catch (profileErr) {
+          console.warn("Client profile upsert warning (non-fatal):", profileErr);
+        }
 
         // If admin role requested, verify admin membership
         if (role === "admin") {
           const { data: adminRow } = await supabase
             .from("admin_users")
             .select("user_id")
-            .eq("user_id", data.user.id)
+            .eq("user_id", user.id)
             .maybeSingle();
 
           if (!adminRow) {
-            router.push("/login?role=admin&authError=not_admin");
+            if (!cancelled) {
+              router.push("/login?role=admin&authError=not_admin");
+            }
             return;
           }
-          router.push(next || "/admin");
-          router.refresh();
+          window.location.replace(next || "/admin");
           return;
         }
 
-        router.push(next || "/dashboard");
-        router.refresh();
+        window.location.replace(next || "/dashboard");
+        return;
       } catch (err: unknown) {
         console.error("Client callback error:", err);
         const msg = err instanceof Error ? err.message : "Authentication error";
-        router.push(`/login?role=${role}&authError=oauth_failed&errorDetails=${encodeURIComponent(msg)}`);
+        if (!cancelled) {
+          router.push(
+            `/login?role=${role}&authError=oauth_failed&errorDetails=${encodeURIComponent(msg)}`
+          );
+        }
       }
     }
 
     void exchangeCode();
+
+    return () => {
+      cancelled = true;
+    };
   }, [code, role, next, router]);
 
   return (

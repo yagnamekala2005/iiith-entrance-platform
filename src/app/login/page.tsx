@@ -39,6 +39,34 @@ function LoginFormContent() {
   });
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (authError) {
+      switch (authError) {
+        case "oauth_cancelled":
+          setMessage("Google sign-in was cancelled. You can try again or use email and password.");
+          break;
+        case "profile_update_failed":
+          setMessage("Google sign-in succeeded, but your profile could not be updated. Please try again or contact support.");
+          break;
+        case "role_lookup_failed":
+          setMessage("We could not verify your account access. Please try again or contact support.");
+          break;
+        case "not_admin":
+          setMessage("⚠️ This Google account is not registered as an administrator. Please toggle to the Student Login tab to access your dashboard.");
+          break;
+        case "oauth_failed":
+          if (errorDetails) {
+            setMessage(`Google sign-in could not be completed (${decodeURIComponent(errorDetails)}). Please try again or use email and password.`);
+          } else {
+            setMessage("Google sign-in could not be completed. Please try again or use email and password.");
+          }
+          break;
+        default:
+          break;
+      }
+    }
+  }, [authError, errorDetails]);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
@@ -138,8 +166,7 @@ function LoginFormContent() {
                 {isAdminTab ? "🛡️ ADMINISTRATOR ACCESS" : "👨‍🎓 STUDENT ENTRANCE PORTAL"}
               </span>
 
-              {/* Discreet Switcher Link - only visible from student portal */}
-              {!isAdminTab && (
+              {!isAdminTab ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -149,6 +176,17 @@ function LoginFormContent() {
                   className="text-xs font-bold text-slate-500 hover:text-blue-700 transition-colors"
                 >
                   Admin Portal &rarr;
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRole("student");
+                    setMessage("");
+                  }}
+                  className="text-xs font-bold text-slate-400 hover:text-white transition-colors"
+                >
+                  &larr; Student Portal
                 </button>
               )}
             </div>

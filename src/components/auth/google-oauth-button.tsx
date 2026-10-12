@@ -37,7 +37,7 @@ export function GoogleOAuthButton({
     try {
       const supabase = createClient();
       const origin = typeof window !== "undefined" ? window.location.origin : "";
-      const callbackUrl = new URL(`${origin}/auth/callback`);
+      const callbackUrl = new URL("/auth/callback", origin || (typeof window !== "undefined" ? window.location.href : "http://localhost:3000"));
       if (role) callbackUrl.searchParams.set("role", role);
       if (next) callbackUrl.searchParams.set("next", next);
 
