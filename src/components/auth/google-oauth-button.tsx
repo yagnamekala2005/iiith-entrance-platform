@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { Capacitor } from "@capacitor/core";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 interface GoogleOAuthButtonProps {
@@ -9,11 +11,14 @@ interface GoogleOAuthButtonProps {
   next?: string | null;
 }
 
+let nativeGoogleInitialization: Promise<void> | null = null;
+
 export function GoogleOAuthButton({
   disabled = false,
   role = "student",
   next = null,
 }: GoogleOAuthButtonProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -23,21 +28,138 @@ export function GoogleOAuthButton({
     setLoading(true);
     setErrorMessage("");
 
-    const hasKey = Boolean(
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    const hasSupabaseConfig = Boolean(
+      process.env.NEXT_PUBLIC_SUPABASE_URL &&
+        (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
     );
 
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !hasKey) {
-      setErrorMessage("Google sign-in is not configured. Please use email and password or contact support.");
+    if (!hasSupabaseConfig) {
+      setErrorMessage(
+        "Google sign-in is not configured. Please use email and password or contact support."
+      );
       setLoading(false);
       return;
     }
 
     try {
       const supabase = createClient();
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
-      const callbackUrl = new URL("/auth/callback", origin || (typeof window !== "undefined" ? window.location.href : "http://localhost:3000"));
+
+      if (Capacitor.isNativePlatform()) {
+        const webClientId = process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+
+        if (!webClientId) {
+          throw new Error(
+            "Native Google sign-in needs NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID configured in the app's environment."
+          );
+        }
+
+        const { SocialLogin } = await import("@capgo/capacitor-social-login");
+
+        if (!nativeGoogleInitialization) {
+          nativeGoogleInitialization = SocialLogin.initialize({
+            google: {
+              webClientId,
+              mode: "online",
+            },
+          }).then(() => undefined).catch((error: unknown) => {
+            nativeGoogleInitialization = null;
+            throw error;
+          });
+        }
+
+        await nativeGoogleInitialization;
+
+        const response = await SocialLogin.login({
+          provider: "google",
+          options: {
+            scopes: ["email", "profile"],
+            filterByAuthorizedAccounts: false,
+          },
+        });
+
+        if (response.provider !== "google") {
+          throw new Error("Google sign-in returned an unexpected provider.");
+        }
+
+        const googleResult = response.result;
+        if (googleResult.responseType !== "online" || !googleResult.idToken) {
+          throw new Error("Google did not return an ID token. Please try again.");
+        }
+
+        const { data, error } = await supabase.auth.signInWithIdToken({
+          provider: "google",
+          token: googleResult.idToken,
+          access_token: googleResult.accessToken?.token ?? undefined,
+        });
+
+        if (error) throw error;
+        if (!data.user) throw new Error("Google sign-in did not return a user.");
+
+        const user = data.user;
+        const metadata = user.user_metadata ?? {};
+        const fullName =
+          [metadata.full_name, metadata.name].find(
+            (value): value is string =>
+              typeof value === "string" && value.trim().length > 0
+          )?.trim() ||
+          user.email?.split("@")[0] ||
+          "User";
+        const avatarUrl =
+          [metadata.avatar_url, metadata.picture].find(
+            (value): value is string =>
+              typeof value === "string" && value.trim().length > 0
+          )?.trim() || null;
+
+        const { error: profileError } = await supabase.from("profiles").upsert(
+          {
+            id: user.id,
+            display_name: fullName,
+            avatar_url: avatarUrl,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" }
+        );
+
+        if (profileError) {
+          console.warn("Google sign-in profile update warning:", profileError);
+        }
+
+        if (role === "admin") {
+          const { data: adminMembership, error: adminError } = await supabase
+            .from("admin_users")
+            .select("user_id")
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+          if (adminError) {
+            throw new Error("We could not verify administrator access. Please try again.");
+          }
+
+          if (!adminMembership) {
+            await supabase.auth.signOut();
+            router.push("/login?role=admin&authError=not_admin");
+            router.refresh();
+            return;
+          }
+        }
+
+        const destination =
+          role === "admin"
+            ? next?.startsWith("/admin")
+              ? next
+              : "/admin"
+            : next?.startsWith("/") && !next.startsWith("/admin")
+              ? next
+              : "/dashboard";
+
+        router.replace(destination);
+        router.refresh();
+        return;
+      }
+
+      const origin = window.location.origin;
+      const callbackUrl = new URL("/auth/callback", origin);
       if (role) callbackUrl.searchParams.set("role", role);
       if (next) callbackUrl.searchParams.set("next", next);
 
@@ -52,13 +174,23 @@ export function GoogleOAuthButton({
         },
       });
 
-      if (error) {
-        setErrorMessage(error.message || "Unable to start Google sign-in. Please try again or use email and password.");
-        setLoading(false);
+      if (error) throw error;
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Unable to start Google sign-in.";
+      const normalizedMessage = message.toLowerCase();
+
+      if (
+        normalizedMessage.includes("cancel") ||
+        normalizedMessage.includes("dismissed")
+      ) {
+        setErrorMessage("Google sign-in was cancelled. You can try again or use email and password.");
+      } else {
+        console.error("Google sign-in failed:", error);
+        setErrorMessage(
+          message || "Unable to complete Google sign-in. Please try again or use email and password."
+        );
       }
-    } catch (err: unknown) {
-      const errText = err instanceof Error ? err.message : "Unable to start Google sign-in";
-      setErrorMessage(`${errText}. Please try again or use email and password.`);
       setLoading(false);
     }
   }
