@@ -12,6 +12,7 @@ function LoginFormContent() {
   const initialRole = searchParams.get("role") === "admin" ? "admin" : "student";
   const nextUrl = searchParams.get("next");
   const authError = searchParams.get("authError");
+  const errorDetails = searchParams.get("errorDetails");
 
   const [role, setRole] = useState<"student" | "admin">(initialRole);
   const [email, setEmail] = useState("");
@@ -25,7 +26,12 @@ function LoginFormContent() {
         return "Google sign-in succeeded, but your profile could not be updated. Please try again or contact support.";
       case "role_lookup_failed":
         return "We could not verify your account access. Please try again or contact support.";
+      case "not_admin":
+        return "⚠️ This Google account is not registered as an administrator. Please toggle to the Student Login tab to access your dashboard.";
       case "oauth_failed":
+        if (errorDetails) {
+          return `Google sign-in could not be completed (${decodeURIComponent(errorDetails)}). Please try again or use email and password.`;
+        }
         return "Google sign-in could not be completed. Please try again or use email and password.";
       default:
         return "";
@@ -168,7 +174,7 @@ function LoginFormContent() {
               </div>
             )}
 
-            <GoogleOAuthButton disabled={loading} />
+            <GoogleOAuthButton disabled={loading} role={role} next={nextUrl} />
             <div className="flex items-center gap-3" aria-hidden="true">
               <span className="h-px flex-1 bg-slate-200" />
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">

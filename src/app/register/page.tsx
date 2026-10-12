@@ -133,7 +133,7 @@ function RegisterContent() {
           )}
 
           <form className="space-y-4" onSubmit={handleSubmit}>
-            <GoogleOAuthButton disabled={loading} />
+            <GoogleOAuthButton disabled={loading} role="student" />
             <div className="flex items-center gap-3" aria-hidden="true">
               <span className="h-px flex-1 bg-slate-200" />
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
