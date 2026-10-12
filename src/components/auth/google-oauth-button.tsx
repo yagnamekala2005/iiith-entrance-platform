@@ -5,9 +5,15 @@ import { createClient } from "@/lib/supabase/client";
 
 interface GoogleOAuthButtonProps {
   disabled?: boolean;
+  role?: "student" | "admin";
+  next?: string | null;
 }
 
-export function GoogleOAuthButton({ disabled = false }: GoogleOAuthButtonProps) {
+export function GoogleOAuthButton({
+  disabled = false,
+  role = "student",
+  next = null,
+}: GoogleOAuthButtonProps) {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -17,7 +23,12 @@ export function GoogleOAuthButton({ disabled = false }: GoogleOAuthButtonProps) 
     setLoading(true);
     setErrorMessage("");
 
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
+    const hasKey = Boolean(
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
+
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !hasKey) {
       setErrorMessage("Google sign-in is not configured. Please use email and password or contact support.");
       setLoading(false);
       return;
@@ -25,19 +36,29 @@ export function GoogleOAuthButton({ disabled = false }: GoogleOAuthButtonProps) 
 
     try {
       const supabase = createClient();
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const callbackUrl = new URL("/auth/callback", origin || (typeof window !== "undefined" ? window.location.href : "http://localhost:3000"));
+      if (role) callbackUrl.searchParams.set("role", role);
+      if (next) callbackUrl.searchParams.set("next", next);
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: callbackUrl.toString(),
+          queryParams: {
+            access_type: "offline",
+            prompt: "consent",
+          },
         },
       });
 
       if (error) {
-        setErrorMessage("Unable to start Google sign-in. Please try again or use email and password.");
+        setErrorMessage(error.message || "Unable to start Google sign-in. Please try again or use email and password.");
         setLoading(false);
       }
-    } catch {
-      setErrorMessage("Unable to start Google sign-in. Please try again or use email and password.");
+    } catch (err: unknown) {
+      const errText = err instanceof Error ? err.message : "Unable to start Google sign-in";
+      setErrorMessage(`${errText}. Please try again or use email and password.`);
       setLoading(false);
     }
   }

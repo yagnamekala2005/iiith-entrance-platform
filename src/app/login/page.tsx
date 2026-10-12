@@ -12,6 +12,7 @@ function LoginFormContent() {
   const initialRole = searchParams.get("role") === "admin" ? "admin" : "student";
   const nextUrl = searchParams.get("next");
   const authError = searchParams.get("authError");
+  const errorDetails = searchParams.get("errorDetails");
 
   const [role, setRole] = useState<"student" | "admin">(initialRole);
   const [email, setEmail] = useState("");
@@ -25,13 +26,46 @@ function LoginFormContent() {
         return "Google sign-in succeeded, but your profile could not be updated. Please try again or contact support.";
       case "role_lookup_failed":
         return "We could not verify your account access. Please try again or contact support.";
+      case "not_admin":
+        return "⚠️ This Google account is not registered as an administrator. Please toggle to the Student Login tab to access your dashboard.";
       case "oauth_failed":
+        if (errorDetails) {
+          return `Google sign-in could not be completed (${decodeURIComponent(errorDetails)}). Please try again or use email and password.`;
+        }
         return "Google sign-in could not be completed. Please try again or use email and password.";
       default:
         return "";
     }
   });
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (authError) {
+      switch (authError) {
+        case "oauth_cancelled":
+          setMessage("Google sign-in was cancelled. You can try again or use email and password.");
+          break;
+        case "profile_update_failed":
+          setMessage("Google sign-in succeeded, but your profile could not be updated. Please try again or contact support.");
+          break;
+        case "role_lookup_failed":
+          setMessage("We could not verify your account access. Please try again or contact support.");
+          break;
+        case "not_admin":
+          setMessage("⚠️ This Google account is not registered as an administrator. Please toggle to the Student Login tab to access your dashboard.");
+          break;
+        case "oauth_failed":
+          if (errorDetails) {
+            setMessage(`Google sign-in could not be completed (${decodeURIComponent(errorDetails)}). Please try again or use email and password.`);
+          } else {
+            setMessage("Google sign-in could not be completed. Please try again or use email and password.");
+          }
+          break;
+        default:
+          break;
+      }
+    }
+  }, [authError, errorDetails]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -132,8 +166,7 @@ function LoginFormContent() {
                 {isAdminTab ? "🛡️ ADMINISTRATOR ACCESS" : "👨‍🎓 STUDENT ENTRANCE PORTAL"}
               </span>
 
-              {/* Discreet Switcher Link - only visible from student portal */}
-              {!isAdminTab && (
+              {!isAdminTab ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -143,6 +176,17 @@ function LoginFormContent() {
                   className="text-xs font-bold text-slate-500 hover:text-blue-700 transition-colors"
                 >
                   Admin Portal &rarr;
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRole("student");
+                    setMessage("");
+                  }}
+                  className="text-xs font-bold text-slate-400 hover:text-white transition-colors"
+                >
+                  &larr; Student Portal
                 </button>
               )}
             </div>
@@ -168,7 +212,7 @@ function LoginFormContent() {
               </div>
             )}
 
-            <GoogleOAuthButton disabled={loading} />
+            <GoogleOAuthButton disabled={loading} role={role} next={nextUrl} />
             <div className="flex items-center gap-3" aria-hidden="true">
               <span className="h-px flex-1 bg-slate-200" />
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
