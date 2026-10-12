@@ -401,7 +401,7 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
         <div className="w-full sm:w-72">
           <input
             type="text"
-            placeholder="Search topics, formulas, books..."
+            placeholder="Search subjects, chapters, topics, formulas, books..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-medium text-slate-800 outline-none focus:border-blue-600 shadow-2xs"
@@ -423,6 +423,7 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
           const query = searchQuery.trim().toLowerCase();
           const filteredChapters = (subject.chapters || []).filter((chap) => {
             if (!query) return true;
+            if (subject.name.toLowerCase().includes(query)) return true;
             if (chap.name.toLowerCase().includes(query)) return true;
             return (chap.topics || []).some(
               (t) =>
@@ -1003,4 +1004,5 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
     </div>
   );
 }
+
 
