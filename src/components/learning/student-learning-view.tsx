@@ -432,7 +432,11 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
             );
           });
 
-          if (query && filteredChapters.length === 0) {
+          if (
+            query &&
+            filteredChapters.length === 0 &&
+            !subject.name.toLowerCase().includes(query)
+          ) {
             return null;
           }
 
