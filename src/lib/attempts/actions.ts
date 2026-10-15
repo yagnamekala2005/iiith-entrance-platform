@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface ActionResult<T = unknown> {
   success: boolean;
@@ -39,7 +40,7 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
     // Fallback: Validate and execute with direct queries if RPC is not yet registered
     const { data: test, error: testErr } = await supabase
       .from("tests")
-      .select("id, status, name")
+      .select("id, status, name, test_type, is_free")
       .eq("id", testId)
       .maybeSingle();
 
@@ -66,6 +67,31 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
         success: true,
         data: { attemptId: existingAttempt.id, isResumed: true },
       };
+    }
+
+    if (test.test_type === "mock" && !test.is_free) {
+      const adminClient = createAdminClient();
+      const { data: adminMembership } = await adminClient
+        .from("admin_users")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!adminMembership) {
+        const { data: activeSubscription, error: subscriptionError } = await supabase
+          .from("mock_test_subscriptions")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("status", "active")
+          .gt("expires_at", new Date().toISOString())
+          .lte("starts_at", new Date().toISOString())
+          .limit(1)
+          .maybeSingle();
+
+        if (subscriptionError || !activeSubscription) {
+          return { success: false, error: "An active ₹99 subscription is required to access all mock tests." };
+        }
+      }
     }
 
     const { data: testQuestions, error: tqErr } = await supabase
