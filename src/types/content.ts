@@ -108,6 +108,7 @@ export interface Test {
   slug: string;
   description: string | null;
   test_type: TestType;
+  is_free?: boolean;
   duration_seconds: number;
   status: ContentStatus;
   instructions: string | null;
