@@ -1658,9 +1658,9 @@ export function AdminPanel({
                                 onClick={() => {
                                   handleSelectTargetTest(t.id);
                                   switchTab("create");
-                                }
-                              className="rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 transition-all flex items-center gap-1.5"
-                            >
+                                }}
+                                className="rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 transition-all flex items-center gap-1.5"
+                              >
                               <span>➕ Manage &amp; Add Questions</span>
                               <span>&rarr;</span>
                               </button>
