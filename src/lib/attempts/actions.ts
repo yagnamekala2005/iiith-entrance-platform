@@ -78,16 +78,18 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
         .maybeSingle();
 
       if (!adminMembership) {
-        const { data: paidPurchase, error: purchaseError } = await supabase
-          .from("mock_test_purchases")
+        const { data: activeSubscription, error: subscriptionError } = await supabase
+          .from("mock_test_subscriptions")
           .select("id")
           .eq("user_id", user.id)
-          .eq("test_id", testId)
-          .eq("status", "paid")
+          .eq("status", "active")
+          .gt("expires_at", new Date().toISOString())
+          .lte("starts_at", new Date().toISOString())
+          .limit(1)
           .maybeSingle();
 
-        if (purchaseError || !paidPurchase) {
-          return { success: false, error: "This mock test is locked. Purchase access to continue." };
+        if (subscriptionError || !activeSubscription) {
+          return { success: false, error: "An active ₹99 subscription is required to access all mock tests." };
         }
       }
     }
