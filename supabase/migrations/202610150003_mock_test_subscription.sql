@@ -60,12 +60,6 @@ begin
         and s.starts_at <= now() and s.expires_at > now()
     ) into v_has_access;
     if not v_has_access then
-      select exists (
-        select 1 from public.mock_test_purchases p
-        where p.user_id = v_user_id and p.test_id = p_test_id and p.status = 'paid'
-      ) into v_has_access;
-    end if;
-    if not v_has_access then
       raise exception 'Subscription required. Pay ₹99 for two months of access to all mock tests.';
     end if;
   end if;
