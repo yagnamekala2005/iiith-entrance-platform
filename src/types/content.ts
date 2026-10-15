@@ -109,6 +109,7 @@ export interface Test {
   description: string | null;
   test_type: TestType;
   is_free?: boolean;
+  price_paise?: number;
   duration_seconds: number;
   status: ContentStatus;
   instructions: string | null;
