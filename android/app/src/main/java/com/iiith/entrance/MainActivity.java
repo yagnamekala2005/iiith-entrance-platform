@@ -94,11 +94,20 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
             throw new IllegalArgumentException("Razorpay key ID is missing.");
         }
 
-        activeRazorpayPlugin = plugin;
-        Checkout.preload(getApplicationContext());
-        Checkout checkout = new Checkout();
-        checkout.setKeyID(keyId);
-        checkout.open(this, options);
+        runOnUiThread(() -> {
+            try {
+                activeRazorpayPlugin = plugin;
+                Checkout.preload(getApplicationContext());
+                Checkout checkout = new Checkout();
+                checkout.setKeyID(keyId);
+                checkout.open(MainActivity.this, options);
+            } catch (Exception error) {
+                activeRazorpayPlugin = null;
+                plugin.onNativePaymentError(-1, error.getMessage() != null
+                    ? error.getMessage()
+                    : "Unable to initialize Razorpay checkout.");
+            }
+        });
     }
 
     @Override
