@@ -110,7 +110,7 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
     }
 
     @Override
-    public void onPaymentError(int code, String response) {
+    public void onPaymentError(int code, String response, PaymentData paymentData) {
         if (activeRazorpayPlugin != null) {
             activeRazorpayPlugin.onNativePaymentError(code, response);
             activeRazorpayPlugin = null;
