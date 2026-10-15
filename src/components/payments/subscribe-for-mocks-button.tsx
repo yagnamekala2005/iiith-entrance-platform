@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 
 interface SubscriptionPlan {
   id: string;
@@ -11,12 +12,33 @@ interface SubscriptionPlan {
   display_order: number;
 }
 
+interface RazorpayPaymentResponse {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}
+
+interface NativeRazorpayPlugin {
+  openCheckout(options: { options: {
+    key: string;
+    amount: number;
+    currency: string;
+    name: string;
+    description: string;
+    order_id: string;
+    prefill?: { email?: string };
+    theme: { color: string };
+  } }): Promise<RazorpayPaymentResponse>;
+}
+
+const NativeRazorpay = registerPlugin<NativeRazorpayPlugin>("RazorpayNative");
+
 declare global {
   interface Window {
     Razorpay?: new (options: {
       key: string; amount: number; currency: string; name: string; description: string;
       order_id: string; prefill?: { email?: string }; theme: { color: string };
-      handler: (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => void | Promise<void>;
+      handler: (response: RazorpayPaymentResponse) => void | Promise<void>;
       modal?: { ondismiss?: () => void };
     }) => { open: () => void };
   }
@@ -71,7 +93,6 @@ export function SubscribeForMocksButton({ compact = false }: { compact?: boolean
     setBusy(true);
     setMessage("");
     try {
-      if (!(await loadCheckout()) || !window.Razorpay) throw new Error("Could not load Razorpay Checkout.");
       const response = await fetch("/api/payments/create-subscription-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -82,9 +103,26 @@ export function SubscribeForMocksButton({ compact = false }: { compact?: boolean
       if (data.alreadySubscribed) {
         setMessage("Your subscription is already active until " + new Date(data.expiresAt).toLocaleDateString() + ".");
         router.refresh();
+        setBusy(false);
         return;
       }
-      const checkout = new window.Razorpay({
+
+      const verifyPayment = async (payment: RazorpayPaymentResponse) => {
+        const verifyResponse = await fetch("/api/payments/verify-subscription", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payment),
+        });
+        const verified = await verifyResponse.json();
+        if (!verifyResponse.ok || !verified.verified) {
+          throw new Error(verified.error || "Payment verification failed.");
+        }
+        setMessage("Subscription active until " + new Date(verified.expiresAt).toLocaleDateString() + ".");
+        router.refresh();
+        window.location.assign("/tests?subscription=active");
+      };
+
+      const checkoutOptions = {
         key: data.keyId,
         amount: data.amount,
         currency: data.currency,
@@ -93,18 +131,22 @@ export function SubscribeForMocksButton({ compact = false }: { compact?: boolean
         order_id: data.orderId,
         prefill: { email: data.studentEmail },
         theme: { color: "#1d4ed8" },
+      };
+
+      if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android") {
+        const payment = await NativeRazorpay.openCheckout({ options: checkoutOptions });
+        await verifyPayment(payment);
+        return;
+      }
+
+      if (!(await loadCheckout()) || !window.Razorpay) {
+        throw new Error("Could not load Razorpay Checkout.");
+      }
+      const checkout = new window.Razorpay({
+        ...checkoutOptions,
         handler: async (payment) => {
           try {
-            const verifyResponse = await fetch("/api/payments/verify-subscription", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payment),
-            });
-            const verified = await verifyResponse.json();
-            if (!verifyResponse.ok || !verified.verified) throw new Error(verified.error || "Payment verification failed.");
-            setMessage("Subscription active until " + new Date(verified.expiresAt).toLocaleDateString() + ".");
-            router.refresh();
-            window.location.assign("/tests?subscription=active");
+            await verifyPayment(payment);
           } catch (error) {
             setMessage(error instanceof Error ? error.message : "Payment verification failed. Contact support before paying again.");
           } finally {
