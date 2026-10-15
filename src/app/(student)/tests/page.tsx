@@ -2,7 +2,6 @@ import Link from "next/link";
 import { getPublishedTests, getPublishedExams } from "@/lib/content/queries";
 import { StartAttemptButton } from "@/components/attempts/start-attempt-button";
 import { createClient } from "@/lib/supabase/server";
-import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
