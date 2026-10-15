@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getPublishedTests, getPublishedExams } from "@/lib/content/queries";
 import { StartAttemptButton } from "@/components/attempts/start-attempt-button";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,16 @@ export default async function TestsDirectoryPage({ searchParams }: PageProps) {
   ]);
 
   const tests = rawTests.filter((t) => !OLD_TEST_IDS.has(t.id));
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: paidPurchases } = user
+    ? await supabase
+        .from("mock_test_purchases")
+        .select("test_id")
+        .eq("user_id", user.id)
+        .eq("status", "paid")
+    : { data: [] };
+  const paidTestIds = new Set((paidPurchases || []).map((purchase) => purchase.test_id));
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 font-sans">
@@ -109,9 +120,8 @@ export default async function TestsDirectoryPage({ searchParams }: PageProps) {
                     <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-black uppercase tracking-wider text-blue-800 border border-blue-200">
                       {test.exam?.name || "Competitive Exam"} &bull; {test.test_type.toUpperCase()}
                     </span>
-                    <span className="rounded-md bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-800 border border-emerald-200 flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                      Live Timed CBT
+                    <span className={`rounded-md px-2.5 py-0.5 text-xs font-bold border ${test.test_type !== "mock" || test.is_free ? "bg-emerald-50 text-emerald-800 border-emerald-200" : paidTestIds.has(test.id) ? "bg-blue-50 text-blue-800 border-blue-200" : "bg-amber-50 text-amber-800 border-amber-200"}`}>
+                      {test.test_type !== "mock" || test.is_free ? "FREE MOCK TEST" : paidTestIds.has(test.id) ? "PURCHASED" : "LOCKED · PURCHASE REQUIRED"}
                     </span>
                   </div>
 
@@ -159,7 +169,13 @@ export default async function TestsDirectoryPage({ searchParams }: PageProps) {
                     >
                       Instructions
                     </Link>
-                    <StartAttemptButton testId={test.id} />
+                    {test.test_type !== "mock" || test.is_free || paidTestIds.has(test.id) ? (
+                      <StartAttemptButton testId={test.id} />
+                    ) : (
+                      <span className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs font-bold text-amber-800">
+                        Purchase required
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
