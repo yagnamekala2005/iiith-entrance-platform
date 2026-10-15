@@ -45,7 +45,7 @@ export default async function AdminPage() {
     adminClient.from("chapters").select("id, name, subject_id").order("display_order", { ascending: true }),
     adminClient.from("topics").select("id, name, chapter_id, description").order("display_order", { ascending: true }),
     adminClient.from("exams").select("id, name, slug"),
-    adminClient.from("tests").select("id, name, slug, duration_seconds, test_type, exam_id, description, status").neq("status", "archived").order("created_at", { ascending: false }),
+    adminClient.from("tests").select("id, name, slug, duration_seconds, test_type, exam_id, description, status, is_free").neq("status", "archived").order("created_at", { ascending: false }),
     adminClient.auth.admin.listUsers(),
     adminClient.from("admin_users").select("user_id"),
   ]);
