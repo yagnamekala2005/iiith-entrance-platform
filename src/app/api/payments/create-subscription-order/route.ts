@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -15,7 +15,16 @@ export async function POST() {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
     if (!keyId || !keySecret) return NextResponse.json({ error: "Payments are not configured." }, { status: 503 });
 
+    const body = await request.json().catch(() => null) as { planId?: string } | null;
+    const planId = body?.planId?.trim();
+    if (!planId) return NextResponse.json({ error: "Choose a subscription plan." }, { status: 400 });
+
     const admin = createAdminClient();
+    const { data: plan, error: planError } = await admin.from("mock_test_subscription_plans")
+      .select("id,name,price_paise,duration_months,is_active")
+      .eq("id", planId).eq("is_active", true).maybeSingle();
+    if (planError || !plan) return NextResponse.json({ error: "This subscription plan is no longer available." }, { status: 404 });
+
     const { data: active } = await admin.from("mock_test_subscriptions")
       .select("id, expires_at").eq("user_id", user.id).eq("status", "active")
       .gt("expires_at", new Date().toISOString()).order("expires_at", { ascending: false }).limit(1).maybeSingle();
@@ -28,9 +37,9 @@ export async function POST() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        amount: 9900, currency: "INR",
+        amount: plan.price_paise, currency: "INR",
         receipt: "sub_" + user.id.replace(/-/g, "").slice(0, 20) + "_" + Date.now().toString().slice(-8),
-        notes: { user_id: user.id, plan: "iiith_prep_all_mocks_2_months" },
+        notes: { user_id: user.id, plan_id: plan.id, plan_name: plan.name, duration_months: String(plan.duration_months) },
       }),
       cache: "no-store",
     });
@@ -41,14 +50,14 @@ export async function POST() {
     }
 
     const { error } = await admin.from("mock_test_subscriptions").insert({
-      user_id: user.id, status: "pending", amount_paise: 9900, provider_order_id: order.id,
+      user_id: user.id, plan_id: plan.id, status: "pending", amount_paise: plan.price_paise, provider_order_id: order.id,
     });
     if (error) {
       console.error("Could not save subscription order:", error);
       return NextResponse.json({ error: "Could not save the payment order." }, { status: 500 });
     }
 
-    return NextResponse.json({ keyId, orderId: order.id, amount: 9900, currency: "INR", studentEmail: user.email });
+    return NextResponse.json({ keyId, orderId: order.id, amount: plan.price_paise, currency: "INR", studentEmail: user.email, planName: plan.name, durationMonths: plan.duration_months });
   } catch (error) {
     console.error("Create subscription order error:", error);
     return NextResponse.json({ error: "Unexpected error starting subscription." }, { status: 500 });
