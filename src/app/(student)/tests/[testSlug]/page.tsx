@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getTestBySlug } from "@/lib/content/queries";
 import { getActiveAttemptForTest } from "@/lib/attempts/queries";
 import { StartAttemptButton } from "@/components/attempts/start-attempt-button";
+import { PurchaseMockTestButton } from "@/components/payments/purchase-mock-test-button";
 import { createClient } from "@/lib/supabase/server";
 
 interface PageProps {
@@ -185,9 +186,11 @@ export default async function TestDetailPage({ params }: PageProps) {
               activeAttemptId={activeAttempt?.id}
             />
           ) : (
-            <span className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-bold text-amber-800">
-              Purchase required to start
-            </span>
+            <PurchaseMockTestButton
+              testId={test.id}
+              testName={test.name}
+              pricePaise={test.price_paise ?? 4900}
+            />
           )}
         </div>
       </div>
