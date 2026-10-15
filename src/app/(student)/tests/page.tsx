@@ -127,9 +127,8 @@ export default async function TestsDirectoryPage({ searchParams }: PageProps) {
                     <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-black uppercase tracking-wider text-blue-800 border border-blue-200">
                       {test.exam?.slug.toUpperCase() || "ENTRANCE MOCK"} &bull; {test.test_type.toUpperCase()}
                     </span>
-                    <span className="rounded-md bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-800 border border-emerald-200 flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                      Live Timed CBT
+                    <span className={`rounded-md px-2.5 py-0.5 text-xs font-bold border flex items-center gap-1.5 ${test.is_free ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-amber-50 text-amber-800 border-amber-200"}`}>
+                      {test.is_free ? "FREE MOCK TEST" : "LOCKED · PAYMENT REQUIRED"}
                     </span>
                   </div>
 
@@ -198,7 +197,13 @@ export default async function TestsDirectoryPage({ searchParams }: PageProps) {
                     >
                       Instructions
                     </Link>
-                    <StartAttemptButton testId={test.id} />
+                    {test.is_free ? (
+                      <StartAttemptButton testId={test.id} />
+                    ) : (
+                      <button type="button" disabled className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs font-bold text-amber-800 cursor-not-allowed">
+                        🔒 Unlock Later
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
