@@ -134,8 +134,41 @@ export function SubscribeForMocksButton({ compact = false }: { compact?: boolean
       };
 
       if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android") {
-        const payment = await NativeRazorpay.openCheckout({ options: checkoutOptions });
-        await verifyPayment(payment);
+        try {
+          const payment = await NativeRazorpay.openCheckout({ options: checkoutOptions });
+          await verifyPayment(payment);
+        } catch (checkoutError) {
+          // Razorpay can capture a UPI payment even if its native callback fails.
+          // Check the server-verified subscription before showing a checkout error
+          // or allowing the student to start another payment.
+          let statusChecked = false;
+          for (let attempt = 0; attempt < 4; attempt++) {
+            if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 1500));
+            try {
+              const statusResponse = await fetch(
+                "/api/payments/subscription-status?orderId=" + encodeURIComponent(data.orderId),
+                { cache: "no-store" },
+              );
+              const status = await statusResponse.json();
+              if (statusResponse.ok && status.status === "active") {
+                setMessage("Payment received. Your subscription is active until " +
+                  new Date(status.expiresAt).toLocaleDateString() + ".");
+                router.refresh();
+                window.location.assign("/tests?subscription=active");
+                statusChecked = true;
+                break;
+              }
+              if (statusResponse.ok && status.status === "pending") statusChecked = true;
+            } catch {
+              // Continue retrying briefly; don't start a second payment automatically.
+            }
+          }
+          if (!statusChecked) {
+            setMessage("We couldn't confirm the payment status. Don't pay again yet. Refresh your subscription status or contact support with your Razorpay payment/order ID.");
+          } else {
+            setMessage("Razorpay checkout did not return a payment confirmation. If money was deducted, don't pay again; wait a moment and check your subscription status.");
+          }
+        }
         return;
       }
 
