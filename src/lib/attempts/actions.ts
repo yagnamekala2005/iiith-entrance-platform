@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface ActionResult<T = unknown> {
   success: boolean;
@@ -39,7 +40,7 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
     // Fallback: Validate and execute with direct queries if RPC is not yet registered
     const { data: test, error: testErr } = await supabase
       .from("tests")
-      .select("id, status, name")
+      .select("id, status, name, test_type, is_free")
       .eq("id", testId)
       .maybeSingle();
 
@@ -66,6 +67,29 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
         success: true,
         data: { attemptId: existingAttempt.id, isResumed: true },
       };
+    }
+
+    if (test.test_type === "mock" && !test.is_free) {
+      const adminClient = createAdminClient();
+      const { data: adminMembership } = await adminClient
+        .from("admin_users")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!adminMembership) {
+        const { data: paidPurchase, error: purchaseError } = await supabase
+          .from("mock_test_purchases")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("test_id", testId)
+          .eq("status", "paid")
+          .maybeSingle();
+
+        if (purchaseError || !paidPurchase) {
+          return { success: false, error: "This mock test is locked. Purchase access to continue." };
+        }
+      }
     }
 
     const { data: testQuestions, error: tqErr } = await supabase
