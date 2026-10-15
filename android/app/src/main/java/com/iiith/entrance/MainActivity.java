@@ -14,11 +14,16 @@ import androidx.activity.OnBackPressedCallback;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginHandle;
+import com.razorpay.Checkout;
+import com.razorpay.PaymentData;
+import com.razorpay.PaymentResultWithDataListener;
+import org.json.JSONObject;
 import ee.forgr.capacitor.social.login.GoogleProvider;
 import ee.forgr.capacitor.social.login.ModifiedMainActivityForSocialLoginPlugin;
 import ee.forgr.capacitor.social.login.SocialLoginPlugin;
 
-public class MainActivity extends BridgeActivity implements ModifiedMainActivityForSocialLoginPlugin {
+public class MainActivity extends BridgeActivity implements ModifiedMainActivityForSocialLoginPlugin, PaymentResultWithDataListener {
+    private RazorpayNativePlugin activeRazorpayPlugin;
     private boolean doubleBackToExitPressedOnce = false;
 
     public class AndroidSecurityBridge {
@@ -83,8 +88,38 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
     public void IHaveModifiedTheMainActivityForTheUseWithSocialLoginPlugin() {
     }
 
+    public void openRazorpayCheckout(JSONObject options, RazorpayNativePlugin plugin) throws Exception {
+        String keyId = options.optString("key", "");
+        if (keyId.isEmpty()) {
+            throw new IllegalArgumentException("Razorpay key ID is missing.");
+        }
+
+        activeRazorpayPlugin = plugin;
+        Checkout.preload(getApplicationContext());
+        Checkout checkout = new Checkout();
+        checkout.setKeyID(keyId);
+        checkout.open(this, options);
+    }
+
+    @Override
+    public void onPaymentSuccess(String razorpayPaymentId, PaymentData paymentData) {
+        if (activeRazorpayPlugin != null) {
+            activeRazorpayPlugin.onNativePaymentSuccess(paymentData);
+            activeRazorpayPlugin = null;
+        }
+    }
+
+    @Override
+    public void onPaymentError(int code, String response) {
+        if (activeRazorpayPlugin != null) {
+            activeRazorpayPlugin.onNativePaymentError(code, response);
+            activeRazorpayPlugin = null;
+        }
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(RazorpayNativePlugin.class);
         super.onCreate(savedInstanceState);
 
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED, WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED);
