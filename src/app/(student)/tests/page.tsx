@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getPublishedTests, getPublishedExams } from "@/lib/content/queries";
 import { StartAttemptButton } from "@/components/attempts/start-attempt-button";
+import { PurchaseMockTestButton } from "@/components/payments/purchase-mock-test-button";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -172,9 +173,11 @@ export default async function TestsDirectoryPage({ searchParams }: PageProps) {
                     {test.test_type !== "mock" || test.is_free || paidTestIds.has(test.id) ? (
                       <StartAttemptButton testId={test.id} />
                     ) : (
-                      <span className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs font-bold text-amber-800">
-                        Purchase required
-                      </span>
+                      <PurchaseMockTestButton
+                        testId={test.id}
+                        testName={test.name}
+                        pricePaise={test.price_paise ?? 4900}
+                      />
                     )}
                   </div>
                 </div>
