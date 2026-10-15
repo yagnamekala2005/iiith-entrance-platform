@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     }
 
     const { error } = await admin.from("mock_test_subscriptions").insert({
-      user_id: user.id, plan_id: plan.id, status: "pending", amount_paise: plan.price_paise, provider_order_id: order.id,
+      user_id: user.id, plan_id: plan.id, duration_months: plan.duration_months, status: "pending", amount_paise: plan.price_paise, provider_order_id: order.id,
     });
     if (error) {
       console.error("Could not save subscription order:", error);
