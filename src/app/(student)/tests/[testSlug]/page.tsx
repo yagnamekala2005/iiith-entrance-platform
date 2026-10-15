@@ -55,9 +55,8 @@ export default async function TestDetailPage({ params }: PageProps) {
               <span className="rounded-md bg-slate-100 px-2.5 py-0.5 text-xs font-bold uppercase text-slate-700">
                 {test.test_type}
               </span>
-              <span className="rounded-md bg-emerald-50 px-2.5 py-0.5 text-xs font-bold uppercase text-emerald-800 border border-emerald-200 flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                Live Timed CBT
+              <span className={`rounded-md px-2.5 py-0.5 text-xs font-bold uppercase border ${test.is_free ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-amber-50 text-amber-800 border-amber-200"}`}>
+                {test.is_free ? "Free Mock Test" : "Locked · Payment Required"}
               </span>
             </div>
             <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
@@ -166,11 +165,17 @@ export default async function TestDetailPage({ params }: PageProps) {
           &larr; Back to Tests Directory
         </Link>
         <div className="flex items-center gap-3">
-          <StartAttemptButton
-            testId={test.id}
-            hasActiveAttempt={Boolean(activeAttempt)}
-            activeAttemptId={activeAttempt?.id}
-          />
+          {test.is_free ? (
+            <StartAttemptButton
+              testId={test.id}
+              hasActiveAttempt={Boolean(activeAttempt)}
+              activeAttemptId={activeAttempt?.id}
+            />
+          ) : (
+            <div className="max-w-sm rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+              This mock test is locked. Paid access will be enabled after payment integration is configured.
+            </div>
+          )}
         </div>
       </div>
     </main>
