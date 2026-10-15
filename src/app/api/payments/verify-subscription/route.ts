@@ -28,7 +28,7 @@ export async function POST(request: Request) {
 
     const admin = createAdminClient();
     const { data: subscription, error } = await admin.from("mock_test_subscriptions")
-      .select("id,user_id,status,amount_paise,provider_order_id,provider_payment_id")
+      .select("id,user_id,plan_id,status,amount_paise,provider_order_id,provider_payment_id")
       .eq("user_id", user.id).eq("provider_order_id", orderId).maybeSingle();
     if (error || !subscription) return NextResponse.json({ error: "Subscription order not found." }, { status: 404 });
     if (subscription.status === "active" && subscription.provider_payment_id === paymentId) {
@@ -50,14 +50,21 @@ export async function POST(request: Request) {
       id?: string; order_id?: string; amount?: number; currency?: string; status?: string;
     } | null;
     if (!paymentResponse.ok || !payment) return NextResponse.json({ error: "Could not confirm payment with Razorpay." }, { status: 502 });
-    if (payment.id !== paymentId || payment.order_id !== orderId || payment.amount !== 9900 ||
+    if (payment.id !== paymentId || payment.order_id !== orderId || payment.amount !== subscription.amount_paise ||
       payment.currency !== "INR" || payment.status !== "captured") {
-      return NextResponse.json({ error: "Payment is not captured for ₹99. Access has not been activated." }, { status: 402 });
+      return NextResponse.json({ error: "Payment is not captured for the selected plan amount. Access has not been activated." }, { status: 402 });
+    }
+
+    const { data: plan } = subscription.plan_id
+      ? await admin.from("mock_test_subscription_plans").select("duration_months").eq("id", subscription.plan_id).maybeSingle()
+      : { data: null };
+    if (!plan || !Number.isInteger(plan.duration_months) || plan.duration_months < 1) {
+      return NextResponse.json({ error: "The selected subscription plan could not be found. Contact support with your payment ID." }, { status: 500 });
     }
 
     const now = new Date();
     const expires = new Date(now);
-    expires.setUTCMonth(expires.getUTCMonth() + 2);
+    expires.setUTCMonth(expires.getUTCMonth() + plan.duration_months);
     const { data: updated, error: updateError } = await admin.from("mock_test_subscriptions")
       .update({
         status: "active", provider_payment_id: paymentId,
