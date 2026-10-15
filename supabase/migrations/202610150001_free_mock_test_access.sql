@@ -9,6 +9,17 @@ create unique index if not exists idx_tests_single_free_mock
   on public.tests (is_free)
   where is_free = true and test_type = 'mock' and status = 'published';
 
+-- Initially designate the earliest published mock test as the free test.
+-- Admins can change this selection later by updating is_free in the admin workflow.
+update public.tests
+set is_free = true
+where id = (
+  select id from public.tests
+  where status = 'published' and test_type = 'mock'
+  order by created_at asc
+  limit 1
+);
+
 create table if not exists public.mock_test_purchases (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -69,6 +80,17 @@ begin
 
   if v_test.status <> 'published' and not public.is_admin() then
     raise exception 'Test is not published';
+  end if;
+
+  -- Enforce free-test and verified-purchase access. Admins can preview all tests.
+  if not public.is_admin() and not coalesce(v_test.is_free, false) and not exists (
+    select 1
+    from public.mock_test_purchases p
+    where p.user_id = v_user_id
+      and p.test_id = p_test_id
+      and p.status = 'paid'
+  ) then
+    raise exception 'This mock test is locked. Purchase access to continue.';
   end if;
 
   -- 3. Check for existing in-progress attempt to resume
