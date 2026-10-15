@@ -112,17 +112,26 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
 
     @Override
     public void onPaymentSuccess(String razorpayPaymentId, PaymentData paymentData) {
+        Log.i("RazorpayNative", "Checkout success callback. paymentId=" + razorpayPaymentId
+            + ", orderId=" + (paymentData != null ? paymentData.getOrderId() : "null"));
         if (activeRazorpayPlugin != null) {
             activeRazorpayPlugin.onNativePaymentSuccess(paymentData);
             activeRazorpayPlugin = null;
+        } else {
+            Log.w("RazorpayNative", "Payment success callback arrived with no active plugin call.");
         }
     }
 
     @Override
     public void onPaymentError(int code, String response, PaymentData paymentData) {
+        Log.e("RazorpayNative", "Checkout error callback. code=" + code + ", response=" + response
+            + ", paymentId=" + (paymentData != null ? paymentData.getPaymentId() : "null")
+            + ", orderId=" + (paymentData != null ? paymentData.getOrderId() : "null"));
         if (activeRazorpayPlugin != null) {
             activeRazorpayPlugin.onNativePaymentError(code, response);
             activeRazorpayPlugin = null;
+        } else {
+            Log.w("RazorpayNative", "Payment error callback arrived with no active plugin call.");
         }
     }
 
