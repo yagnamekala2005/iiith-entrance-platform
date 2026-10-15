@@ -71,8 +71,8 @@ export default async function TestDetailPage({ params }: PageProps) {
               <span className="rounded-md bg-slate-100 px-2.5 py-0.5 text-xs font-bold uppercase text-slate-700">
                 {test.test_type}
               </span>
-              <span className={`rounded-md px-2.5 py-0.5 text-xs font-bold uppercase border ${test.test_type !== "mock" || test.is_free ? "bg-emerald-50 text-emerald-800 border-emerald-200" : paidPurchase ? "bg-blue-50 text-blue-800 border-blue-200" : "bg-amber-50 text-amber-800 border-amber-200"}`}>
-                {test.test_type !== "mock" || test.is_free ? "Free for every student" : paidPurchase ? "Purchased" : "Locked · purchase required"}
+              <span className={`rounded-md px-2.5 py-0.5 text-xs font-bold uppercase border ${test.test_type !== "mock" || test.is_free ? "bg-emerald-50 text-emerald-800 border-emerald-200" : activeSubscription ? "bg-blue-50 text-blue-800 border-blue-200" : "bg-amber-50 text-amber-800 border-amber-200"}`}>
+                {test.test_type !== "mock" || test.is_free ? "Free for every student" : activeSubscription ? "Subscription active" : "Locked · subscription required"}
               </span>
             </div>
             <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
