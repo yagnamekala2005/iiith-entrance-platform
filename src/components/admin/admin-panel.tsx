@@ -10,6 +10,7 @@ import {
   createAdminMockTest,
   deleteAdminMockTest,
   publishAdminMockTest,
+  setFreeAdminMockTest,
   cleanAllOldMockTests,
   createAdminSubject,
   createAdminExam,
@@ -65,6 +66,7 @@ interface TestItem {
   exam_id?: string;
   description?: string;
   status?: string;
+  is_free?: boolean;
 }
 
 interface QuestionAdminItem {
@@ -1622,20 +1624,47 @@ export function AdminPanel({
 
                           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
                             <span className="text-xs text-slate-500 font-medium">
-                              {t.status === "published" ? "Available in Student Portal" : "Draft — ready for questions"}
+                              {t.is_free ? "Free for every student" : t.status === "published" ? "Available in Student Portal" : "Draft — ready for questions"}
                             </span>
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleSelectTargetTest(t.id);
-                                switchTab("create");
-                              }}
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  startTransition(async () => {
+                                    const result = await setFreeAdminMockTest(t.id);
+                                    if (!result.success) {
+                                      setTestErrorMessage(result.error || "Unable to set the free mock test.");
+                                      setTestSuccessMessage("");
+                                      return;
+                                    }
+                                    setTestErrorMessage("");
+                                    setTestSuccessMessage(`${t.name} is now the free mock test for all students.`);
+                                    setMockTests((current) => current.map((item) => ({
+                                      ...item,
+                                      is_free: item.id === t.id,
+                                    })));
+                                    router.refresh();
+                                  });
+                                }}
+                                disabled={isPending || t.status !== "published" || t.test_type !== "mock" || Boolean(t.is_free)}
+                                className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+                              >
+                                {t.is_free ? "✓ Free for Students" : "Set as Free Test"}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleSelectTargetTest(t.id);
+                                  switchTab("create");
+                                }
                               className="rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 transition-all flex items-center gap-1.5"
                             >
                               <span>➕ Manage &amp; Add Questions</span>
                               <span>&rarr;</span>
-                            </button>
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );
