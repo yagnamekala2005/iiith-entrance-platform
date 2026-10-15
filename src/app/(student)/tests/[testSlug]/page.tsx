@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getTestBySlug } from "@/lib/content/queries";
 import { getActiveAttemptForTest } from "@/lib/attempts/queries";
 import { StartAttemptButton } from "@/components/attempts/start-attempt-button";
-import { PurchaseMockTestButton } from "@/components/payments/purchase-mock-test-button";
+import { SubscribeForMocksButton } from "@/components/payments/subscribe-for-mocks-button";
 import { createClient } from "@/lib/supabase/server";
 
 interface PageProps {
@@ -21,16 +21,18 @@ export default async function TestDetailPage({ params }: PageProps) {
   const activeAttempt = await getActiveAttemptForTest(test.id);
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: paidPurchase } = user
+  const { data: activeSubscription } = user
     ? await supabase
-        .from("mock_test_purchases")
-        .select("id")
+        .from("mock_test_subscriptions")
+        .select("id, expires_at")
         .eq("user_id", user.id)
-        .eq("test_id", test.id)
-        .eq("status", "paid")
+        .eq("status", "active")
+        .gt("expires_at", new Date().toISOString())
+        .order("expires_at", { ascending: false })
+        .limit(1)
         .maybeSingle()
     : { data: null };
-  const canStartTest = Boolean(activeAttempt) || test.test_type !== "mock" || Boolean(test.is_free) || Boolean(paidPurchase);
+  const canStartTest = Boolean(activeAttempt) || test.test_type !== "mock" || Boolean(test.is_free) || Boolean(activeSubscription);
 
   const durationMinutes = Math.round(test.duration_seconds / 60);
   const durationHours = (durationMinutes / 60).toFixed(1);
@@ -186,11 +188,7 @@ export default async function TestDetailPage({ params }: PageProps) {
               activeAttemptId={activeAttempt?.id}
             />
           ) : (
-            <PurchaseMockTestButton
-              testId={test.id}
-              testName={test.name}
-              pricePaise={test.price_paise ?? 4900}
-            />
+            <SubscribeForMocksButton compact />
           )}
         </div>
       </div>
