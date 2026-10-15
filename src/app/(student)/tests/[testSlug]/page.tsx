@@ -4,7 +4,6 @@ import { getTestBySlug } from "@/lib/content/queries";
 import { getActiveAttemptForTest } from "@/lib/attempts/queries";
 import { StartAttemptButton } from "@/components/attempts/start-attempt-button";
 import { createClient } from "@/lib/supabase/server";
-import { createClient } from "@/lib/supabase/server";
 
 interface PageProps {
   params: Promise<{ testSlug: string }>;
