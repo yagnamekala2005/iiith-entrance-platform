@@ -170,13 +170,7 @@ export default async function TestsDirectoryPage({ searchParams }: PageProps) {
                       Instructions
                     </Link>
                     {test.test_type !== "mock" || test.is_free || paidTestIds.has(test.id) ? (
-                      {test.test_type !== "mock" || test.is_free || paidTestIds.has(test.id) ? (
                       <StartAttemptButton testId={test.id} />
-                    ) : (
-                      <span className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs font-bold text-amber-800">
-                        Purchase required
-                      </span>
-                    )}
                     ) : (
                       <span className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs font-bold text-amber-800">
                         Purchase required
