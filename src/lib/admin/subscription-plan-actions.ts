@@ -1,8 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { authorizeAdminAction } from "@/lib/admin/authorization";
+import {
+  subscriptionPlanSchema,
+  toggleSubscriptionPlanSchema,
+  validateInput,
+} from "@/lib/security/validation";
 
 export interface SubscriptionPlanInput {
   id?: string;
@@ -14,19 +19,21 @@ export interface SubscriptionPlanInput {
 }
 
 async function getAuthorizedAdmin() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Authentication required." as const };
-  const admin = createAdminClient();
-  const { data: membership, error } = await admin.from("admin_users").select("user_id").eq("user_id", user.id).maybeSingle();
-  if (error || !membership) return { error: "Admin authorization required." as const };
-  return { admin };
+  const authorization = await authorizeAdminAction();
+  if (!authorization.ok) return { error: authorization.error };
+  return { admin: createAdminClient() };
 }
 
 export async function saveSubscriptionPlan(input: SubscriptionPlanInput) {
   try {
     const auth = await getAuthorizedAdmin();
     if ("error" in auth) return { success: false, error: auth.error };
+    const validation = validateInput<SubscriptionPlanInput>(subscriptionPlanSchema, input);
+    if (validation.error || !validation.value) {
+      return { success: false, error: validation.error || "Invalid subscription plan." };
+    }
+    input = validation.value;
+
     const name = input.name.trim();
     const priceRupees = Number(input.priceRupees);
     const durationMonths = Number(input.durationMonths);
@@ -66,6 +73,15 @@ export async function setSubscriptionPlanActive(id: string, isActive: boolean) {
   try {
     const auth = await getAuthorizedAdmin();
     if ("error" in auth) return { success: false, error: auth.error };
+    const validation = validateInput<{ id: string; isActive: boolean }>(
+      toggleSubscriptionPlanSchema,
+      { id, isActive },
+    );
+    if (validation.error || !validation.value) {
+      return { success: false, error: validation.error || "Invalid subscription plan update." };
+    }
+    ({ id, isActive } = validation.value);
+
     if (!id) return { success: false, error: "Choose a subscription plan." };
     const { error } = await auth.admin.from("mock_test_subscription_plans")
       .update({ is_active: isActive, updated_at: new Date().toISOString() }).eq("id", id);

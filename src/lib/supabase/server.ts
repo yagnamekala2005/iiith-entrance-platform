@@ -22,6 +22,7 @@ export async function createClient() {
                 ...options,
                 sameSite: options?.sameSite || "lax",
                 path: options?.path || "/",
+                secure: process.env.NODE_ENV === "production",
               }),
             );
           } catch {

@@ -4,7 +4,6 @@
 import Link from "next/link";
 import { FormEvent, Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 
 type RecoveryStep = "email" | "otp";
 
@@ -28,27 +27,25 @@ function ForgotPasswordForm() {
     setMessage("");
 
     try {
-      const supabase = createClient();
       const normalizedEmail = email.trim().toLowerCase();
-
-      const { error } =
-        await supabase.auth.resetPasswordForEmail(normalizedEmail);
-
-      if (error) {
-        console.error("Password recovery OTP request failed:", error);
-        setMessage(
-          "We couldn't send a verification code. Check the email address and try again shortly.",
-        );
+      const response = await fetch("/api/auth/recovery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "send", email: normalizedEmail }),
+      });
+      const result: { error?: string } = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setMessage(result.error || "We couldn't send recovery instructions. Please try again shortly.");
         return;
       }
 
       setEmail(normalizedEmail);
       setStep("otp");
       setMessage(
-        "If an account exists for this email, a verification code has been sent. Check your inbox and spam folder.",
+        "If an account exists for this email, recovery instructions have been sent. Check your inbox and spam folder.",
       );
     } catch (error) {
-      console.error("Password recovery OTP request failed:", error);
+      console.error("Password recovery request failed:", error);
       setMessage("We couldn't send a verification code. Please try again.");
     } finally {
       setLoading(false);
@@ -61,19 +58,18 @@ function ForgotPasswordForm() {
     setMessage("");
 
     try {
-      const supabase = createClient();
-
-      const { error } = await supabase.auth.verifyOtp({
-        email: email.trim().toLowerCase(),
-        token: otp.trim(),
-        type: "recovery",
+      const response = await fetch("/api/auth/recovery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "verify",
+          email: email.trim().toLowerCase(),
+          token: otp.trim(),
+        }),
       });
-
-      if (error) {
-        console.error("Password recovery OTP verification failed:", error);
-        setMessage(
-          "That code is invalid or expired. Check the code or request a new one.",
-        );
+      const result: { error?: string } = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setMessage(result.error || "That code is invalid or expired. Request a new one.");
         return;
       }
 

@@ -31,9 +31,9 @@ function RegisterContent() {
       return;
     }
 
-    if (password.length < 6) {
+    if (password.length < 8) {
       setSuccess(false);
-      setMessage("Password must be at least 6 characters.");
+      setMessage("Password must be at least 8 characters.");
       return;
     }
 
@@ -48,7 +48,6 @@ function RegisterContent() {
         body: JSON.stringify({
           email: normalizedEmail,
           password,
-          role: "student",
         }),
       });
 
@@ -60,7 +59,7 @@ function RegisterContent() {
       }
 
       setSuccess(true);
-      setMessage("Student account created successfully! You can now sign in to start practicing.");
+      setMessage(result.message || "Account is ready. Sign in to continue.");
       setEmail("");
       setPassword("");
     } catch {
@@ -167,11 +166,11 @@ function RegisterContent() {
                   id="password"
                   type={showPassword ? "text" : "password"}
                   required
-                  minLength={6}
+                  minLength={8}
                   autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Minimum 6 characters"
+                  placeholder="Minimum 8 characters"
                   className="w-full rounded-xl border border-slate-300 bg-slate-50/50 px-3.5 py-3 pr-12 text-sm text-slate-900 outline-none focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 transition-all"
                 />
                 <button
@@ -182,7 +181,7 @@ function RegisterContent() {
                   {showPassword ? "Hide" : "Show"}
                 </button>
               </div>
-              <p className="mt-1 text-[11px] text-slate-400">Must be at least 6 characters long.</p>
+              <p className="mt-1 text-[11px] text-slate-400">Must be at least 8 characters long.</p>
             </div>
 
             <button
