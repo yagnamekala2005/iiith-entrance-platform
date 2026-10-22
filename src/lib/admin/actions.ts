@@ -859,6 +859,57 @@ export async function createAdminMockTest(input: CreateMockTestInput) {
   }
 }
 
+
+export async function updateAdminMockTestName(testId: string, name: string) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { success: false, error: "Unauthorized" };
+
+    const { data: adminMembership } = await supabase
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!adminMembership) {
+      return { success: false, error: "Admin authorization required." };
+    }
+
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      return { success: false, error: "Mock test name cannot be empty." };
+    }
+    if (trimmedName.length > 160) {
+      return { success: false, error: "Mock test name must be 160 characters or fewer." };
+    }
+
+    const adminClient = createAdminClient();
+    const { data: updatedTest, error } = await adminClient
+      .from("tests")
+      .update({ name: trimmedName })
+      .eq("id", testId)
+      .select("id, name")
+      .single();
+
+    if (error || !updatedTest) {
+      console.error("updateAdminMockTestName error:", error);
+      return { success: false, error: error?.message || "Failed to update mock test name." };
+    }
+
+    revalidatePath("/admin");
+    revalidatePath("/dashboard");
+    revalidatePath("/tests");
+    revalidatePath("/", "layout");
+
+    return { success: true, test: updatedTest };
+  } catch (err) {
+    console.error("updateAdminMockTestName error:", err);
+    return { success: false, error: "Failed to update mock test name." };
+  }
+}
+
 export async function deleteAdminMockTest(testId: string) {
   try {
     const authorization = await authorizeAdminAction();
