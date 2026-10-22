@@ -2,6 +2,21 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { authorizeAdminAction } from "@/lib/admin/authorization";
+import {
+  adminEmailSchema,
+  chapterCreateSchema,
+  createExamSchema,
+  createMockTestSchema,
+  createPracticeQuestionSchema,
+  createQuestionSchema,
+  idSchema,
+  nameDescriptionSchema,
+  practiceQuestionUpdateSchema,
+  topicCreateSchema,
+  topicLearningContentSchema,
+  validateInput,
+} from "@/lib/security/validation";
 import { revalidatePath } from "next/cache";
 
 export interface CreateQuestionInput {
@@ -25,6 +40,12 @@ export interface CreateQuestionInput {
 
 export async function createAdminQuestion(input: CreateQuestionInput) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<CreateQuestionInput>(createQuestionSchema, input);
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid question." };
+    input = validation.value;
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -210,6 +231,12 @@ export interface CreatePracticeQuestionInput {
  */
 export async function createAdminPracticeQuestion(input: CreatePracticeQuestionInput) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<CreatePracticeQuestionInput>(createPracticeQuestionSchema, input);
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid question." };
+    input = validation.value;
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -357,6 +384,11 @@ export interface AdminPracticeQuestionItem {
 
 export async function getAdminTopicPracticeQuestions(topicId: string) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error, questions: [] as AdminPracticeQuestionItem[] };
+    const validation = validateInput<{ id: string }>(idSchema, { id: topicId });
+    if (validation.error) return { success: false, error: validation.error, questions: [] as AdminPracticeQuestionItem[] };
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -465,6 +497,17 @@ export async function updateAdminPracticeQuestion(
   input: Omit<CreatePracticeQuestionInput, "subject_id" | "chapter_id" | "topic_id">
 ) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<Omit<CreatePracticeQuestionInput, "subject_id" | "chapter_id" | "topic_id">>(
+      practiceQuestionUpdateSchema,
+      input,
+    );
+    const idValidation = validateInput<{ id: string }>(idSchema, { id: questionId });
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid question." };
+    if (idValidation.error) return { success: false, error: idValidation.error };
+    input = validation.value;
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -588,6 +631,11 @@ export async function updateAdminPracticeQuestion(
 }
 export async function deleteAdminQuestion(questionId: string) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ id: string }>(idSchema, { id: questionId });
+    if (validation.error) return { success: false, error: validation.error };
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -676,6 +724,12 @@ export async function deleteAdminQuestion(questionId: string) {
 
 export async function addAdminUserByEmail(email: string) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ email: string }>(adminEmailSchema, { email });
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid email." };
+    email = validation.value.email;
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -720,6 +774,12 @@ export interface CreateMockTestInput {
 
 export async function createAdminMockTest(input: CreateMockTestInput) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<CreateMockTestInput>(createMockTestSchema, input);
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid test." };
+    input = validation.value;
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -801,6 +861,11 @@ export async function createAdminMockTest(input: CreateMockTestInput) {
 
 export async function deleteAdminMockTest(testId: string) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ id: string }>(idSchema, { id: testId });
+    if (validation.error) return { success: false, error: validation.error };
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -865,6 +930,9 @@ export async function deleteAdminMockTest(testId: string) {
 
 export async function cleanAllOldMockTests() {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -923,6 +991,11 @@ export async function cleanAllOldMockTests() {
 
 export async function publishAdminMockTest(testId: string) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ id: string }>(idSchema, { id: testId });
+    if (validation.error) return { success: false, error: validation.error };
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -999,6 +1072,17 @@ export async function publishAdminMockTest(testId: string) {
 
 export async function createAdminExam(name: string, description: string = "", negativeMarkingRatio: number | null = null) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ name: string; description?: string; negativeMarkingRatio?: number | null }>(
+      createExamSchema,
+      { name, description, negativeMarkingRatio },
+    );
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid exam." };
+    name = validation.value.name;
+    description = validation.value.description ?? "";
+    negativeMarkingRatio = validation.value.negativeMarkingRatio ?? null;
+
     const cleanName = name.trim();
     if (!cleanName) return { success: false, error: "Exam name is required." };
 
@@ -1068,6 +1152,16 @@ export async function createAdminExam(name: string, description: string = "", ne
 
 export async function createAdminSubject(name: string, description: string = "") {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ name: string; description?: string }>(
+      nameDescriptionSchema,
+      { name, description },
+    );
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid subject." };
+    name = validation.value.name;
+    description = validation.value.description ?? "";
+
     const cleanName = name.trim();
     if (!cleanName) return { success: false, error: "Subject name is required." };
 
@@ -1138,7 +1232,16 @@ export async function createAdminSubject(name: string, description: string = "")
 
 export async function createAdminChapter(subject_id: string, name: string) {
   try {
-    if (!name.trim()) return { success: false, error: "Chapter name is required." };
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ subject_id: string; name: string }>(
+      chapterCreateSchema,
+      { subject_id, name },
+    );
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid chapter." };
+    subject_id = validation.value.subject_id;
+    name = validation.value.name;
+
     const adminClient = createAdminClient();
     const cleanSlug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
     const slug = `${cleanSlug}-${Date.now().toString().slice(-4)}`;
@@ -1171,6 +1274,11 @@ export async function createAdminChapter(subject_id: string, name: string) {
 
 export async function deleteAdminChapter(chapterId: string) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ id: string }>(idSchema, { id: chapterId });
+    if (validation.error) return { success: false, error: validation.error };
+
     const adminClient = createAdminClient();
 
     // 1. Unlink any questions referencing this chapter or its subtopics in Supabase
@@ -1200,7 +1308,16 @@ export async function deleteAdminChapter(chapterId: string) {
 
 export async function createAdminTopic(chapter_id: string, name: string) {
   try {
-    if (!name.trim()) return { success: false, error: "Topic name is required." };
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ chapter_id: string; name: string }>(
+      topicCreateSchema,
+      { chapter_id, name },
+    );
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid topic." };
+    chapter_id = validation.value.chapter_id;
+    name = validation.value.name;
+
     const adminClient = createAdminClient();
     const cleanSlug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
     const slug = `${cleanSlug}-${Date.now().toString().slice(-4)}`;
@@ -1233,6 +1350,11 @@ export async function createAdminTopic(chapter_id: string, name: string) {
 
 export async function deleteAdminTopic(topicId: string) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ id: string }>(idSchema, { id: topicId });
+    if (validation.error) return { success: false, error: validation.error };
+
     const adminClient = createAdminClient();
 
     // 1. Unlink any questions referencing this subtopic in Supabase
@@ -1271,6 +1393,9 @@ export interface TopicLearningContentInput {
 
 export async function uploadLearningPdf(formData: FormData) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -1294,11 +1419,16 @@ export async function uploadLearningPdf(formData: FormData) {
     const topicId = String(formData.get("topic_id") || "").trim();
 
     if (!(file instanceof File)) return { success: false, error: "Please select a PDF file." };
-    if (!topicId) return { success: false, error: "Topic ID is required." };
+    const topicValidation = validateInput<{ id: string }>(idSchema, { id: topicId });
+    if (topicValidation.error) return { success: false, error: "A valid topic is required." };
     if (file.type !== "application/pdf") return { success: false, error: "Only PDF files are allowed." };
 
     const maxSize = 20 * 1024 * 1024;
-    if (file.size > maxSize) return { success: false, error: "PDF must be 20 MB or smaller." };
+    if (file.size < 5 || file.size > maxSize) return { success: false, error: "PDF must be between 5 bytes and 20 MB." };
+    const signature = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+    if (new TextDecoder().decode(signature) !== "%PDF-") {
+      return { success: false, error: "The selected file is not a valid PDF." };
+    }
 
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/_+/g, "_").slice(-160);
     const path = `topics/${topicId}/${Date.now()}-${safeName || "document.pdf"}`;
@@ -1335,6 +1465,14 @@ export async function updateTopicLearningContent(
   content: TopicLearningContentInput
 ) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<TopicLearningContentInput>(topicLearningContentSchema, content);
+    const idValidation = validateInput<{ id: string }>(idSchema, { id: topicId });
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid learning content." };
+    if (idValidation.error) return { success: false, error: idValidation.error };
+    content = validation.value;
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -1399,6 +1537,14 @@ export async function updateAdminQuestion(
   input: CreateQuestionInput
 ) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<CreateQuestionInput>(createQuestionSchema, input);
+    const idValidation = validateInput<{ id: string }>(idSchema, { id: questionId });
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid question." };
+    if (idValidation.error) return { success: false, error: idValidation.error };
+    input = validation.value;
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -1492,6 +1638,9 @@ export async function updateAdminQuestion(
  */
 export async function purgeDuplicateAndOrphanQuestions() {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+
     const adminClient = createAdminClient();
 
     // 1. Fetch all questions from Supabase
@@ -1587,140 +1736,16 @@ export async function purgeDuplicateAndOrphanQuestions() {
 }
 
 /**
- * Direct password reset action:
- * Updates the user's password directly in Supabase auth without requiring localhost redirects.
- */
-export async function directResetPasswordAction(email: string, newPassword: string) {
-  try {
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail) {
-      return { success: false, error: "Email address is required." };
-    }
-    if (!newPassword || newPassword.length < 6) {
-      return { success: false, error: "Password must be at least 6 characters long." };
-    }
-
-    const adminClient = createAdminClient();
-    const { data: usersData, error: listErr } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
-
-    if (listErr) {
-      console.error("List users error:", listErr);
-      return { success: false, error: listErr.message };
-    }
-
-    const targetUser = (usersData?.users || []).find(
-      (u) => (u.email || "").trim().toLowerCase() === normalizedEmail
-    );
-
-    if (!targetUser) {
-      return {
-        success: false,
-        error: `No account registered with "${normalizedEmail}". Please make sure you entered the email you used to register.`,
-      };
-    }
-
-    const { error: updateErr } = await adminClient.auth.admin.updateUserById(targetUser.id, {
-      password: newPassword,
-    });
-
-    if (updateErr) {
-      console.error("Update password error in Supabase:", updateErr);
-      return { success: false, error: updateErr.message };
-    }
-
-    return { success: true };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Failed to reset password.";
-    return { success: false, error: msg };
-  }
-}
-
-/**
- * Send password reset email and generate recovery link:
- * Validates the email exists in Supabase, triggers reset password email,
- * and provides a fallback link if Supabase email rate limits are encountered.
- */
-export async function sendPasswordResetEmailAction(email: string, origin: string) {
-  try {
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail) {
-      return { success: false, error: "Please enter your registered email address." };
-    }
-
-    const adminClient = createAdminClient();
-    const { data: usersData, error: listErr } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
-
-    if (listErr) {
-      console.error("List users error:", listErr);
-      return { success: false, error: listErr.message };
-    }
-
-    const targetUser = (usersData?.users || []).find(
-      (u) => (u.email || "").trim().toLowerCase() === normalizedEmail
-    );
-
-    if (!targetUser) {
-      return {
-        success: false,
-        error: `No account found with email "${normalizedEmail}". Please enter the email you registered with.`,
-      };
-    }
-
-    const redirectUrl = `${origin}/reset-password`;
-
-    // 1. Generate recovery link via Admin API
-    const { data: linkData, error: linkErr } = await adminClient.auth.admin.generateLink({
-      type: "recovery",
-      email: normalizedEmail,
-      options: {
-        redirectTo: redirectUrl,
-      },
-    });
-
-    if (linkErr) {
-      console.warn("generateLink warning:", linkErr);
-    }
-
-    let directRecoveryUrl = linkData?.properties?.action_link || null;
-    if (directRecoveryUrl && origin && !origin.includes("localhost")) {
-      directRecoveryUrl = directRecoveryUrl
-        .replace(/redirect_to=http%3A%2F%2Flocalhost%3A3000/gi, `redirect_to=${encodeURIComponent(origin)}`)
-        .replace(/redirect_to=http:\/\/localhost:3000/gi, `redirect_to=${origin}`);
-    }
-
-    // 2. Trigger standard Supabase reset password email
-    const supabase = await createClient();
-    const { error: emailErr } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-      redirectTo: redirectUrl,
-    });
-
-    const isRateLimited = emailErr ? emailErr.message.toLowerCase().includes("rate limit") : false;
-
-    return {
-      success: true,
-      email: normalizedEmail,
-      emailSent: !emailErr,
-      rateLimited: isRateLimited,
-      directRecoveryUrl,
-      resetPageUrl: `${origin}/reset-password?email=${encodeURIComponent(normalizedEmail)}`,
-      errorMessage: emailErr?.message || null,
-    };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Failed to send reset link.";
-    return { success: false, error: msg };
-  }
-}
-
-
-
-
-
-/**
  * Set the single published mock test that is free for every student.
  * The service-role RPC is callable only from this authenticated, admin-checked action.
  */
 export async function setFreeAdminMockTest(testId: string) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ id: string }>(idSchema, { id: testId });
+    if (validation.error) return { success: false, error: validation.error };
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 

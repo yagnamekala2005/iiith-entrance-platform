@@ -1,23 +1,44 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { readJsonBody } from "@/lib/security/body";
+import { checkRateLimit } from "@/lib/security/rate-limit";
+import { hasValidOrigin } from "@/lib/security/origin";
+import { subscriptionOrderSchema, validateInput } from "@/lib/security/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  if (!hasValidOrigin(request)) {
+    return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
+  }
+
   try {
+    const ipLimit = await checkRateLimit("subscription-order-ip", 20, 600, undefined, request.headers);
+    if (!ipLimit.allowed) {
+      return NextResponse.json({ error: "Too many payment requests. Try again later." }, {
+        status: 429,
+        headers: { "Retry-After": String(ipLimit.retryAfterSeconds) },
+      });
+    }
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Sign in before subscribing." }, { status: 401 });
+
+    const userLimit = await checkRateLimit("subscription-order-user", 5, 600, user.id, request.headers);
+    if (!userLimit.allowed) return NextResponse.json({ error: "Too many payment requests. Try again later." }, { status: 429, headers: { "Retry-After": String(userLimit.retryAfterSeconds) } });
 
     const keyId = process.env.RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
     if (!keyId || !keySecret) return NextResponse.json({ error: "Payments are not configured." }, { status: 503 });
 
-    const body = await request.json().catch(() => null) as { planId?: string } | null;
-    const planId = body?.planId?.trim();
-    if (!planId) return NextResponse.json({ error: "Choose a subscription plan." }, { status: 400 });
+    const body = await readJsonBody(request, 16 * 1024);
+    if (!body.ok) return NextResponse.json({ error: "Invalid subscription request." }, { status: body.status });
+    const validation = validateInput<{ planId: string }>(subscriptionOrderSchema, body.value);
+    if (validation.error || !validation.value) return NextResponse.json({ error: "Choose a valid subscription plan." }, { status: 400 });
+    const planId = validation.value.planId;
 
     const admin = createAdminClient();
     const { data: plan, error: planError } = await admin.from("mock_test_subscription_plans")

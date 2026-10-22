@@ -1,45 +1,91 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { authorizeAdminAction } from "@/lib/admin/authorization";
 import { purgeDuplicateAndOrphanQuestions } from "@/lib/admin/actions";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { readJsonBody } from "@/lib/security/body";
+import { hasValidOrigin } from "@/lib/security/origin";
+import { checkRateLimit } from "@/lib/security/rate-limit";
+import { cleanupConfirmationSchema, validateInput } from "@/lib/security/validation";
 
-export async function GET() {
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function POST(request: Request) {
+  if (!hasValidOrigin(request)) {
+    return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
+  }
+
+  const authorization = await authorizeAdminAction();
+  if (!authorization.ok) {
+    return NextResponse.json({ error: authorization.error }, {
+      status: authorization.error === "Authentication required." ? 401 : 403,
+    });
+  }
+
   try {
-    const adminClient = createAdminClient();
-
-    // 1. Delete attempt_questions & test_attempts
-    const { data: allAttempts } = await adminClient.from("test_attempts").select("id");
-    if (allAttempts && allAttempts.length > 0) {
-      const attemptIds = allAttempts.map((a) => a.id);
-      await adminClient.from("attempt_questions").delete().in("attempt_id", attemptIds);
-      await adminClient.from("test_attempts").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    const limit = await checkRateLimit("admin-clean-tests", 1, 3600, authorization.userId, request.headers);
+    if (!limit.allowed) {
+      return NextResponse.json({ error: "Cleanup has already run recently. Try again later." }, {
+        status: 429,
+        headers: { "Retry-After": String(limit.retryAfterSeconds) },
+      });
     }
 
-    // 2. Delete test_questions
-    await adminClient.from("test_questions").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    const body = await readJsonBody(request, 4 * 1024);
+    if (!body.ok) return NextResponse.json({ error: "Invalid cleanup request." }, { status: body.status });
+    const validation = validateInput<{ confirmation: string }>(cleanupConfirmationSchema, body.value);
+    if (validation.error) {
+      return NextResponse.json({ error: "Explicit cleanup confirmation is required." }, { status: 400 });
+    }
 
-    // 3. Delete test_sections
-    await adminClient.from("test_sections").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    const admin = createAdminClient();
+    const { data: attempts, error: attemptLookupError } = await admin.from("test_attempts").select("id");
+    if (attemptLookupError) throw attemptLookupError;
+    if (attempts?.length) {
+      const attemptIds = attempts.map((attempt) => attempt.id);
+      const { error: answerDeleteError } = await admin.from("attempt_questions").delete().in("attempt_id", attemptIds);
+      if (answerDeleteError) throw answerDeleteError;
+      const { error: attemptDeleteError } = await admin
+        .from("test_attempts")
+        .delete()
+        .in("id", attemptIds);
+      if (attemptDeleteError) throw attemptDeleteError;
+    }
 
-    // 4. Archive & delete old tests
-    const OLD_TEST_IDS = [
+    const { error: questionDeleteError } = await admin
+      .from("test_questions")
+      .delete()
+      .neq("id", "00000000-0000-0000-0000-000000000000");
+    if (questionDeleteError) throw questionDeleteError;
+    const { error: sectionDeleteError } = await admin
+      .from("test_sections")
+      .delete()
+      .neq("id", "00000000-0000-0000-0000-000000000000");
+    if (sectionDeleteError) throw sectionDeleteError;
+
+    const oldTestIds = [
       "587d3e0d-da6e-4b20-bc98-5339ae1f1f1e",
       "64a2c6a7-77eb-426e-bc3f-c492865aac77",
       "c0d075f7-3af9-4aee-8b9a-7321b2885ead",
     ];
-    await adminClient.from("tests").update({ status: "archived" }).in("id", OLD_TEST_IDS);
-    await adminClient.from("tests").delete().in("id", OLD_TEST_IDS);
+    const { error: archiveError } = await admin
+      .from("tests")
+      .update({ status: "archived" })
+      .in("id", oldTestIds);
+    if (archiveError) throw archiveError;
+    const { error: testDeleteError } = await admin.from("tests").delete().in("id", oldTestIds);
+    if (testDeleteError) throw testDeleteError;
 
-    // 5. Purge all duplicate and orphan seed questions from Supabase
     const purgeResult = await purgeDuplicateAndOrphanQuestions();
+    if (!purgeResult.success) throw new Error(purgeResult.error || "Question cleanup failed.");
 
     return NextResponse.json({
       success: true,
-      message: "Successfully purged old tests, duplicate questions, and orphan seed questions from Supabase.",
+      message: "Cleanup completed.",
       purgedResult: purgeResult,
-    });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    console.error("Admin test cleanup failed:", error);
+    return NextResponse.json({ error: "Test cleanup could not be completed." }, { status: 500 });
   }
 }
-
