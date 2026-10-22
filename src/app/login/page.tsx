@@ -36,10 +36,21 @@ function LoginFormContent() {
     const normalizedEmail = email.trim().toLowerCase();
     const supabase = createClient();
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
-      password,
-    });
+    let data: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>["data"];
+    let error: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>["error"];
+    try {
+      const result = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+      data = result.data;
+      error = result.error;
+    } catch (cause) {
+      console.error("Password sign-in request failed:", cause);
+      setLoading(false);
+      setMessage("Sign-in is temporarily unavailable. Please check your connection and try again.");
+      return;
+    }
 
     if (error) {
       setLoading(false);
