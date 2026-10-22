@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { readJsonBody } from "@/lib/security/body";
-import { checkRateLimit } from "@/lib/security/rate-limit";
-import { hasValidOrigin } from "@/lib/security/origin";
-import { testOrderSchema, validateInput } from "@/lib/security/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,29 +10,14 @@ function jsonError(message: string, status: number) {
 }
 
 export async function POST(request: Request) {
-  if (!hasValidOrigin(request)) return jsonError("Invalid request origin.", 403);
-
   try {
-    const ipLimit = await checkRateLimit("payment-create-order-ip", 20, 600, undefined, request.headers);
-    if (!ipLimit.allowed) {
-      return NextResponse.json({ error: "Too many payment requests. Try again later." }, {
-        status: 429,
-        headers: { "Retry-After": String(ipLimit.retryAfterSeconds) },
-      });
-    }
-
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return jsonError("Please sign in before purchasing a mock test.", 401);
 
-    const userLimit = await checkRateLimit("payment-create-order-user", 5, 600, user.id, request.headers);
-    if (!userLimit.allowed) return NextResponse.json({ error: "Too many payment requests. Try again later." }, { status: 429, headers: { "Retry-After": String(userLimit.retryAfterSeconds) } });
-
-    const body = await readJsonBody(request, 16 * 1024);
-    if (!body.ok) return jsonError("Invalid payment request.", body.status);
-    const validation = validateInput<{ testId: string }>(testOrderSchema, body.value);
-    if (validation.error || !validation.value) return jsonError("A valid mock test is required.", 400);
-    const testId = validation.value.testId;
+    const body = await request.json().catch(() => null) as { testId?: string } | null;
+    const testId = body?.testId?.trim();
+    if (!testId) return jsonError("A mock test is required.", 400);
 
     const keyId = process.env.RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;

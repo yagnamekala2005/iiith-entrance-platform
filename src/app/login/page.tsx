@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState, Suspense } from "react";
+import { FormEvent, useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { GoogleOAuthButton } from "@/components/auth/google-oauth-button";
-import { safeInternalRedirect } from "@/lib/security/redirect";
 
 function LoginFormContent() {
   const router = useRouter();
@@ -31,7 +30,7 @@ function LoginFormContent() {
         return "⚠️ This Google account is not registered as an administrator. Please toggle to the Student Login tab to access your dashboard.";
       case "oauth_failed":
         if (errorDetails) {
-          return `Google sign-in could not be completed (${errorDetails}). Please try again or use email and password.`;
+          return `Google sign-in could not be completed (${decodeURIComponent(errorDetails)}). Please try again or use email and password.`;
         }
         return "Google sign-in could not be completed. Please try again or use email and password.";
       default:
@@ -40,35 +39,63 @@ function LoginFormContent() {
   });
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (authError) {
+      switch (authError) {
+        case "oauth_cancelled":
+          setMessage("Google sign-in was cancelled. You can try again or use email and password.");
+          break;
+        case "profile_update_failed":
+          setMessage("Google sign-in succeeded, but your profile could not be updated. Please try again or contact support.");
+          break;
+        case "role_lookup_failed":
+          setMessage("We could not verify your account access. Please try again or contact support.");
+          break;
+        case "not_admin":
+          setMessage("⚠️ This Google account is not registered as an administrator. Please toggle to the Student Login tab to access your dashboard.");
+          break;
+        case "oauth_failed":
+          if (errorDetails) {
+            setMessage(`Google sign-in could not be completed (${decodeURIComponent(errorDetails)}). Please try again or use email and password.`);
+          } else {
+            setMessage("Google sign-in could not be completed. Please try again or use email and password.");
+          }
+          break;
+        default:
+          break;
+      }
+    }
+  }, [authError, errorDetails]);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
     setMessage("");
 
     const normalizedEmail = email.trim().toLowerCase();
-    let response: Response;
-    try {
-      response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalizedEmail, password }),
-      });
-    } catch {
-      setLoading(false);
-      setMessage("Sign-in is temporarily unavailable. Please try again.");
-      return;
-    }
-
-    if (!response.ok) {
-      setLoading(false);
-      const result: { error?: string } = await response.json().catch(() => ({}));
-      setMessage(result.error || "Incorrect email or password.");
-      return;
-    }
-
     const supabase = createClient();
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) {
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
+
+    if (error) {
+      setLoading(false);
+      const errorMessage = error.message.toLowerCase();
+
+      if (
+        errorMessage.includes("invalid login credentials") ||
+        errorMessage.includes("invalid credentials")
+      ) {
+        setMessage("Incorrect email or password. Please verify your credentials and try again.");
+      } else {
+        setMessage(error.message);
+      }
+      return;
+    }
+
+    if (!data.user) {
       setLoading(false);
       setMessage("Login failed. Please try again.");
       return;
@@ -90,12 +117,10 @@ function LoginFormContent() {
         return;
       }
 
-      const destination = safeInternalRedirect(nextUrl, "/admin", window.location.origin);
-      router.push(destination === "/admin" || destination.startsWith("/admin/") ? destination : "/admin");
+      router.push(nextUrl || "/admin");
       router.refresh();
     } else {
-      const destination = safeInternalRedirect(nextUrl, "/dashboard", window.location.origin);
-      router.push(destination === "/admin" || destination.startsWith("/admin/") ? "/dashboard" : destination);
+      router.push(nextUrl || "/dashboard");
       router.refresh();
     }
   }
@@ -187,11 +212,7 @@ function LoginFormContent() {
               </div>
             )}
 
-            <GoogleOAuthButton
-              disabled={loading}
-              role={role}
-              next={safeInternalRedirect(nextUrl, role === "admin" ? "/admin" : "/dashboard", "https://app.invalid")}
-            />
+            <GoogleOAuthButton disabled={loading} role={role} next={nextUrl} />
             <div className="flex items-center gap-3" aria-hidden="true">
               <span className="h-px flex-1 bg-slate-200" />
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">

@@ -1,9 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkRateLimit } from "@/lib/security/rate-limit";
-import { readWebhookBody } from "@/lib/security/body";
-import { razorpayWebhookSchema, validateInput } from "@/lib/security/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,7 +25,6 @@ type RazorpayWebhookEvent = {
 };
 
 function verifyWebhookSignature(rawBody: string, signature: string, secret: string) {
-  if (!/^[0-9a-f]{64}$/i.test(signature)) return false;
   const expected = createHmac("sha256", secret).update(rawBody).digest();
   let received: Buffer;
   try {
@@ -40,11 +36,7 @@ function verifyWebhookSignature(rawBody: string, signature: string, secret: stri
 }
 
 export async function POST(request: Request) {
-  const boundedBody = await readWebhookBody(request);
-  if (!boundedBody.ok) {
-    return NextResponse.json({ error: "Invalid or oversized webhook payload." }, { status: boundedBody.status });
-  }
-  const rawBody = boundedBody.text;
+  const rawBody = await request.text();
   const signature = request.headers.get("x-razorpay-signature");
   const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
 
@@ -56,25 +48,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid webhook signature." }, { status: 400 });
   }
 
-  const limit = await checkRateLimit("razorpay-webhook", 120, 60, undefined, request.headers);
-  if (!limit.allowed) {
-    return NextResponse.json({ error: "Too many webhook requests." }, {
-      status: 429,
-      headers: { "Retry-After": String(limit.retryAfterSeconds) },
-    });
-  }
-
-  let parsed: unknown;
+  let event: RazorpayWebhookEvent;
   try {
-    parsed = JSON.parse(rawBody);
+    event = JSON.parse(rawBody) as RazorpayWebhookEvent;
   } catch {
     return NextResponse.json({ error: "Invalid webhook payload." }, { status: 400 });
   }
-  const validation = validateInput<RazorpayWebhookEvent>(razorpayWebhookSchema, parsed);
-  if (validation.error || !validation.value) {
-    return NextResponse.json({ error: "Invalid webhook payload." }, { status: 400 });
-  }
-  const event = validation.value;
 
   if (event.event !== "payment.captured" && event.event !== "order.paid") {
     return NextResponse.json({ received: true, ignored: true });

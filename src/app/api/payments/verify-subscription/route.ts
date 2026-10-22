@@ -2,41 +2,25 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { readJsonBody } from "@/lib/security/body";
-import { checkRateLimit } from "@/lib/security/rate-limit";
-import { hasValidOrigin } from "@/lib/security/origin";
-import { subscriptionPaymentVerificationSchema, validateInput } from "@/lib/security/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  if (!hasValidOrigin(request)) {
-    return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
-  }
-
   try {
-    const ipLimit = await checkRateLimit("subscription-verify-ip", 30, 600, undefined, request.headers);
-    if (!ipLimit.allowed) return NextResponse.json({ error: "Too many verification attempts. Try again later." }, { status: 429, headers: { "Retry-After": String(ipLimit.retryAfterSeconds) } });
-
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Sign in to verify this payment." }, { status: 401 });
 
-    const userLimit = await checkRateLimit("subscription-verify-user", 10, 600, user.id, request.headers);
-    if (!userLimit.allowed) return NextResponse.json({ error: "Too many verification attempts. Try again later." }, { status: 429, headers: { "Retry-After": String(userLimit.retryAfterSeconds) } });
-
-    const body = await readJsonBody(request, 16 * 1024);
-    if (!body.ok) return NextResponse.json({ error: "Invalid payment verification request." }, { status: body.status });
-    const validation = validateInput<{
-      razorpay_order_id: string;
-      razorpay_payment_id: string;
-      razorpay_signature: string;
-    }>(subscriptionPaymentVerificationSchema, body.value);
-    if (validation.error || !validation.value) {
+    const body = await request.json().catch(() => null) as {
+      razorpay_order_id?: string; razorpay_payment_id?: string; razorpay_signature?: string;
+    } | null;
+    const orderId = body?.razorpay_order_id?.trim();
+    const paymentId = body?.razorpay_payment_id?.trim();
+    const signature = body?.razorpay_signature?.trim();
+    if (!orderId || !paymentId || !signature) {
       return NextResponse.json({ error: "Payment verification details are incomplete." }, { status: 400 });
     }
-    const { razorpay_order_id: orderId, razorpay_payment_id: paymentId, razorpay_signature: signature } = validation.value;
 
     const keyId = process.env.RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;

@@ -2,10 +2,6 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { readJsonBody } from "@/lib/security/body";
-import { checkRateLimit } from "@/lib/security/rate-limit";
-import { hasValidOrigin } from "@/lib/security/origin";
-import { mockPaymentVerificationSchema, validateInput } from "@/lib/security/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,31 +11,25 @@ function jsonError(message: string, status: number) {
 }
 
 export async function POST(request: Request) {
-  if (!hasValidOrigin(request)) return jsonError("Invalid request origin.", 403);
-
   try {
-    const ipLimit = await checkRateLimit("payment-verify-ip", 30, 600, undefined, request.headers);
-    if (!ipLimit.allowed) return NextResponse.json({ error: "Too many verification attempts. Try again later." }, { status: 429, headers: { "Retry-After": String(ipLimit.retryAfterSeconds) } });
-
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return jsonError("Please sign in to verify this payment.", 401);
 
-    const userLimit = await checkRateLimit("payment-verify-user", 10, 600, user.id, request.headers);
-    if (!userLimit.allowed) return NextResponse.json({ error: "Too many verification attempts. Try again later." }, { status: 429, headers: { "Retry-After": String(userLimit.retryAfterSeconds) } });
+    const body = await request.json().catch(() => null) as {
+      testId?: string;
+      razorpay_order_id?: string;
+      razorpay_payment_id?: string;
+      razorpay_signature?: string;
+    } | null;
 
-    const body = await readJsonBody(request, 16 * 1024);
-    if (!body.ok) return jsonError("Invalid payment verification request.", body.status);
-    const validation = validateInput<{
-      testId: string;
-      razorpay_order_id: string;
-      razorpay_payment_id: string;
-      razorpay_signature: string;
-    }>(mockPaymentVerificationSchema, body.value);
-    if (validation.error || !validation.value) {
+    const testId = body?.testId?.trim();
+    const orderId = body?.razorpay_order_id?.trim();
+    const paymentId = body?.razorpay_payment_id?.trim();
+    const signature = body?.razorpay_signature?.trim();
+    if (!testId || !orderId || !paymentId || !signature) {
       return jsonError("Payment verification details are incomplete.", 400);
     }
-    const { testId, razorpay_order_id: orderId, razorpay_payment_id: paymentId, razorpay_signature: signature } = validation.value;
 
     const keyId = process.env.RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
@@ -65,7 +55,12 @@ export async function POST(request: Request) {
     }
 
     const expected = createHmac("sha256", keySecret).update(orderId + "|" + paymentId).digest();
-    const received = Buffer.from(signature, "hex");
+    let received: Buffer;
+    try {
+      received = Buffer.from(signature, "hex");
+    } catch {
+      return jsonError("Invalid payment signature.", 400);
+    }
     if (received.length !== expected.length || !timingSafeEqual(received, expected)) {
       return jsonError("Payment signature verification failed.", 400);
     }

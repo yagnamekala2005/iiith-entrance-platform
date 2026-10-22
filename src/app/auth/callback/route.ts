@@ -2,12 +2,6 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  createRecoveryAuthorization,
-  RECOVERY_AUTHORIZATION_COOKIE,
-  recoveryCookieOptions,
-} from "@/lib/security/recovery-authorization";
-import { safeInternalRedirect } from "@/lib/security/redirect";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -18,9 +12,16 @@ export async function GET(request: Request) {
   const errorDescription = searchParams.get("error_description");
   const requestedRole = searchParams.get("role") || "student";
   const nextParam = searchParams.get("next");
-  const isRecoveryFlow = searchParams.get("type") === "recovery";
 
-  const origin = requestUrl.origin;
+  // Resolve true public origin behind Vercel or proxy
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
+  const isLocal = process.env.NODE_ENV === "development";
+  const host = forwardedHost ? forwardedHost.split(",")[0].trim() : null;
+  const proto = forwardedProto ? forwardedProto.split(",")[0].trim() : "https";
+  const origin = !isLocal && host
+    ? `${proto}://${host}`
+    : requestUrl.origin;
 
   const loginWithError = (errorType: string, details?: string | null) => {
     const loginUrl = new URL("/login", origin);
@@ -52,11 +53,10 @@ export async function GET(request: Request) {
     }
 
     // Default destination
-    const fallbackPath = requestedRole === "admin" ? "/admin" : "/dashboard";
-    const safeNext = safeInternalRedirect(nextParam, fallbackPath, origin);
-    const destinationPath = requestedRole === "admin"
-      ? safeNext.startsWith("/admin/") || safeNext === "/admin" ? safeNext : "/admin"
-      : safeNext.startsWith("/admin/") || safeNext === "/admin" ? "/dashboard" : safeNext;
+    let destinationPath = requestedRole === "admin" ? "/admin" : "/dashboard";
+    if (nextParam && nextParam.startsWith("/")) {
+      destinationPath = nextParam;
+    }
 
     const redirectUrl = new URL(destinationPath, origin);
     const response = NextResponse.redirect(redirectUrl);
@@ -77,7 +77,6 @@ export async function GET(request: Request) {
                   ...options,
                   sameSite: options?.sameSite || "lax",
                   path: options?.path || "/",
-                  secure: process.env.NODE_ENV === "production",
                 });
               } catch {
                 // Ignore in read-only phases
@@ -101,12 +100,6 @@ export async function GET(request: Request) {
       const errMsg = exchangeError?.message || "Exchange failed";
       console.warn("OAuth server code exchange failed:", errMsg);
 
-      if (isRecoveryFlow) {
-        const recoveryFallback = new URL("/forgot-password", origin);
-        recoveryFallback.searchParams.set("recoveryError", "1");
-        return NextResponse.redirect(recoveryFallback);
-      }
-
       // On mobile and desktop browsers, cross-site redirects often omit the PKCE code verifier cookie in server request headers.
       // Seamlessly delegate to client-side callback page to exchange session using browser cookies.
       const clientCallbackUrl = new URL("/auth/callback-client", origin);
@@ -117,16 +110,6 @@ export async function GET(request: Request) {
     }
 
     const user = data.user;
-
-    if (isRecoveryFlow) {
-      response.headers.set("Location", new URL("/reset-password", origin).toString());
-      response.cookies.set(
-        RECOVERY_AUTHORIZATION_COOKIE,
-        createRecoveryAuthorization(user.id),
-        recoveryCookieOptions,
-      );
-      return response;
-    }
 
     // Non-fatal Profile Upsert
     try {
@@ -188,20 +171,9 @@ export async function GET(request: Request) {
           "This Google account is not enrolled as an administrator."
         );
       }
-      const adminNext = safeInternalRedirect(nextParam, "/admin", origin);
-      redirectUrl.pathname = adminNext === "/admin" || adminNext.startsWith("/admin/")
-        ? new URL(adminNext, origin).pathname
-        : "/admin";
-      if (redirectUrl.pathname === new URL(adminNext, origin).pathname) {
-        redirectUrl.search = new URL(adminNext, origin).search;
-      }
+      redirectUrl.pathname = nextParam && nextParam.startsWith("/admin") ? nextParam : "/admin";
     } else {
-      const studentNext = safeInternalRedirect(nextParam, "/dashboard", origin);
-      const parsedStudentNext = new URL(studentNext, origin);
-      redirectUrl.pathname = parsedStudentNext.pathname === "/admin" || parsedStudentNext.pathname.startsWith("/admin/")
-        ? "/dashboard"
-        : parsedStudentNext.pathname;
-      redirectUrl.search = redirectUrl.pathname === parsedStudentNext.pathname ? parsedStudentNext.search : "";
+      redirectUrl.pathname = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("/admin") ? nextParam : "/dashboard";
     }
 
     // Ensure final location header is updated

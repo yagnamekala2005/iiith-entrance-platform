@@ -1,8 +1,7 @@
-
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-// The public content client does not depend on a generated database schema.
-let publicClientInstance: SupabaseClient | null = null;
+// Typed with <any> to match @supabase/ssr untyped schema behavior
+let publicClientInstance: SupabaseClient<any, any, any> | null = null;
 
 /**
  * High-performance, cookie-free Supabase client singleton for fetching
@@ -10,7 +9,7 @@ let publicClientInstance: SupabaseClient | null = null;
  * Since it doesn't touch request cookies, its queries can be safely cached
  * in memory across requests using Next.js unstable_cache.
  */
-export function createPublicServerClient(): SupabaseClient {
+export function createPublicServerClient(): SupabaseClient<any, any, any> {
   if (publicClientInstance) {
     return publicClientInstance;
   }
@@ -20,7 +19,7 @@ export function createPublicServerClient(): SupabaseClient {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-  publicClientInstance = createClient(supabaseUrl, supabaseKey, {
+  publicClientInstance = createClient<any>(supabaseUrl, supabaseKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
@@ -30,3 +29,4 @@ export function createPublicServerClient(): SupabaseClient {
 
   return publicClientInstance;
 }
+

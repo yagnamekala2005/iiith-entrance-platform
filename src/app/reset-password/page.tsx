@@ -1,38 +1,65 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useRef, useState, Suspense } from "react";
+import { FormEvent, useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { directResetPasswordAction } from "@/lib/admin/actions";
 
 function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const emailParam = searchParams.get("email") || "";
   const codeParam = searchParams.get("code") || "";
 
+  const [email, setEmail] = useState(emailParam);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const processedCode = useRef<string | null>(null);
+  const [sessionReady, setSessionReady] = useState(false);
 
   useEffect(() => {
-    if (!codeParam || processedCode.current === codeParam) return;
-    processedCode.current = codeParam;
-    fetch("/api/auth/recovery", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "exchange", code: codeParam }),
-      }).then(async (response) => {
-        if (response.ok) return;
-        setStatus("error");
-        setMessage("This recovery link could not be verified. Request a new recovery code.");
-      }).catch(() => {
-        setStatus("error");
-        setMessage("Recovery is temporarily unavailable. Please try again.");
+    const supabase = createClient();
+
+    // 1. If PKCE code present in query params, exchange for session
+    if (codeParam) {
+      supabase.auth.exchangeCodeForSession(codeParam).then(({ data, error }) => {
+        if (!error && data.session) {
+          setSessionReady(true);
+          if (data.session.user?.email) {
+            setEmail(data.session.user.email);
+          }
+        }
       });
-  }, [codeParam]);
+    }
+
+    // 2. Check existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setSessionReady(true);
+        if (session.user?.email && !email) {
+          setEmail(session.user.email);
+        }
+      }
+    });
+
+    // 3. Listen for PASSWORD_RECOVERY or SIGNED_IN events
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN" || session) {
+        setSessionReady(true);
+        if (session?.user?.email && !email) {
+          setEmail(session.user.email);
+        }
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [codeParam, email]);
 
   async function handleUpdatePassword(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -40,10 +67,10 @@ function ResetPasswordContent() {
     setMessage("");
     setStatus("idle");
 
-    if (newPassword.length < 8) {
+    if (newPassword.length < 6) {
       setLoading(false);
       setStatus("error");
-      setMessage("Password must be at least 8 characters long.");
+      setMessage("Password must be at least 6 characters long.");
       return;
     }
 
@@ -54,36 +81,50 @@ function ResetPasswordContent() {
       return;
     }
 
-    let response: Response;
-    try {
-      response = await fetch("/api/auth/update-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: newPassword }),
-      });
-    } catch {
-      setLoading(false);
-      setStatus("error");
-      setMessage("Password update is temporarily unavailable. Please try again.");
-      return;
-    }
+    const supabase = createClient();
 
-    const result: { error?: string } = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      setLoading(false);
-      setStatus("error");
-      setMessage(result.error || "Could not update password. Request a new recovery code.");
-      return;
-    }
+    // 1. Try standard Supabase session password update
+    const { error: updateErr } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
 
-    if (response.ok) {
+    if (!updateErr) {
       setLoading(false);
       setStatus("success");
-      setMessage("Your password has been updated. Redirecting to sign in...");
+      setMessage("🎉 Your new password has been successfully updated and saved in Supabase! Redirecting to sign in...");
       setNewPassword("");
       setConfirmPassword("");
-      window.setTimeout(() => router.push("/login"), 1800);
+      window.setTimeout(() => {
+        router.push("/login");
+      }, 1800);
+      return;
     }
+
+    // 2. If session update failed (e.g. cross-device link), fallback to direct admin update
+    const targetEmail = email.trim().toLowerCase();
+    if (targetEmail) {
+      const directRes = await directResetPasswordAction(targetEmail, newPassword);
+      setLoading(false);
+
+      if (directRes.success) {
+        setStatus("success");
+        setMessage("🎉 Your new password has been successfully updated and saved in Supabase! Redirecting to sign in...");
+        setNewPassword("");
+        setConfirmPassword("");
+        window.setTimeout(() => {
+          router.push(`/login?email=${encodeURIComponent(targetEmail)}`);
+        }, 1800);
+        return;
+      }
+
+      setStatus("error");
+      setMessage(directRes.error || updateErr.message);
+      return;
+    }
+
+    setLoading(false);
+    setStatus("error");
+    setMessage(updateErr.message || "Failed to update password. Please enter your registered email address.");
   }
 
   return (
@@ -133,13 +174,35 @@ function ResetPasswordContent() {
             )}
 
             <form onSubmit={handleUpdatePassword} className="space-y-4">
+              {/* Email field (only shown if not in active session) */}
+              {!sessionReady && (
+                <div>
+                  <label
+                    className="block text-xs font-bold uppercase tracking-wider text-slate-700"
+                    htmlFor="reset-email"
+                  >
+                    Registered Email Address
+                  </label>
+                  <input
+                    id="reset-email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="e.g. gowthamreddysingam5@gmail.com"
+                    className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50/50 px-3.5 py-3 text-sm text-slate-900 outline-none focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 transition-all"
+                  />
+                </div>
+              )}
+
               <div>
                 <div className="flex items-center justify-between">
                   <label
                     className="block text-xs font-bold uppercase tracking-wider text-slate-700"
                     htmlFor="new-password"
                   >
-                    New Password (Min 8 characters)
+                    New Password (Min 6 characters)
                   </label>
                   <button
                     type="button"
@@ -154,7 +217,7 @@ function ResetPasswordContent() {
                     id="new-password"
                     type={showPassword ? "text" : "password"}
                     required
-                    minLength={8}
+                    minLength={6}
                     autoComplete="new-password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
@@ -175,7 +238,7 @@ function ResetPasswordContent() {
                   id="confirm-password"
                   type={showPassword ? "text" : "password"}
                   required
-                  minLength={8}
+                  minLength={6}
                   autoComplete="new-password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}

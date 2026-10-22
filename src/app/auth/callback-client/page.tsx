@@ -3,7 +3,6 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { safeInternalRedirect } from "@/lib/security/redirect";
 
 function CallbackClientContent() {
   const router = useRouter();
@@ -94,21 +93,11 @@ function CallbackClientContent() {
             }
             return;
           }
-          const destination = safeInternalRedirect(next, "/admin", window.location.origin);
-          window.location.replace(
-            destination === "/admin" || destination.startsWith("/admin/")
-              ? destination
-              : "/admin",
-          );
+          window.location.replace(next || "/admin");
           return;
         }
 
-        const destination = safeInternalRedirect(next, "/dashboard", window.location.origin);
-        window.location.replace(
-          destination === "/admin" || destination.startsWith("/admin/")
-            ? "/dashboard"
-            : destination,
-        );
+        window.location.replace(next || "/dashboard");
         return;
       } catch (err: unknown) {
         console.error("Client callback error:", err);
@@ -152,3 +141,4 @@ export default function CallbackClientPage() {
     </Suspense>
   );
 }
+

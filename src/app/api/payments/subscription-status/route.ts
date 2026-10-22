@@ -1,30 +1,18 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkRateLimit } from "@/lib/security/rate-limit";
-import { paymentStatusQuerySchema, validateInput } from "@/lib/security/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
-    const ipLimit = await checkRateLimit("subscription-status-ip", 60, 600, undefined, request.headers);
-    if (!ipLimit.allowed) return NextResponse.json({ error: "Too many status checks. Try again later." }, { status: 429, headers: { "Retry-After": String(ipLimit.retryAfterSeconds) } });
-
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Sign in to check your subscription." }, { status: 401 });
 
-    const userLimit = await checkRateLimit("subscription-status-user", 30, 600, user.id, request.headers);
-    if (!userLimit.allowed) return NextResponse.json({ error: "Too many status checks. Try again later." }, { status: 429, headers: { "Retry-After": String(userLimit.retryAfterSeconds) } });
-
-    const queryValidation = validateInput<{ orderId: string }>(
-      paymentStatusQuerySchema,
-      Object.fromEntries(new URL(request.url).searchParams),
-    );
-    if (queryValidation.error || !queryValidation.value) return NextResponse.json({ error: "A valid order ID is required." }, { status: 400 });
-    const orderId = queryValidation.value.orderId;
+    const orderId = new URL(request.url).searchParams.get("orderId")?.trim();
+    if (!orderId) return NextResponse.json({ error: "Order ID is required." }, { status: 400 });
 
     const admin = createAdminClient();
     const { data: subscription, error } = await admin
