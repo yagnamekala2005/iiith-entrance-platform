@@ -1,63 +1,52 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { readJsonBody } from "@/lib/security/body";
+import { checkRateLimit } from "@/lib/security/rate-limit";
+import { hasValidOrigin } from "@/lib/security/origin";
+import { registrationSchema, validateInput } from "@/lib/security/validation";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  if (!hasValidOrigin(request)) {
+    return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
+  }
+
   try {
-    const { email, password, role } = await request.json();
-
-    const normalizedEmail = String(email ?? "").trim().toLowerCase();
-    const normalizedPassword = String(password ?? "");
-    const requestedRole = String(role ?? "student").toLowerCase();
-
-    if (!normalizedEmail || !normalizedPassword) {
-      return NextResponse.json(
-        { error: "Email and password are required." },
-        { status: 400 },
-      );
+    const ipLimit = await checkRateLimit("auth-register-ip", 10, 3600, undefined, request.headers);
+    if (!ipLimit.allowed) {
+      return NextResponse.json({ error: "Too many registration attempts. Try again later." }, {
+        status: 429,
+        headers: { "Retry-After": String(ipLimit.retryAfterSeconds) },
+      });
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      return NextResponse.json(
-        { error: "Please enter a valid email address." },
-        { status: 400 },
-      );
+    const body = await readJsonBody(request, 16 * 1024);
+    if (!body.ok) return NextResponse.json({ error: "Invalid registration request." }, { status: body.status });
+    const validation = validateInput<{ email: string; password: string }>(registrationSchema, body.value);
+    if (validation.error || !validation.value) {
+      return NextResponse.json({ error: "Enter a valid email and a password of at least 8 characters." }, { status: 400 });
     }
 
-    if (normalizedPassword.length < 6) {
-      return NextResponse.json(
-        { error: "Password must be at least 6 characters." },
-        { status: 400 },
-      );
-    }
-
-    const secretKey =
-      process.env.SUPABASE_SECRET_KEY ??
-      process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!secretKey) {
-      return NextResponse.json(
-        {
-          error:
-            "Server authentication is not configured. Add the Supabase secret key to the server environment.",
-        },
-        { status: 500 },
-      );
-    }
-
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      secretKey,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      },
+    const emailLimit = await checkRateLimit(
+      "auth-register-email",
+      3,
+      3600,
+      validation.value.email,
+      request.headers,
     );
+    if (!emailLimit.allowed) {
+      return NextResponse.json({ error: "Too many registration attempts. Try again later." }, {
+        status: 429,
+        headers: { "Retry-After": String(emailLimit.retryAfterSeconds) },
+      });
+    }
 
-    const { data, error } = await supabaseAdmin.auth.admin.createUser({
-      email: normalizedEmail,
-      password: normalizedPassword,
+    const admin = createAdminClient();
+    const { data, error } = await admin.auth.admin.createUser({
+      email: validation.value.email,
+      password: validation.value.password,
       email_confirm: true,
     });
 
@@ -69,16 +58,14 @@ export async function POST(request: Request) {
         errorMessage.includes("already exists") ||
         errorMessage.includes("user already")
       ) {
-        return NextResponse.json(
-          {
-            error:
-              "This email is already registered. Please sign in with that account.",
-          },
-          { status: 409 },
-        );
+        return NextResponse.json({
+          success: true,
+          message: "Account is ready. Sign in to continue.",
+        }, { status: 201 });
       }
 
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      console.error("Registration failed:", error.message);
+      return NextResponse.json({ error: "Unable to create account. Please check the information or try again later." }, { status: 400 });
     }
 
     if (!data.user) {
@@ -90,11 +77,15 @@ export async function POST(request: Request) {
 
     // Public registrations are strictly student accounts.
     // Admin accounts must be granted by existing administrators or enrolled in Supabase.
-    return NextResponse.json({ success: true, role: "student" }, { status: 201 });
-  } catch {
+    return NextResponse.json({
+      success: true,
+      message: "Account is ready. Sign in to continue.",
+    }, { status: 201 });
+  } catch (error) {
+    console.error("Registration failed:", error);
     return NextResponse.json(
-      { error: "Unable to create the account. Please try again." },
-      { status: 500 },
+      { error: "Unable to create the account. Please try again later." },
+      { status: 503 },
     );
   }
 }

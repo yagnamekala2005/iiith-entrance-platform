@@ -4,18 +4,6 @@ import { InteractiveExamPreview } from "@/components/landing/interactive-preview
 export default function Home() {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col font-sans selection:bg-blue-600 selection:text-white relative overflow-x-hidden w-full max-w-full">
-      {/* Top Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white text-center py-2 px-4 text-xs font-semibold tracking-wide border-b border-blue-900/40">
-        <span className="inline-flex items-center gap-2">
-          <span className="flex h-2 w-2 rounded-full bg-blue-400 animate-pulse"></span>
-          <span>Official 2026 Examination CBT Simulation for IIITH UGEE (SUPR + REAP) & SPEC</span>
-          <span className="hidden sm:inline opacity-60">&bull;</span>
-          <Link href="/register" className="hidden sm:inline text-blue-300 hover:text-white underline">
-            Take a Free Mock Test &rarr;
-          </Link>
-        </span>
-      </div>
-
       {/* Main Navigation */}
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8 py-3.5">

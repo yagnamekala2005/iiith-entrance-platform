@@ -2,6 +2,21 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { authorizeAdminAction } from "@/lib/admin/authorization";
+import {
+  adminEmailSchema,
+  chapterCreateSchema,
+  createExamSchema,
+  createMockTestSchema,
+  createPracticeQuestionSchema,
+  createQuestionSchema,
+  idSchema,
+  nameDescriptionSchema,
+  practiceQuestionUpdateSchema,
+  topicCreateSchema,
+  topicLearningContentSchema,
+  validateInput,
+} from "@/lib/security/validation";
 import { revalidatePath } from "next/cache";
 
 export interface CreateQuestionInput {
@@ -25,6 +40,12 @@ export interface CreateQuestionInput {
 
 export async function createAdminQuestion(input: CreateQuestionInput) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<CreateQuestionInput>(createQuestionSchema, input);
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid question." };
+    input = validation.value;
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -32,12 +53,20 @@ export async function createAdminQuestion(input: CreateQuestionInput) {
       return { success: false, error: "Authentication required." };
     }
 
-    // Check admin status
-    const { data: adminMembership } = await supabase
+    // Use the service-role client for the admin membership check.
+    // The normal user client may be blocked by RLS on admin_users, which
+    // incorrectly made valid admins appear unauthorized.
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: adminCheckError } = await adminClient
       .from("admin_users")
       .select("user_id")
       .eq("user_id", user.id)
       .maybeSingle();
+
+    if (adminCheckError) {
+      console.error("Admin membership check failed:", adminCheckError);
+      return { success: false, error: "Unable to verify admin authorization." };
+    }
 
     if (!adminMembership) {
       return { success: false, error: "Admin authorization required." };
@@ -50,8 +79,6 @@ export async function createAdminQuestion(input: CreateQuestionInput) {
     if (!input.options || input.options.length < 2) {
       return { success: false, error: "At least 2 options are required." };
     }
-
-    const adminClient = createAdminClient();
 
     // 1. Insert question into `questions`
     const { data: newQ, error: qErr } = await adminClient
@@ -183,8 +210,432 @@ export async function createAdminQuestion(input: CreateQuestionInput) {
   }
 }
 
+export interface CreatePracticeQuestionInput {
+  subject_id: string;
+  chapter_id: string;
+  topic_id: string;
+  question_text: string;
+  difficulty: "easy" | "medium" | "hard";
+  explanation: string;
+  marks: number;
+  options: {
+    label: string;
+    text: string;
+  }[];
+  correct_option_label: string;
+}
+
+/**
+ * Create a published topic practice question.
+ * Practice questions are intentionally not linked to tests/test_questions.
+ */
+export async function createAdminPracticeQuestion(input: CreatePracticeQuestionInput) {
+  try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<CreatePracticeQuestionInput>(createPracticeQuestionSchema, input);
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid question." };
+    input = validation.value;
+
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { success: false, error: "Authentication required." };
+    }
+
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: adminCheckError } = await adminClient
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (adminCheckError) {
+      console.error("Admin membership check failed:", adminCheckError);
+      return { success: false, error: "Unable to verify admin authorization." };
+    }
+
+    if (!adminMembership) {
+      return { success: false, error: "Admin authorization required." };
+    }
+
+    if (!input.subject_id || !input.chapter_id || !input.topic_id) {
+      return { success: false, error: "Subject, chapter, and topic are required." };
+    }
+
+    if (!input.question_text.trim()) {
+      return { success: false, error: "Question text is required." };
+    }
+
+    if (!input.explanation.trim()) {
+      return { success: false, error: "A solution explanation is required." };
+    }
+
+    if (
+      !input.options ||
+      input.options.length !== 4 ||
+      input.options.some((option) => !option.text.trim())
+    ) {
+      return { success: false, error: "All 4 options (A, B, C, D) are required." };
+    }
+
+
+    const { data: newQuestion, error: questionError } = await adminClient
+      .from("practice_questions")
+      .insert({
+        subject_id: input.subject_id,
+        chapter_id: input.chapter_id,
+        topic_id: input.topic_id,
+        question_text: input.question_text.trim(),
+        difficulty: input.difficulty,
+        explanation: input.explanation.trim(),
+        marks: Number.isFinite(input.marks) ? input.marks : 1,
+        status: "published",
+      })
+      .select("id")
+      .single();
+
+    if (questionError || !newQuestion) {
+      return {
+        success: false,
+        error: questionError?.message || "Failed to create practice question.",
+      };
+    }
+
+    const optionsPayload = input.options.map((option, index) => ({
+      practice_question_id: newQuestion.id,
+      option_label: option.label.toUpperCase(),
+      option_text: option.text.trim(),
+      display_order: index + 1,
+    }));
+
+    const { data: insertedOptions, error: optionsError } = await adminClient
+      .from("practice_question_options")
+      .insert(optionsPayload)
+      .select("id, option_label");
+
+    if (optionsError || !insertedOptions) {
+      await adminClient.from("practice_questions").delete().eq("id", newQuestion.id);
+      return {
+        success: false,
+        error: optionsError?.message || "Failed to create practice question options.",
+      };
+    }
+
+    const correctOption = insertedOptions.find(
+      (option) => option.option_label === input.correct_option_label.toUpperCase()
+    );
+
+    if (!correctOption) {
+      await adminClient
+        .from("practice_question_options")
+        .delete()
+        .eq("practice_question_id", newQuestion.id);
+      await adminClient.from("practice_questions").delete().eq("id", newQuestion.id);
+      return { success: false, error: "Please select a valid correct option." };
+    }
+
+    const { error: answerKeyError } = await adminClient
+      .from("practice_question_answers")
+      .insert({
+        practice_question_id: newQuestion.id,
+        correct_option_id: correctOption.id,
+      });
+
+    if (answerKeyError) {
+      await adminClient
+        .from("practice_question_options")
+        .delete()
+        .eq("practice_question_id", newQuestion.id);
+      await adminClient.from("practice_questions").delete().eq("id", newQuestion.id);
+      return {
+        success: false,
+        error: answerKeyError.message || "Failed to save the correct answer.",
+      };
+    }
+
+    revalidatePath("/admin");
+    revalidatePath("/learning");
+    revalidatePath("/practice");
+
+    return { success: true, questionId: newQuestion.id };
+  } catch (err) {
+    console.error("createAdminPracticeQuestion error:", err);
+    return { success: false, error: "Failed to create practice question." };
+  }
+}
+
+export interface AdminPracticeQuestionItem {
+  id: string;
+  topic_id: string;
+  question_text: string;
+  difficulty: "easy" | "medium" | "hard";
+  marks: number;
+  explanation: string | null;
+  options: {
+    id: string;
+    option_label: string;
+    option_text: string;
+    display_order: number;
+  }[];
+  correct_option_label: string;
+}
+
+export async function getAdminTopicPracticeQuestions(topicId: string) {
+  try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error, questions: [] as AdminPracticeQuestionItem[] };
+    const validation = validateInput<{ id: string }>(idSchema, { id: topicId });
+    if (validation.error) return { success: false, error: validation.error, questions: [] as AdminPracticeQuestionItem[] };
+
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return {
+        success: false,
+        error: "Authentication required.",
+        questions: [] as AdminPracticeQuestionItem[],
+      };
+    }
+
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: adminCheckError } = await adminClient
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (adminCheckError) {
+      console.error("Admin membership check failed:", adminCheckError);
+      return { success: false, error: "Unable to verify admin authorization." };
+    }
+
+    if (!adminMembership) {
+      return {
+        success: false,
+        error: "Admin authorization required.",
+        questions: [] as AdminPracticeQuestionItem[],
+      };
+    }
+
+    if (!topicId) {
+      return {
+        success: false,
+        error: "Topic is required.",
+        questions: [] as AdminPracticeQuestionItem[],
+      };
+    }
+
+
+    const { data, error } = await adminClient
+      .from("practice_questions")
+      .select(
+        "id, topic_id, question_text, difficulty, marks, explanation, created_at, practice_question_options(id, option_label, option_text, display_order), practice_question_answers(correct_option_id)"
+      )
+      .eq("topic_id", topicId)
+      .eq("status", "published")
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      return {
+        success: false,
+        error: error.message,
+        questions: [] as AdminPracticeQuestionItem[],
+      };
+    }
+
+    type PracticeQuestionDataRow = {
+      id: string;
+      topic_id: string;
+      question_text: string;
+      difficulty?: string | null;
+      marks?: number | string | null;
+      explanation?: string | null;
+      practice_question_options?: Array<{
+        id: string;
+        option_label: string;
+        option_text: string;
+        display_order?: number | null;
+      }> | null;
+      practice_question_answers?: Array<{ correct_option_id: string }> | null;
+    };
+
+    const questions: AdminPracticeQuestionItem[] = ((data as PracticeQuestionDataRow[] | null) || []).map((question) => {
+      const options = (question.practice_question_options || [])
+        .map((option) => ({ ...option, display_order: option.display_order ?? 0 }))
+        .sort((a, b) => a.display_order - b.display_order);
+      const correctId = question.practice_question_answers?.[0]?.correct_option_id;
+      const correctOption = options.find((option) => option.id === correctId);
+
+      return {
+        id: question.id,
+        topic_id: question.topic_id,
+        question_text: question.question_text,
+        difficulty: (question.difficulty as AdminPracticeQuestionItem["difficulty"]) || "medium",
+        marks: Number(question.marks ?? 1),
+        explanation: question.explanation || null,
+        options,
+        correct_option_label: correctOption?.option_label || "A",
+      };
+    });
+
+    return { success: true, questions };
+  } catch (err) {
+    console.error("getAdminTopicPracticeQuestions error:", err);
+    return {
+      success: false,
+      error: "Failed to load practice questions.",
+      questions: [] as AdminPracticeQuestionItem[],
+    };
+  }
+}
+
+export async function updateAdminPracticeQuestion(
+  questionId: string,
+  input: Omit<CreatePracticeQuestionInput, "subject_id" | "chapter_id" | "topic_id">
+) {
+  try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<Omit<CreatePracticeQuestionInput, "subject_id" | "chapter_id" | "topic_id">>(
+      practiceQuestionUpdateSchema,
+      input,
+    );
+    const idValidation = validateInput<{ id: string }>(idSchema, { id: questionId });
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid question." };
+    if (idValidation.error) return { success: false, error: idValidation.error };
+    input = validation.value;
+
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { success: false, error: "Authentication required." };
+
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: adminCheckError } = await adminClient
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (adminCheckError) {
+      console.error("Admin membership check failed:", adminCheckError);
+      return { success: false, error: "Unable to verify admin authorization." };
+    }
+
+    if (!adminMembership) {
+      return { success: false, error: "Admin authorization required." };
+    }
+
+    if (!questionId || !input.question_text.trim()) {
+      return { success: false, error: "Question text is required." };
+    }
+
+    if (!input.explanation.trim()) {
+      return { success: false, error: "A solution explanation is required." };
+    }
+
+    if (
+      input.options.length !== 4 ||
+      input.options.some((option) => !option.text.trim())
+    ) {
+      return { success: false, error: "All 4 options (A, B, C, D) are required." };
+    }
+
+    const { data: existingQuestion, error: existingQuestionError } = await adminClient
+      .from("practice_questions")
+      .select("id")
+      .eq("id", questionId)
+      .maybeSingle();
+
+    if (existingQuestionError || !existingQuestion) {
+      return {
+        success: false,
+        error: existingQuestionError?.message || "Practice question not found.",
+      };
+    }
+
+    const { error: questionError } = await adminClient
+      .from("practice_questions")
+      .update({
+        question_text: input.question_text.trim(),
+        difficulty: input.difficulty,
+        explanation: input.explanation.trim(),
+        marks: Number.isFinite(input.marks) ? input.marks : 1,
+      })
+      .eq("id", questionId);
+
+    if (questionError) {
+      return { success: false, error: questionError.message };
+    }
+
+    await adminClient
+      .from("practice_question_answers")
+      .delete()
+      .eq("practice_question_id", questionId);
+
+    await adminClient
+      .from("practice_question_options")
+      .delete()
+      .eq("practice_question_id", questionId);
+
+    const { data: insertedOptions, error: optionsError } = await adminClient
+      .from("practice_question_options")
+      .insert(
+        input.options.map((option, index) => ({
+          practice_question_id: questionId,
+          option_label: option.label.toUpperCase(),
+          option_text: option.text.trim(),
+          display_order: index + 1,
+        }))
+      )
+      .select("id, option_label");
+
+    if (optionsError || !insertedOptions) {
+      return {
+        success: false,
+        error: optionsError?.message || "Failed to update options.",
+      };
+    }
+
+    const correctOption = insertedOptions.find(
+      (option) => option.option_label === input.correct_option_label.toUpperCase()
+    );
+
+    if (!correctOption) {
+      return { success: false, error: "Please select a valid correct option." };
+    }
+
+    const { error: answerError } = await adminClient
+      .from("practice_question_answers")
+      .insert({
+        practice_question_id: questionId,
+        correct_option_id: correctOption.id,
+      });
+
+    if (answerError) {
+      return { success: false, error: answerError.message };
+    }
+
+    revalidatePath("/admin");
+    revalidatePath("/learning");
+    revalidatePath("/practice");
+
+    return { success: true };
+  } catch (err) {
+    console.error("updateAdminPracticeQuestion error:", err);
+    return { success: false, error: "Failed to update practice question." };
+  }
+}
 export async function deleteAdminQuestion(questionId: string) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ id: string }>(idSchema, { id: questionId });
+    if (validation.error) return { success: false, error: validation.error };
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -273,6 +724,12 @@ export async function deleteAdminQuestion(questionId: string) {
 
 export async function addAdminUserByEmail(email: string) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ email: string }>(adminEmailSchema, { email });
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid email." };
+    email = validation.value.email;
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -317,6 +774,12 @@ export interface CreateMockTestInput {
 
 export async function createAdminMockTest(input: CreateMockTestInput) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<CreateMockTestInput>(createMockTestSchema, input);
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid test." };
+    input = validation.value;
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -449,6 +912,11 @@ export async function updateAdminMockTestName(testId: string, name: string) {
 
 export async function deleteAdminMockTest(testId: string) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ id: string }>(idSchema, { id: testId });
+    if (validation.error) return { success: false, error: validation.error };
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -513,6 +981,9 @@ export async function deleteAdminMockTest(testId: string) {
 
 export async function cleanAllOldMockTests() {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -571,18 +1042,71 @@ export async function cleanAllOldMockTests() {
 
 export async function publishAdminMockTest(testId: string) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ id: string }>(idSchema, { id: testId });
+    if (validation.error) return { success: false, error: validation.error };
+
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { success: false, error: "Authentication required." };
+    }
+
+    const { data: adminMembership } = await supabase
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!adminMembership) {
+      return { success: false, error: "Admin authorization required." };
+    }
+
     const adminClient = createAdminClient();
+
+    // Publishing a mock test also publishes its linked competitive exam.
+    // This keeps the admin "Live / Published" state consistent with the
+    // student tests directory.
+    const { data: testRow, error: testLookupError } = await adminClient
+      .from("tests")
+      .select("id, exam_id")
+      .eq("id", testId)
+      .maybeSingle();
+
+    if (testLookupError || !testRow) {
+      return {
+        success: false,
+        error: testLookupError?.message || "Mock test not found.",
+      };
+    }
 
     const { data: updatedTest, error: updateErr } = await adminClient
       .from("tests")
       .update({ status: "published" })
       .eq("id", testId)
-      .select("id, name, status")
+      .select("id, name, status, exam_id")
       .single();
 
     if (updateErr) {
       console.error("Error publishing test:", updateErr);
       return { success: false, error: updateErr.message };
+    }
+
+    if (testRow.exam_id) {
+      const { error: examUpdateError } = await adminClient
+        .from("exams")
+        .update({ published: true })
+        .eq("id", testRow.exam_id);
+
+      if (examUpdateError) {
+        console.error("Error publishing linked exam:", examUpdateError);
+        return {
+          success: false,
+          error: `Mock test was published, but its linked exam could not be published: ${examUpdateError.message}`,
+        };
+      }
     }
 
     revalidatePath("/admin");
@@ -597,9 +1121,178 @@ export async function publishAdminMockTest(testId: string) {
   }
 }
 
+export async function createAdminExam(name: string, description: string = "", negativeMarkingRatio: number | null = null) {
+  try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ name: string; description?: string; negativeMarkingRatio?: number | null }>(
+      createExamSchema,
+      { name, description, negativeMarkingRatio },
+    );
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid exam." };
+    name = validation.value.name;
+    description = validation.value.description ?? "";
+    negativeMarkingRatio = validation.value.negativeMarkingRatio ?? null;
+
+    const cleanName = name.trim();
+    if (!cleanName) return { success: false, error: "Exam name is required." };
+
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { success: false, error: "Authentication required." };
+
+    const { data: adminMembership } = await supabase
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!adminMembership) {
+      return { success: false, error: "Admin authorization required." };
+    }
+
+    const adminClient = createAdminClient();
+    const cleanSlug = cleanName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+    if (!cleanSlug) {
+      return { success: false, error: "Exam name must contain letters or numbers." };
+    }
+
+    const { data: existingExam } = await adminClient
+      .from("exams")
+      .select("id")
+      .or(`name.ilike.${cleanName},slug.eq.${cleanSlug}`)
+      .maybeSingle();
+
+    if (existingExam) {
+      return { success: false, error: "An exam with this name already exists." };
+    }
+
+    const { data, error } = await adminClient
+      .from("exams")
+      .insert({
+        name: cleanName,
+        slug: cleanSlug,
+        description: description.trim() || null,
+        negative_marking_ratio:
+          negativeMarkingRatio !== null && Number.isFinite(negativeMarkingRatio)
+            ? negativeMarkingRatio
+            : null,
+        published: false,
+      })
+      .select("id, name, slug, description, negative_marking_ratio, published")
+      .single();
+
+    if (error) return { success: false, error: error.message };
+
+    revalidatePath("/admin");
+    revalidatePath("/dashboard");
+    revalidatePath("/tests");
+    revalidatePath("/practice");
+
+    return { success: true, exam: data };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to create exam.";
+    return { success: false, error: msg };
+  }
+}
+
+export async function createAdminSubject(name: string, description: string = "") {
+  try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ name: string; description?: string }>(
+      nameDescriptionSchema,
+      { name, description },
+    );
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid subject." };
+    name = validation.value.name;
+    description = validation.value.description ?? "";
+
+    const cleanName = name.trim();
+    if (!cleanName) return { success: false, error: "Subject name is required." };
+
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { success: false, error: "Authentication required." };
+
+    const { data: adminMembership } = await supabase
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!adminMembership) {
+      return { success: false, error: "Admin authorization required." };
+    }
+
+    const adminClient = createAdminClient();
+    const cleanSlug = cleanName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+    if (!cleanSlug) {
+      return { success: false, error: "Subject name must contain letters or numbers." };
+    }
+
+    const { data: existingSubject } = await adminClient
+      .from("subjects")
+      .select("id")
+      .or(`name.ilike.${cleanName},slug.eq.${cleanSlug}`)
+      .maybeSingle();
+
+    if (existingSubject) {
+      return { success: false, error: "A subject with this name already exists." };
+    }
+
+    const { count } = await adminClient
+      .from("subjects")
+      .select("*", { count: "exact", head: true });
+
+    const { data, error } = await adminClient
+      .from("subjects")
+      .insert({
+        name: cleanName,
+        slug: cleanSlug,
+        description: description.trim() || null,
+        display_order: (count || 0) + 1,
+      })
+      .select("id, name, slug")
+      .single();
+
+    if (error) return { success: false, error: error.message };
+
+    revalidatePath("/admin");
+    revalidatePath("/learning");
+    revalidatePath("/practice");
+    revalidatePath("/tests");
+    revalidatePath("/", "layout");
+
+    return { success: true, subject: data };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to create subject.";
+    return { success: false, error: msg };
+  }
+}
+
 export async function createAdminChapter(subject_id: string, name: string) {
   try {
-    if (!name.trim()) return { success: false, error: "Chapter name is required." };
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ subject_id: string; name: string }>(
+      chapterCreateSchema,
+      { subject_id, name },
+    );
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid chapter." };
+    subject_id = validation.value.subject_id;
+    name = validation.value.name;
+
     const adminClient = createAdminClient();
     const cleanSlug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
     const slug = `${cleanSlug}-${Date.now().toString().slice(-4)}`;
@@ -632,6 +1325,11 @@ export async function createAdminChapter(subject_id: string, name: string) {
 
 export async function deleteAdminChapter(chapterId: string) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ id: string }>(idSchema, { id: chapterId });
+    if (validation.error) return { success: false, error: validation.error };
+
     const adminClient = createAdminClient();
 
     // 1. Unlink any questions referencing this chapter or its subtopics in Supabase
@@ -661,7 +1359,16 @@ export async function deleteAdminChapter(chapterId: string) {
 
 export async function createAdminTopic(chapter_id: string, name: string) {
   try {
-    if (!name.trim()) return { success: false, error: "Topic name is required." };
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ chapter_id: string; name: string }>(
+      topicCreateSchema,
+      { chapter_id, name },
+    );
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid topic." };
+    chapter_id = validation.value.chapter_id;
+    name = validation.value.name;
+
     const adminClient = createAdminClient();
     const cleanSlug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
     const slug = `${cleanSlug}-${Date.now().toString().slice(-4)}`;
@@ -694,6 +1401,11 @@ export async function createAdminTopic(chapter_id: string, name: string) {
 
 export async function deleteAdminTopic(topicId: string) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ id: string }>(idSchema, { id: topicId });
+    if (validation.error) return { success: false, error: validation.error };
+
     const adminClient = createAdminClient();
 
     // 1. Unlink any questions referencing this subtopic in Supabase
@@ -730,27 +1442,108 @@ export interface TopicLearningContentInput {
   }[];
 }
 
-export async function updateTopicLearningContent(
-  topicId: string,
-  content: TopicLearningContentInput
-) {
+export async function uploadLearningPdf(formData: FormData) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) return { success: false, error: "Authentication required." };
 
-    const { data: adminMembership } = await supabase
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: adminCheckError } = await adminClient
       .from("admin_users")
       .select("user_id")
       .eq("user_id", user.id)
       .maybeSingle();
 
+    if (adminCheckError) {
+      console.error("Admin membership check failed:", adminCheckError);
+      return { success: false, error: "Unable to verify admin authorization." };
+    }
+
+    if (!adminMembership) return { success: false, error: "Admin authorization required." };
+
+    const file = formData.get("file");
+    const topicId = String(formData.get("topic_id") || "").trim();
+
+    if (!(file instanceof File)) return { success: false, error: "Please select a PDF file." };
+    const topicValidation = validateInput<{ id: string }>(idSchema, { id: topicId });
+    if (topicValidation.error) return { success: false, error: "A valid topic is required." };
+    if (file.type !== "application/pdf") return { success: false, error: "Only PDF files are allowed." };
+
+    const maxSize = 20 * 1024 * 1024;
+    if (file.size < 5 || file.size > maxSize) return { success: false, error: "PDF must be between 5 bytes and 20 MB." };
+    const signature = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+    if (new TextDecoder().decode(signature) !== "%PDF-") {
+      return { success: false, error: "The selected file is not a valid PDF." };
+    }
+
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/_+/g, "_").slice(-160);
+    const path = `topics/${topicId}/${Date.now()}-${safeName || "document.pdf"}`;
+
+    const { error: uploadError } = await adminClient.storage
+      .from("learning-materials")
+      .upload(path, await file.arrayBuffer(), {
+        contentType: file.type || "application/octet-stream",
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error("Learning PDF upload failed:", uploadError);
+      return { success: false, error: uploadError.message };
+    }
+
+    const { data: { publicUrl } } = adminClient.storage
+      .from("learning-materials")
+      .getPublicUrl(path);
+
+    return {
+      success: true,
+      url: publicUrl,
+      title: file.name.replace(/\.[^.]+$/, "").trim() || "Learning Document",
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to upload PDF.";
+    return { success: false, error: msg };
+  }
+}
+export async function updateTopicLearningContent(
+  topicId: string,
+  content: TopicLearningContentInput
+) {
+  try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<TopicLearningContentInput>(topicLearningContentSchema, content);
+    const idValidation = validateInput<{ id: string }>(idSchema, { id: topicId });
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid learning content." };
+    if (idValidation.error) return { success: false, error: idValidation.error };
+    content = validation.value;
+
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { success: false, error: "Authentication required." };
+
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: adminCheckError } = await adminClient
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (adminCheckError) {
+      console.error("Admin membership check failed:", adminCheckError);
+      return { success: false, error: "Unable to verify admin authorization." };
+    }
+
     if (!adminMembership) {
       return { success: false, error: "Admin authorization required." };
     }
-
-    const adminClient = createAdminClient();
 
     const payload = JSON.stringify({
       summary: content.summary || "",
@@ -795,6 +1588,14 @@ export async function updateAdminQuestion(
   input: CreateQuestionInput
 ) {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<CreateQuestionInput>(createQuestionSchema, input);
+    const idValidation = validateInput<{ id: string }>(idSchema, { id: questionId });
+    if (validation.error || !validation.value) return { success: false, error: validation.error || "Invalid question." };
+    if (idValidation.error) return { success: false, error: idValidation.error };
+    input = validation.value;
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -888,12 +1689,15 @@ export async function updateAdminQuestion(
  */
 export async function purgeDuplicateAndOrphanQuestions() {
   try {
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+
     const adminClient = createAdminClient();
 
     // 1. Fetch all questions from Supabase
     const { data: allQuestions } = await adminClient
       .from("questions")
-      .select("id, question_text, status")
+      .select("id, question_text, status, topic_id")
       .order("created_at", { ascending: true });
 
     if (!allQuestions || allQuestions.length === 0) {
@@ -933,9 +1737,10 @@ export async function purgeDuplicateAndOrphanQuestions() {
     for (const q of allQuestions) {
       const norm = (q.question_text || "").trim().toLowerCase().replace(/\s+/g, " ");
       const isLinked = activeQuestionIds.has(q.id);
+      const isTopicPracticeQuestion = Boolean(q.topic_id);
 
-      // Unlinked questions OR duplicate question statements
-      if (!isLinked || seenTexts.has(norm)) {
+      // Keep questions linked to mock tests and standalone topic practice questions.
+      if ((!isLinked && !isTopicPracticeQuestion) || seenTexts.has(norm)) {
         toDeleteIds.push(q.id);
       } else {
         seenTexts.add(norm);
@@ -982,130 +1787,67 @@ export async function purgeDuplicateAndOrphanQuestions() {
 }
 
 /**
- * Direct password reset action:
- * Updates the user's password directly in Supabase auth without requiring localhost redirects.
+ * Set the single published mock test that is free for every student.
+ * The service-role RPC is callable only from this authenticated, admin-checked action.
  */
-export async function directResetPasswordAction(email: string, newPassword: string) {
+export async function setFreeAdminMockTest(testId: string) {
   try {
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail) {
-      return { success: false, error: "Email address is required." };
-    }
-    if (!newPassword || newPassword.length < 6) {
-      return { success: false, error: "Password must be at least 6 characters long." };
-    }
+    const authorization = await authorizeAdminAction();
+    if (!authorization.ok) return { success: false, error: authorization.error };
+    const validation = validateInput<{ id: string }>(idSchema, { id: testId });
+    if (validation.error) return { success: false, error: validation.error };
 
-    const adminClient = createAdminClient();
-    const { data: usersData, error: listErr } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
-
-    if (listErr) {
-      console.error("List users error:", listErr);
-      return { success: false, error: listErr.message };
-    }
-
-    const targetUser = (usersData?.users || []).find(
-      (u) => (u.email || "").trim().toLowerCase() === normalizedEmail
-    );
-
-    if (!targetUser) {
-      return {
-        success: false,
-        error: `No account registered with "${normalizedEmail}". Please make sure you entered the email you used to register.`,
-      };
-    }
-
-    const { error: updateErr } = await adminClient.auth.admin.updateUserById(targetUser.id, {
-      password: newPassword,
-    });
-
-    if (updateErr) {
-      console.error("Update password error in Supabase:", updateErr);
-      return { success: false, error: updateErr.message };
-    }
-
-    return { success: true };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Failed to reset password.";
-    return { success: false, error: msg };
-  }
-}
-
-/**
- * Send password reset email and generate recovery link:
- * Validates the email exists in Supabase, triggers reset password email,
- * and provides a fallback link if Supabase email rate limits are encountered.
- */
-export async function sendPasswordResetEmailAction(email: string, origin: string) {
-  try {
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail) {
-      return { success: false, error: "Please enter your registered email address." };
-    }
-
-    const adminClient = createAdminClient();
-    const { data: usersData, error: listErr } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
-
-    if (listErr) {
-      console.error("List users error:", listErr);
-      return { success: false, error: listErr.message };
-    }
-
-    const targetUser = (usersData?.users || []).find(
-      (u) => (u.email || "").trim().toLowerCase() === normalizedEmail
-    );
-
-    if (!targetUser) {
-      return {
-        success: false,
-        error: `No account found with email "${normalizedEmail}". Please enter the email you registered with.`,
-      };
-    }
-
-    const redirectUrl = `${origin}/reset-password`;
-
-    // 1. Generate recovery link via Admin API
-    const { data: linkData, error: linkErr } = await adminClient.auth.admin.generateLink({
-      type: "recovery",
-      email: normalizedEmail,
-      options: {
-        redirectTo: redirectUrl,
-      },
-    });
-
-    if (linkErr) {
-      console.warn("generateLink warning:", linkErr);
-    }
-
-    let directRecoveryUrl = linkData?.properties?.action_link || null;
-    if (directRecoveryUrl && origin && !origin.includes("localhost")) {
-      directRecoveryUrl = directRecoveryUrl
-        .replace(/redirect_to=http%3A%2F%2Flocalhost%3A3000/gi, `redirect_to=${encodeURIComponent(origin)}`)
-        .replace(/redirect_to=http:\/\/localhost:3000/gi, `redirect_to=${origin}`);
-    }
-
-    // 2. Trigger standard Supabase reset password email
     const supabase = await createClient();
-    const { error: emailErr } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-      redirectTo: redirectUrl,
-    });
+    const { data: { user } } = await supabase.auth.getUser();
 
-    const isRateLimited = emailErr ? emailErr.message.toLowerCase().includes("rate limit") : false;
+    if (!user) {
+      return { success: false, error: "Authentication required." };
+    }
 
-    return {
-      success: true,
-      email: normalizedEmail,
-      emailSent: !emailErr,
-      rateLimited: isRateLimited,
-      directRecoveryUrl,
-      resetPageUrl: `${origin}/reset-password?email=${encodeURIComponent(normalizedEmail)}`,
-      errorMessage: emailErr?.message || null,
-    };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Failed to send reset link.";
-    return { success: false, error: msg };
+    if (!testId) {
+      return { success: false, error: "Choose a mock test first." };
+    }
+
+    const adminClient = createAdminClient();
+    const { data: membership, error: membershipError } = await adminClient
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (membershipError || !membership) {
+      return {
+        success: false,
+        error: membershipError ? "Unable to verify admin authorization." : "Admin authorization required.",
+      };
+    }
+
+    const { data: test, error: testError } = await adminClient
+      .from("tests")
+      .select("id, test_type, status")
+      .eq("id", testId)
+      .maybeSingle();
+
+    if (testError || !test) {
+      return { success: false, error: "Mock test not found." };
+    }
+
+    if (test.test_type !== "mock" || test.status !== "published") {
+      return { success: false, error: "Only a published mock test can be selected as free." };
+    }
+
+    const { error } = await adminClient.rpc("set_free_mock_test", { p_test_id: testId });
+
+    if (error) {
+      console.error("setFreeAdminMockTest failed:", error);
+      return { success: false, error: "Could not update the free mock test. Apply the Supabase migration and try again." };
+    }
+
+    revalidatePath("/admin");
+    revalidatePath("/tests");
+    return { success: true };
+  } catch (error) {
+    console.error("setFreeAdminMockTest error:", error);
+    return { success: false, error: "Unexpected error while selecting the free mock test." };
   }
 }
-
-
-
-

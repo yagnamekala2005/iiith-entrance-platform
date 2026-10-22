@@ -1,5 +1,7 @@
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createPublicServerClient } from "@/lib/supabase/public";
 import type {
   Exam,
   ExamSection,
@@ -18,177 +20,158 @@ export interface SubjectWithHierarchy extends Subject {
   })[];
 }
 
-const DEFAULT_FALLBACK_EXAMS: Exam[] = [
-  {
-    id: "e0000000-0000-0000-0000-000000000001",
-    slug: "ugee",
-    name: "IIITH UGEE (Dual Degree)",
-    description: "Undergraduate Engineering Entrance Examination for Dual Degree programs with SUPR and REAP sections.",
-    negative_marking_ratio: 0.25,
-    published: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "e0000000-0000-0000-0000-000000000002",
-    slug: "spec",
-    name: "IIITH SPEC (Special Channel of Admission)",
-    description: "Special Channel of Admission evaluating Mathematics, Physics, Chemistry, and Aptitude.",
-    negative_marking_ratio: 0.25,
-    published: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
-
 /**
- * Fetch all published exams (memoized with React cache)
+ * Fetch all published exams (cached across requests for ultra-fast instant navigation)
  */
-export const getPublishedExams = cache(async (): Promise<Exam[]> => {
-  try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("exams")
-      .select("*")
-      .eq("published", true)
-      .order("name", { ascending: true });
+export const getPublishedExams = unstable_cache(
+  async (): Promise<Exam[]> => {
+    try {
+      const supabase = createPublicServerClient();
 
-    if (error || !data || data.length === 0) {
-      return DEFAULT_FALLBACK_EXAMS;
-    }
-    return data;
-  } catch {
-    return DEFAULT_FALLBACK_EXAMS;
-  }
-});
+      // Only expose exams that actually exist in Supabase and have at least
+      // one published test. No hardcoded/fallback exam names are used.
+      const { data: exams, error } = await supabase
+        .from("exams")
+        .select("*")
+        .eq("published", true)
+        .order("name", { ascending: true });
 
-/**
- * Fetch a single published exam by slug along with its published sections (memoized)
- */
-export const getExamBySlug = cache(async (slug: string): Promise<(Exam & { sections: ExamSection[] }) | null> => {
-  try {
-    const supabase = await createClient();
-    const { data: exam, error: examError } = await supabase
-      .from("exams")
-      .select("*")
-      .eq("slug", slug)
-      .eq("published", true)
-      .maybeSingle();
-
-    if (examError || !exam) {
-      const fallback = DEFAULT_FALLBACK_EXAMS.find((e) => e.slug === slug);
-      if (fallback) {
-        return {
-          ...fallback,
-          sections: [
-            {
-              id: `sec-${slug}-1`,
-              exam_id: fallback.id,
-              slug: slug === "ugee" ? "supr" : "proficiency",
-              name: slug === "ugee" ? "SUPR (Subject Proficiency)" : "Subject Proficiency",
-              description: "Core science questions in Mathematics, Physics, and Chemistry.",
-              default_duration_seconds: 3600,
-              display_order: 1,
-              published: true,
-              created_at: fallback.created_at,
-              updated_at: fallback.updated_at,
-            },
-            {
-              id: `sec-${slug}-2`,
-              exam_id: fallback.id,
-              slug: slug === "ugee" ? "reap" : "aptitude",
-              name: slug === "ugee" ? "REAP (Research Aptitude)" : "Aptitude & Reasoning",
-              description: "Critical thinking, data interpretation, and problem solving.",
-              default_duration_seconds: 7200,
-              display_order: 2,
-              published: true,
-              created_at: fallback.created_at,
-              updated_at: fallback.updated_at,
-            },
-          ],
-        };
+      if (error || !exams || exams.length === 0) {
+        return [];
       }
-      return null;
-    }
 
-    const { data: sections } = await supabase
-      .from("exam_sections")
-      .select("*")
-      .eq("exam_id", exam.id)
-      .eq("published", true)
-      .order("display_order", { ascending: true });
+      const { data: publishedTests } = await supabase
+        .from("tests")
+        .select("exam_id")
+        .eq("status", "published")
+        .in("exam_id", exams.map((exam) => exam.id));
 
-    return {
-      ...exam,
-      sections: sections || [],
-    };
-  } catch {
-    const fallback = DEFAULT_FALLBACK_EXAMS.find((e) => e.slug === slug);
-    if (fallback) {
-      return {
-        ...fallback,
-        sections: [],
-      };
-    }
-    return null;
-  }
-});
+      const activeExamIds = new Set(
+        (publishedTests || []).map((test) => test.exam_id).filter(Boolean),
+      );
 
-/**
- * Fetch exam sections by exam ID (memoized)
- */
-export const getExamSections = cache(async (examId: string): Promise<ExamSection[]> => {
-  try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("exam_sections")
-      .select("*")
-      .eq("exam_id", examId)
-      .eq("published", true)
-      .order("display_order", { ascending: true });
-
-    if (error || !data) {
+      return exams.filter((exam) => activeExamIds.has(exam.id));
+    } catch {
       return [];
     }
-    return data;
-  } catch {
-    return [];
+  },
+  ["published-exams-cache"],
+  {
+    revalidate: 60,
+    tags: ["exams", "tests"],
   }
-});
+);
 
 /**
- * Fetch full subject hierarchy: Subject -> Chapters -> Topics (memoized)
+ * Fetch a single published exam by slug along with its published sections (cached)
  */
-export const getSubjectsWithHierarchy = cache(async (): Promise<SubjectWithHierarchy[]> => {
-  const supabase = await createClient();
-  const [
-    { data: subjects, error: subError },
-    { data: chapters },
-    { data: topics },
-  ] = await Promise.all([
-    supabase.from("subjects").select("*").order("display_order", { ascending: true }),
-    supabase.from("chapters").select("*").order("display_order", { ascending: true }),
-    supabase.from("topics").select("*").order("display_order", { ascending: true }),
-  ]);
+export const getExamBySlug = unstable_cache(
+  async (slug: string): Promise<(Exam & { sections: ExamSection[] }) | null> => {
+    try {
+      const supabase = createPublicServerClient();
 
-  if (subError || !subjects) {
-    return [];
+      const { data: exam, error: examError } = await supabase
+        .from("exams")
+        .select("*")
+        .eq("slug", slug)
+        .eq("published", true)
+        .maybeSingle();
+
+      if (examError || !exam) {
+        return null;
+      }
+
+      const { data: sections } = await supabase
+        .from("exam_sections")
+        .select("*")
+        .eq("exam_id", exam.id)
+        .eq("published", true)
+        .order("display_order", { ascending: true });
+
+      return {
+        ...exam,
+        sections: sections || [],
+      };
+    } catch {
+      return null;
+    }
+  },
+  ["exam-by-slug-cache"],
+  {
+    revalidate: 60,
+    tags: ["exams"],
   }
+);
 
-  const chaptersMap = new Map<string, (Chapter & { topics: Topic[] })[]>();
+/**
+ * Fetch exam sections by exam ID (cached)
+ */
+export const getExamSections = unstable_cache(
+  async (examId: string): Promise<ExamSection[]> => {
+    try {
+      const supabase = createPublicServerClient();
+      const { data, error } = await supabase
+        .from("exam_sections")
+        .select("*")
+        .eq("exam_id", examId)
+        .eq("published", true)
+        .order("display_order", { ascending: true });
 
-  (chapters || []).forEach((chap) => {
-    const chapTopics = (topics || []).filter((top) => top.chapter_id === chap.id);
-    const existing = chaptersMap.get(chap.subject_id) || [];
-    existing.push({ ...chap, topics: chapTopics });
-    chaptersMap.set(chap.subject_id, existing);
-  });
+      if (error || !data) {
+        return [];
+      }
+      return data;
+    } catch {
+      return [];
+    }
+  },
+  ["exam-sections-cache"],
+  {
+    revalidate: 60,
+    tags: ["exams"],
+  }
+);
 
-  return subjects.map((sub) => ({
-    ...sub,
-    chapters: chaptersMap.get(sub.id) || [],
-  }));
-});
+/**
+ * Fetch full subject hierarchy: Subject -> Chapters -> Topics (cached across requests)
+ */
+export const getSubjectsWithHierarchy = unstable_cache(
+  async (): Promise<SubjectWithHierarchy[]> => {
+    const supabase = createPublicServerClient();
+    const [
+      { data: subjects, error: subError },
+      { data: chapters },
+      { data: topics },
+    ] = await Promise.all([
+      supabase.from("subjects").select("*").order("display_order", { ascending: true }),
+      supabase.from("chapters").select("*").order("display_order", { ascending: true }),
+      supabase.from("topics").select("*").order("display_order", { ascending: true }),
+    ]);
+
+    if (subError || !subjects) {
+      return [];
+    }
+
+    const chaptersMap = new Map<string, (Chapter & { topics: Topic[] })[]>();
+
+    (chapters || []).forEach((chap) => {
+      const chapTopics = (topics || []).filter((top) => top.chapter_id === chap.id);
+      const existing = chaptersMap.get(chap.subject_id) || [];
+      existing.push({ ...chap, topics: chapTopics });
+      chaptersMap.set(chap.subject_id, existing);
+    });
+
+    return subjects.map((sub) => ({
+      ...sub,
+      chapters: chaptersMap.get(sub.id) || [],
+    }));
+  },
+  ["subjects-with-hierarchy-cache"],
+  {
+    revalidate: 120,
+    tags: ["subjects", "chapters", "topics"],
+  }
+);
 
 /**
  * Fetch a single topic with its chapter, subject, and question count
@@ -258,8 +241,9 @@ export async function getPublishedQuestions(filters: QuestionFilters = {}): Prom
   // 1. Find all active published tests (excluding legacy sample tests)
   const { data: publishedTests } = await supabase
     .from("tests")
-    .select("id")
-    .eq("status", "published");
+    .select("id, exam:exams!inner(published)")
+    .eq("status", "published")
+    .eq("exam.published", true);
 
   const validTestIds = (publishedTests || [])
     .map((t) => t.id)
@@ -347,116 +331,140 @@ export async function getPublishedQuestions(filters: QuestionFilters = {}): Prom
   })) as QuestionWithDetails[];
 }
 
+const fetchPublishedTestsCached = unstable_cache(
+  async (examSlug?: string): Promise<TestWithDetails[]> => {
+    const supabase = createPublicServerClient();
+
+    let testQuery = supabase
+      .from("tests")
+      .select(`
+        *,
+        exam:exams!inner(id, slug, name, description, published)
+      `)
+      .eq("status", "published")
+      .eq("exam.published", true)
+      .order("created_at", { ascending: true });
+
+    if (examSlug) {
+      testQuery = testQuery.eq("exam.slug", examSlug);
+    }
+
+    const { data: rawTests, error } = await testQuery;
+
+    if (error || !rawTests) {
+      return [];
+    }
+
+    const tests = rawTests.filter((t) => !OLD_TEST_IDS.has(t.id));
+    const testIds = tests.map((t) => t.id);
+    if (testIds.length === 0) return [];
+
+    const [{ data: testSections }, { data: testQuestions }] = await Promise.all([
+      supabase
+        .from("test_sections")
+        .select(`
+          *,
+          section:exam_sections(*)
+        `)
+        .in("test_id", testIds)
+        .order("display_order", { ascending: true }),
+      supabase
+        .from("test_questions")
+        .select("test_id, marks")
+        .in("test_id", testIds),
+    ]);
+
+    const sectionsByTest = new Map<string, (TestSection & { section: ExamSection })[]>();
+    (testSections || []).forEach((ts) => {
+      const list = sectionsByTest.get(ts.test_id) || [];
+      list.push(ts as (TestSection & { section: ExamSection }));
+      sectionsByTest.set(ts.test_id, list);
+    });
+
+    const questionCountByTest = new Map<string, { count: number; marks: number }>();
+    (testQuestions || []).forEach((tq) => {
+      const current = questionCountByTest.get(tq.test_id) || { count: 0, marks: 0 };
+      current.count += 1;
+      current.marks += Number(tq.marks || 0);
+      questionCountByTest.set(tq.test_id, current);
+    });
+
+    return tests.map((t) => {
+      const stats = questionCountByTest.get(t.id) || { count: 0, marks: 0 };
+      return {
+        ...t,
+        sections: sectionsByTest.get(t.id) || [],
+        total_questions: stats.count,
+        total_marks: stats.marks,
+      };
+    }) as TestWithDetails[];
+  },
+  ["published-tests-cache"],
+  {
+    revalidate: 60,
+    tags: ["tests", "exams"],
+  }
+);
+
 /**
- * Fetch published tests with exam info and section breakdown
+ * Fetch published tests with exam info and section breakdown (cached)
  */
 export async function getPublishedTests(examSlug?: string): Promise<TestWithDetails[]> {
-  const supabase = await createClient();
+  return fetchPublishedTestsCached(examSlug);
+}
 
-  const testQuery = supabase
-    .from("tests")
-    .select(`
-      *,
-      exam:exams(id, slug, name)
-    `)
-    .eq("status", "published")
-    .order("created_at", { ascending: true });
+const fetchTestBySlugCached = unstable_cache(
+  async (slug: string): Promise<TestWithDetails | null> => {
+    const supabase = createPublicServerClient();
 
-  const { data: rawTests, error } = await testQuery;
+    const { data: test, error } = await supabase
+      .from("tests")
+      .select(`
+        *,
+        exam:exams!inner(id, slug, name, description, published)
+      `)
+      .eq("slug", slug)
+      .eq("status", "published")
+      .eq("exam.published", true)
+      .maybeSingle();
 
-  if (error || !rawTests) {
-    return [];
-  }
+    if (error || !test) return null;
 
-  const tests = rawTests.filter((t) => !OLD_TEST_IDS.has(t.id));
-  const testIds = tests.map((t) => t.id);
-  if (testIds.length === 0) return [];
-
-  const [{ data: testSections }, { data: testQuestions }] = await Promise.all([
-    supabase
+    const { data: testSections } = await supabase
       .from("test_sections")
       .select(`
         *,
         section:exam_sections(*)
       `)
-      .in("test_id", testIds)
-      .order("display_order", { ascending: true }),
-    supabase
+      .eq("test_id", test.id)
+      .order("display_order", { ascending: true });
+
+    const { data: testQuestions } = await supabase
       .from("test_questions")
-      .select("test_id, marks")
-      .in("test_id", testIds),
-  ]);
+      .select("id, marks")
+      .eq("test_id", test.id);
 
-  const sectionsByTest = new Map<string, (TestSection & { section: ExamSection })[]>();
-  (testSections || []).forEach((ts) => {
-    const list = sectionsByTest.get(ts.test_id) || [];
-    list.push(ts as (TestSection & { section: ExamSection }));
-    sectionsByTest.set(ts.test_id, list);
-  });
+    const totalMarks = (testQuestions || []).reduce((acc, q) => acc + Number(q.marks || 0), 0);
 
-  const questionCountByTest = new Map<string, { count: number; marks: number }>();
-  (testQuestions || []).forEach((tq) => {
-    const current = questionCountByTest.get(tq.test_id) || { count: 0, marks: 0 };
-    current.count += 1;
-    current.marks += Number(tq.marks || 0);
-    questionCountByTest.set(tq.test_id, current);
-  });
-
-  const filteredTests = examSlug
-    ? tests.filter((t) => t.exam?.slug === examSlug)
-    : tests;
-
-  return filteredTests.map((t) => {
-    const stats = questionCountByTest.get(t.id) || { count: 0, marks: 0 };
     return {
-      ...t,
-      sections: sectionsByTest.get(t.id) || [],
-      total_questions: stats.count,
-      total_marks: stats.marks,
-    };
-  }) as TestWithDetails[];
-}
+      ...test,
+      sections: testSections || [],
+      total_questions: (testQuestions || []).length,
+      total_marks: totalMarks,
+    } as TestWithDetails;
+  },
+  ["test-by-slug-cache"],
+  {
+    revalidate: 60,
+    tags: ["tests"],
+  }
+);
 
 /**
- * Fetch a single test by slug with its sections and configuration
+ * Fetch a single test by slug with its sections and configuration (cached)
  */
 export async function getTestBySlug(slug: string): Promise<TestWithDetails | null> {
-  const supabase = await createClient();
-
-  const { data: test, error } = await supabase
-    .from("tests")
-    .select(`
-      *,
-      exam:exams(id, slug, name, description)
-    `)
-    .eq("slug", slug)
-    .eq("status", "published")
-    .maybeSingle();
-
-  if (error || !test) return null;
-
-  const { data: testSections } = await supabase
-    .from("test_sections")
-    .select(`
-      *,
-      section:exam_sections(*)
-    `)
-    .eq("test_id", test.id)
-    .order("display_order", { ascending: true });
-
-  const { data: testQuestions } = await supabase
-    .from("test_questions")
-    .select("id, marks")
-    .eq("test_id", test.id);
-
-  const totalMarks = (testQuestions || []).reduce((acc, q) => acc + Number(q.marks || 0), 0);
-
-  return {
-    ...test,
-    sections: testSections || [],
-    total_questions: (testQuestions || []).length,
-    total_marks: totalMarks,
-  } as TestWithDetails;
+  return fetchTestBySlugCached(slug);
 }
 
 /**
@@ -510,4 +518,59 @@ export async function getTestQuestionsWithoutAnswerKey(testId: string): Promise<
   }
 
   return testQuestions as unknown as TestQuestion[];
+}
+
+
+export interface LearningProgress {
+  completedTopicIds: string[];
+  completedTopics: number;
+  totalTopics: number;
+  percentage: number;
+}
+
+/**
+ * Fetch the signed-in student's topic-based My Learning progress.
+ */
+export async function getLearningProgress(userId: string): Promise<LearningProgress> {
+  const supabase = await createClient();
+
+  const [
+    { data: topics, error: topicsError },
+    { data: progress, error: progressError },
+  ] = await Promise.all([
+    supabase.from("topics").select("id"),
+    supabase
+      .from("user_learning_topic_progress")
+      .select("topic_id")
+      .eq("user_id", userId),
+  ]);
+
+  if (topicsError || progressError) {
+    console.error("Failed to load topic learning progress:", {
+      topicsError,
+      progressError,
+    });
+
+    return {
+      completedTopicIds: [],
+      completedTopics: 0,
+      totalTopics: topics?.length || 0,
+      percentage: 0,
+    };
+  }
+
+  const totalTopics = topics?.length || 0;
+  const completedTopicIds = Array.from(
+    new Set((progress || []).map((item) => item.topic_id)),
+  );
+  const completedTopics = completedTopicIds.length;
+  const percentage =
+    totalTopics > 0 ? Math.round((completedTopics / totalTopics) * 100) : 0;
+
+  return {
+    completedTopicIds,
+    completedTopics,
+    totalTopics,
+    percentage,
+  };
 }

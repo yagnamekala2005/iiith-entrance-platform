@@ -1,0 +1,2 @@
+create index practice_question_answers_correct_option_id_idx
+on public.practice_question_answers(correct_option_id);

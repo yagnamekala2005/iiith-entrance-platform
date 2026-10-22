@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { getTestBySlug } from "@/lib/content/queries";
 import { getActiveAttemptForTest } from "@/lib/attempts/queries";
 import { StartAttemptButton } from "@/components/attempts/start-attempt-button";
+import { SubscribeForMocksButton } from "@/components/payments/subscribe-for-mocks-button";
+import { createClient } from "@/lib/supabase/server";
 
 interface PageProps {
   params: Promise<{ testSlug: string }>;
@@ -17,6 +19,20 @@ export default async function TestDetailPage({ params }: PageProps) {
   }
 
   const activeAttempt = await getActiveAttemptForTest(test.id);
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: activeSubscription } = user
+    ? await supabase
+        .from("mock_test_subscriptions")
+        .select("id, expires_at")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .gt("expires_at", new Date().toISOString())
+        .order("expires_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : { data: null };
+  const canStartTest = Boolean(activeAttempt) || test.test_type !== "mock" || Boolean(test.is_free) || Boolean(activeSubscription);
 
   const durationMinutes = Math.round(test.duration_seconds / 60);
   const durationHours = (durationMinutes / 60).toFixed(1);
@@ -55,9 +71,8 @@ export default async function TestDetailPage({ params }: PageProps) {
               <span className="rounded-md bg-slate-100 px-2.5 py-0.5 text-xs font-bold uppercase text-slate-700">
                 {test.test_type}
               </span>
-              <span className="rounded-md bg-emerald-50 px-2.5 py-0.5 text-xs font-bold uppercase text-emerald-800 border border-emerald-200 flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                Live Timed CBT
+              <span className={`rounded-md px-2.5 py-0.5 text-xs font-bold uppercase border ${test.test_type !== "mock" || test.is_free ? "bg-emerald-50 text-emerald-800 border-emerald-200" : activeSubscription ? "bg-blue-50 text-blue-800 border-blue-200" : "bg-amber-50 text-amber-800 border-amber-200"}`}>
+                {test.test_type !== "mock" || test.is_free ? "Free for every student" : activeSubscription ? "Subscription active" : "Locked · subscription required"}
               </span>
             </div>
             <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
@@ -166,11 +181,15 @@ export default async function TestDetailPage({ params }: PageProps) {
           &larr; Back to Tests Directory
         </Link>
         <div className="flex items-center gap-3">
-          <StartAttemptButton
-            testId={test.id}
-            hasActiveAttempt={Boolean(activeAttempt)}
-            activeAttemptId={activeAttempt?.id}
-          />
+          {canStartTest ? (
+            <StartAttemptButton
+              testId={test.id}
+              hasActiveAttempt={Boolean(activeAttempt)}
+              activeAttemptId={activeAttempt?.id}
+            />
+          ) : (
+            <SubscribeForMocksButton compact />
+          )}
         </div>
       </div>
     </main>

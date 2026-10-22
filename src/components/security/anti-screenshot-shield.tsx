@@ -17,30 +17,75 @@ interface AntiScreenshotShieldProps {
 function isMobileDevice(): boolean {
   if (typeof window === "undefined") return false;
 
-  // 1. Capacitor native mobile app check
+  // 1. Capacitor native mobile app check (Android / iOS native app wrapper)
   const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string } }).Capacitor;
   if (cap && (cap.isNativePlatform?.() || cap.getPlatform?.() === "android" || cap.getPlatform?.() === "ios")) {
     return true;
   }
 
-  // 2. Mobile User-Agent check (Android, iPhone, iPad, iPod, etc.)
+  // 2. Strict desktop OS check (Laptops and PCs must NEVER be restricted)
   const ua = navigator.userAgent || navigator.vendor || (window as unknown as { opera?: string }).opera || "";
+  const navAny = navigator as unknown as { userAgentData?: { platform?: string; mobile?: boolean } };
+
+  if (navAny.userAgentData && navAny.userAgentData.mobile === false) {
+    return false;
+  }
+
+  const isDesktopPlatform = /Win32|Win64|Windows|Macintosh|MacIntel|Linux x86_64/i.test(
+    navAny.userAgentData?.platform || navigator.platform || ua
+  );
   const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile/i.test(ua);
+
+  if (isDesktopPlatform && !isMobileUA) {
+    return false;
+  }
+
+  // 3. Mobile User-Agent check (Android, iPhone, iPad, etc.)
   if (isMobileUA) {
     return true;
   }
 
-  // 3. Touch device with mobile phone screen width
+  // 4. Mobile screen touch fallback (only if not a desktop platform)
   const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
   const isSmallScreen = window.innerWidth <= 820;
 
-  return isTouchDevice && isSmallScreen;
+  return isTouchDevice && isSmallScreen && !isDesktopPlatform;
 }
 
-export function AntiScreenshotShield({ strictExamMode = false }: AntiScreenshotShieldProps) {
+export function AntiScreenshotShield({ strictExamMode = true }: AntiScreenshotShieldProps) {
   const [showWarning, setShowWarning] = useState<boolean>(false);
   const [warningMessage, setWarningMessage] = useState<string>("");
   const [isScreenObscured, setIsScreenObscured] = useState<boolean>(false);
+
+  // Toggle hardware screenshot restriction on Android Capacitor app strictly during mock test
+  useEffect(() => {
+    const enableBridge = () => {
+      const win = typeof window !== "undefined" ? (window as unknown as { AndroidSecurityBridge?: { enableScreenshotRestriction?: () => void; disableScreenshotRestriction?: () => void } }) : null;
+      if (win?.AndroidSecurityBridge?.enableScreenshotRestriction) {
+        win.AndroidSecurityBridge.enableScreenshotRestriction();
+        return true;
+      }
+      return false;
+    };
+
+    if (!enableBridge()) {
+      const timer = setTimeout(enableBridge, 350);
+      return () => {
+        clearTimeout(timer);
+        const win = typeof window !== "undefined" ? (window as unknown as { AndroidSecurityBridge?: { disableScreenshotRestriction?: () => void } }) : null;
+        if (win?.AndroidSecurityBridge?.disableScreenshotRestriction) {
+          win.AndroidSecurityBridge.disableScreenshotRestriction();
+        }
+      };
+    }
+
+    return () => {
+      const win = typeof window !== "undefined" ? (window as unknown as { AndroidSecurityBridge?: { disableScreenshotRestriction?: () => void } }) : null;
+      if (win?.AndroidSecurityBridge?.disableScreenshotRestriction) {
+        win.AndroidSecurityBridge.disableScreenshotRestriction();
+      }
+    };
+  }, []);
 
   const triggerSecurityWarning = (msg: string) => {
     setWarningMessage(msg);

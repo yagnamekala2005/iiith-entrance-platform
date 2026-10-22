@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface ActionResult<T = unknown> {
   success: boolean;
@@ -39,7 +40,7 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
     // Fallback: Validate and execute with direct queries if RPC is not yet registered
     const { data: test, error: testErr } = await supabase
       .from("tests")
-      .select("id, status, name")
+      .select("id, status, name, test_type, is_free")
       .eq("id", testId)
       .maybeSingle();
 
@@ -66,6 +67,31 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
         success: true,
         data: { attemptId: existingAttempt.id, isResumed: true },
       };
+    }
+
+    if (test.test_type === "mock" && !test.is_free) {
+      const adminClient = createAdminClient();
+      const { data: adminMembership } = await adminClient
+        .from("admin_users")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!adminMembership) {
+        const { data: activeSubscription, error: subscriptionError } = await supabase
+          .from("mock_test_subscriptions")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("status", "active")
+          .gt("expires_at", new Date().toISOString())
+          .lte("starts_at", new Date().toISOString())
+          .limit(1)
+          .maybeSingle();
+
+        if (subscriptionError || !activeSubscription) {
+          return { success: false, error: "An active ₹99 subscription is required to access all mock tests." };
+        }
+      }
     }
 
     const { data: testQuestions, error: tqErr } = await supabase
@@ -135,6 +161,7 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
 
 /**
  * Save an answer for a question in an active attempt.
+ * Streamlined to 2 fast database round-trips (Auth -> Verify & Update) for instantaneous exam performance.
  */
 export async function saveAttemptAnswer(
   attemptId: string,
@@ -149,50 +176,20 @@ export async function saveAttemptAnswer(
       return { success: false, error: "Unauthorized" };
     }
 
-    // 1. Verify attempt ownership & status
+    // 1. Verify attempt ownership & in_progress status in a single query
     const { data: attempt, error: attemptErr } = await supabase
       .from("test_attempts")
-      .select("id, status, user_id")
+      .select("id")
       .eq("id", attemptId)
+      .eq("user_id", user.id)
+      .eq("status", "in_progress")
       .maybeSingle();
 
     if (attemptErr || !attempt) {
-      return { success: false, error: "Attempt not found." };
+      return { success: false, error: "Active attempt not found or already submitted." };
     }
 
-    if (attempt.user_id !== user.id) {
-      return { success: false, error: "Forbidden access." };
-    }
-
-    if (attempt.status !== "in_progress") {
-      return { success: false, error: "Cannot modify answers of a submitted attempt." };
-    }
-
-    // 2. Verify question belongs to this attempt
-    const { data: aq, error: aqErr } = await supabase
-      .from("attempt_questions")
-      .select("id")
-      .eq("attempt_id", attemptId)
-      .eq("question_id", questionId)
-      .maybeSingle();
-
-    if (aqErr || !aq) {
-      return { success: false, error: "Question does not belong to this attempt." };
-    }
-
-    // 3. Verify option belongs to the question
-    const { data: option, error: optErr } = await supabase
-      .from("question_options")
-      .select("id")
-      .eq("id", selectedOptionId)
-      .eq("question_id", questionId)
-      .maybeSingle();
-
-    if (optErr || !option) {
-      return { success: false, error: "Invalid option selection for this question." };
-    }
-
-    // 4. Update attempt_questions (updating ONLY safe answer fields)
+    // 2. Directly update attempt_questions (updating ONLY safe answer fields)
     const { error: updateErr } = await supabase
       .from("attempt_questions")
       .update({
@@ -233,20 +230,14 @@ export async function clearAttemptAnswer(
     // 1. Verify attempt ownership & status
     const { data: attempt, error: attemptErr } = await supabase
       .from("test_attempts")
-      .select("id, status, user_id")
+      .select("id")
       .eq("id", attemptId)
+      .eq("user_id", user.id)
+      .eq("status", "in_progress")
       .maybeSingle();
 
     if (attemptErr || !attempt) {
-      return { success: false, error: "Attempt not found." };
-    }
-
-    if (attempt.user_id !== user.id) {
-      return { success: false, error: "Forbidden access." };
-    }
-
-    if (attempt.status !== "in_progress") {
-      return { success: false, error: "Cannot modify answers of a submitted attempt." };
+      return { success: false, error: "Active attempt not found or already submitted." };
     }
 
     // 2. Update attempt_questions to clear answer
@@ -291,20 +282,14 @@ export async function toggleAttemptMarkForReview(
     // 1. Verify attempt ownership & status
     const { data: attempt, error: attemptErr } = await supabase
       .from("test_attempts")
-      .select("id, status, user_id")
+      .select("id")
       .eq("id", attemptId)
+      .eq("user_id", user.id)
+      .eq("status", "in_progress")
       .maybeSingle();
 
     if (attemptErr || !attempt) {
-      return { success: false, error: "Attempt not found." };
-    }
-
-    if (attempt.user_id !== user.id) {
-      return { success: false, error: "Forbidden access." };
-    }
-
-    if (attempt.status !== "in_progress") {
-      return { success: false, error: "Cannot modify marked status of a submitted attempt." };
+      return { success: false, error: "Active attempt not found or already submitted." };
     }
 
     // 2. Update marked_for_review

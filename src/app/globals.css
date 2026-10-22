@@ -69,18 +69,21 @@ body {
 /* ANTI-SCREENSHOT & EXAM INTEGRITY PROTECTIONS */
 /* ========================================================================= */
 
-/* Block printing on mobile devices to prevent screen export */
+/* Block printing on mobile devices strictly inside live mock test to prevent question export */
 @media print and (pointer: coarse) and (max-width: 820px) {
-  html, body, main, div, header, aside, section {
+  .cbt-exam-container,
+  .cbt-exam-container * {
     display: none !important;
     visibility: hidden !important;
     opacity: 0 !important;
   }
 }
 
-/* Prevent long-press image saving / callout on mobile phones */
+/* Prevent long-press image saving / callout on mobile phones strictly during mock test */
 @media (pointer: coarse) and (max-width: 820px) {
-  body, img, canvas {
+  .cbt-exam-container,
+  .cbt-exam-container img,
+  .cbt-exam-container canvas {
     -webkit-touch-callout: none !important;
   }
 }

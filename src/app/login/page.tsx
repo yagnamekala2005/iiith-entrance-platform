@@ -1,32 +1,44 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState, useEffect, Suspense } from "react";
+import { FormEvent, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { GoogleOAuthButton } from "@/components/auth/google-oauth-button";
+import { safeInternalRedirect } from "@/lib/security/redirect";
 
 function LoginFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialRole = searchParams.get("role") === "admin" ? "admin" : "student";
   const nextUrl = searchParams.get("next");
+  const authError = searchParams.get("authError");
+  const errorDetails = searchParams.get("errorDetails");
 
   const [role, setRole] = useState<"student" | "admin">(initialRole);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(() => {
+    switch (authError) {
+      case "oauth_cancelled":
+        return "Google sign-in was cancelled. You can try again or use email and password.";
+      case "profile_update_failed":
+        return "Google sign-in succeeded, but your profile could not be updated. Please try again or contact support.";
+      case "role_lookup_failed":
+        return "We could not verify your account access. Please try again or contact support.";
+      case "not_admin":
+        return "⚠️ This Google account is not registered as an administrator. Please toggle to the Student Login tab to access your dashboard.";
+      case "oauth_failed":
+        if (errorDetails) {
+          return `Google sign-in could not be completed (${errorDetails}). Please try again or use email and password.`;
+        }
+        return "Google sign-in could not be completed. Please try again or use email and password.";
+      default:
+        return "";
+    }
+  });
   const [loading, setLoading] = useState(false);
-  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
-
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user && user.email) {
-        setCurrentUserEmail(user.email);
-      }
-    });
-  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -34,40 +46,29 @@ function LoginFormContent() {
     setMessage("");
 
     const normalizedEmail = email.trim().toLowerCase();
-    const supabase = createClient();
-
-    let data: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>["data"];
-    let error: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>["error"];
+    let response: Response;
     try {
-      const result = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password,
+      response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: normalizedEmail, password }),
       });
-      data = result.data;
-      error = result.error;
-    } catch (cause) {
-      console.error("Password sign-in request failed:", cause);
+    } catch {
       setLoading(false);
-      setMessage("Sign-in is temporarily unavailable. Please check your connection and try again.");
+      setMessage("Sign-in is temporarily unavailable. Please try again.");
       return;
     }
 
-    if (error) {
+    if (!response.ok) {
       setLoading(false);
-      const errorMessage = error.message.toLowerCase();
-
-      if (
-        errorMessage.includes("invalid login credentials") ||
-        errorMessage.includes("invalid credentials")
-      ) {
-        setMessage("Incorrect email or password. Please verify your credentials and try again.");
-      } else {
-        setMessage(error.message);
-      }
+      const result: { error?: string } = await response.json().catch(() => ({}));
+      setMessage(result.error || "Incorrect email or password.");
       return;
     }
 
-    if (!data.user) {
+    const supabase = createClient();
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) {
       setLoading(false);
       setMessage("Login failed. Please try again.");
       return;
@@ -89,10 +90,12 @@ function LoginFormContent() {
         return;
       }
 
-      router.push(nextUrl || "/admin");
+      const destination = safeInternalRedirect(nextUrl, "/admin", window.location.origin);
+      router.push(destination === "/admin" || destination.startsWith("/admin/") ? destination : "/admin");
       router.refresh();
     } else {
-      router.push(nextUrl || "/dashboard");
+      const destination = safeInternalRedirect(nextUrl, "/dashboard", window.location.origin);
+      router.push(destination === "/admin" || destination.startsWith("/admin/") ? "/dashboard" : destination);
       router.refresh();
     }
   }
@@ -138,8 +141,7 @@ function LoginFormContent() {
                 {isAdminTab ? "🛡️ ADMINISTRATOR ACCESS" : "👨‍🎓 STUDENT ENTRANCE PORTAL"}
               </span>
 
-              {/* Discreet Switcher Link - only visible from student portal */}
-              {!isAdminTab && (
+              {!isAdminTab ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -149,6 +151,17 @@ function LoginFormContent() {
                   className="text-xs font-bold text-slate-500 hover:text-blue-700 transition-colors"
                 >
                   Admin Portal &rarr;
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRole("student");
+                    setMessage("");
+                  }}
+                  className="text-xs font-bold text-slate-400 hover:text-white transition-colors"
+                >
+                  &larr; Student Portal
                 </button>
               )}
             </div>
@@ -167,40 +180,25 @@ function LoginFormContent() {
           {/* Form Area */}
           <form className="p-6 sm:p-8 pt-4 space-y-5" onSubmit={handleSubmit}>
 
-            {/* Active Session Notice when navigating back while signed in */}
-            {currentUserEmail && (
-              <div className="rounded-xl border border-blue-200 bg-blue-50/90 p-4 text-xs shadow-2xs">
-                <p className="font-semibold text-blue-900 leading-snug">
-                  You are currently logged in as <strong className="font-bold underline">{currentUserEmail}</strong>
-                </p>
-                <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                  <Link
-                    href={isAdminTab ? "/admin" : "/dashboard"}
-                    className="rounded-lg bg-blue-700 px-3 py-1.5 font-bold text-white hover:bg-blue-800 transition-all text-xs shadow-xs"
-                  >
-                    Go to {isAdminTab ? "Admin Studio" : "Student Dashboard"} &rarr;
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const supabase = createClient();
-                      await supabase.auth.signOut();
-                      setCurrentUserEmail(null);
-                    }}
-                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 font-bold text-slate-700 hover:bg-slate-50 transition-all text-xs"
-                  >
-                    Switch Account
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* Error Message */}
             {message && (
               <div className="rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-xs font-semibold text-rose-800 animate-in fade-in leading-relaxed">
                 {message}
               </div>
             )}
+
+            <GoogleOAuthButton
+              disabled={loading}
+              role={role}
+              next={safeInternalRedirect(nextUrl, role === "admin" ? "/admin" : "/dashboard", "https://app.invalid")}
+            />
+            <div className="flex items-center gap-3" aria-hidden="true">
+              <span className="h-px flex-1 bg-slate-200" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Or use email
+              </span>
+              <span className="h-px flex-1 bg-slate-200" />
+            </div>
 
             {/* Email Field */}
             <div>

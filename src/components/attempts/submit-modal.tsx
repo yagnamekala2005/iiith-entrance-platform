@@ -97,16 +97,16 @@ export function SubmitModal({
             onClick={onClose}
             className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-xs font-bold uppercase text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-all"
           >
-            ← Return to Test
+            Keep Writing Exam
           </button>
 
           <button
             type="button"
             disabled={isSubmitting}
             onClick={onConfirm}
-            className="rounded-xl bg-blue-700 px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 disabled:opacity-50 transition-all"
+            className="rounded-xl bg-emerald-600 px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-emerald-600/20 hover:bg-emerald-700 active:scale-95 disabled:opacity-50 transition-all flex items-center gap-2"
           >
-            {isSubmitting ? "Scoring & Submitting..." : "Yes, Submit Final Exam"}
+            {isSubmitting ? "Scoring & Submitting..." : "Submit Exam"}
           </button>
         </div>
       </div>

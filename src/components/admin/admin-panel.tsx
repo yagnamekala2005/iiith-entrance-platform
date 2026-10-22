@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useState, useTransition, useMemo, useEffect, useRef } from "react";
-import Link from "next/link";
+import React, { useState, useTransition, useMemo, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   createAdminQuestion,
@@ -12,18 +11,27 @@ import {
   updateAdminMockTestName,
   deleteAdminMockTest,
   publishAdminMockTest,
+  setFreeAdminMockTest,
   cleanAllOldMockTests,
+  createAdminSubject,
+  createAdminExam,
+  createAdminPracticeQuestion,
+  getAdminTopicPracticeQuestions,
+  updateAdminPracticeQuestion,
   createAdminChapter,
   deleteAdminChapter,
   createAdminTopic,
   deleteAdminTopic,
   updateTopicLearningContent,
+  uploadLearningPdf,
+  type AdminPracticeQuestionItem,
 } from "@/lib/admin/actions";
 import {
   parseTopicLearningContent,
   type LearningResource,
 } from "@/lib/learning/topic-content";
 import { createClient } from "@/lib/supabase/client";
+import { LogoutConfirmModal } from "@/components/auth/logout-confirm-modal";
 
 interface SubjectItem {
   id: string;
@@ -59,6 +67,7 @@ interface TestItem {
   exam_id?: string;
   description?: string;
   status?: string;
+  is_free?: boolean;
 }
 
 interface QuestionAdminItem {
@@ -115,6 +124,13 @@ export function AdminPanel({
   const [activeTab, setActiveTab] = useState<"tests" | "create" | "learning" | "admins">("tests");
   const [isPending, startTransition] = useTransition();
 
+  // Exams State
+  const [adminExams, setAdminExams] = useState<ExamItem[]>(exams);
+  const [isAddingExam, setIsAddingExam] = useState<boolean>(false);
+  const [newExamName, setNewExamName] = useState<string>("");
+  const [newExamDescription, setNewExamDescription] = useState<string>("");
+  const [newExamNegativeMarking, setNewExamNegativeMarking] = useState<string>("");
+
   // Mock Tests State
   const [mockTests, setMockTests] = useState<TestItem[]>(() =>
     tests.filter((t) => !OLD_TEST_IDS.has(t.id) && t.status !== "archived")
@@ -124,13 +140,18 @@ export function AdminPanel({
   );
   const [isCreatingMockTest, setIsCreatingMockTest] = useState<boolean>(false);
   const [newTestName, setNewTestName] = useState<string>("");
-  const [newTestExamId, setNewTestExamId] = useState<string>(exams[0]?.id || "");
+  const [newTestExamId, setNewTestExamId] = useState<string>(adminExams[0]?.id || "");
   const [newTestDuration, setNewTestDuration] = useState<number>(180);
   const [newTestDescription, setNewTestDescription] = useState<string>("");
-  const [testSuccessMessage, setTestSuccessMessage] = useState<string>("");
+  const [testSuccessMessage, setTestSuccessMessage] = useState<string>("" );
   const [testErrorMessage, setTestErrorMessage] = useState<string>("");
 
+  // Logout Confirmation Modal State
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState<boolean>(false);
+  const [isSigningOut, setIsSigningOut] = useState<boolean>(false);
+
   // My Learning State (Subjects, Chapters, Subtopics)
+  const [adminSubjects, setAdminSubjects] = useState<SubjectItem[]>(subjects);
   const [adminChapters, setAdminChapters] = useState<ChapterItem[]>(chapters);
   const [adminTopics, setAdminTopics] = useState<TopicItem[]>(topics);
   const [selectedLearningSubjectId, setSelectedLearningSubjectId] = useState<string>(subjects[0]?.id || "");
@@ -139,6 +160,24 @@ export function AdminPanel({
   const [targetChapterIdForTopic, setTargetChapterIdForTopic] = useState<string>("");
   const [learningSuccessMessage, setLearningSuccessMessage] = useState<string>("");
   const [learningErrorMessage, setLearningErrorMessage] = useState<string>("");
+  const [isAddingSubject, setIsAddingSubject] = useState<boolean>(false);
+  const [newSubjectName, setNewSubjectName] = useState<string>("");
+  const [newSubjectDescription, setNewSubjectDescription] = useState<string>("");
+
+  // Topic Practice Question State
+  const [practiceTopic, setPracticeTopic] = useState<TopicItem | null>(null);
+  const [practiceQuestionText, setPracticeQuestionText] = useState<string>("");
+  const [practiceOptions, setPracticeOptions] = useState<[string, string, string, string]>(["", "", "", ""]);
+  const [practiceCorrectOption, setPracticeCorrectOption] = useState<string>("A");
+  const [practiceDifficulty, setPracticeDifficulty] = useState<"easy" | "medium" | "hard">("medium");
+  const [practiceMarks, setPracticeMarks] = useState<number>(1);
+  const [practiceExplanation, setPracticeExplanation] = useState<string>("");
+  const [practiceSuccessMessage, setPracticeSuccessMessage] = useState<string>("");
+  const [practiceErrorMessage, setPracticeErrorMessage] = useState<string>("");
+  const [practiceQuestions, setPracticeQuestions] = useState<AdminPracticeQuestionItem[]>([]);
+  const [practiceQuestionIndex, setPracticeQuestionIndex] = useState<number>(0);
+  const [practiceEditingId, setPracticeEditingId] = useState<string | null>(null);
+  const [practiceQuestionsLoading, setPracticeQuestionsLoading] = useState<boolean>(false);
 
   // Topic Rich Learning Content Editor Modal state
   const [editingTopic, setEditingTopic] = useState<TopicItem | null>(null);
@@ -147,45 +186,58 @@ export function AdminPanel({
   const [editFormulas, setEditFormulas] = useState<string>("");
   const [editResources, setEditResources] = useState<LearningResource[]>([]);
   const [isSavingTopicContent, setIsSavingTopicContent] = useState<boolean>(false);
+  const [uploadingPdfIndex, setUploadingPdfIndex] = useState<number | null>(null);
+  const learningPdfInputRef = useRef<HTMLInputElement | null>(null);
+  const [pdfUploadTargetIndex, setPdfUploadTargetIndex] = useState<number | null>(null);
 
   // References to keep event handlers current without re-attaching listeners
-  const activeTabRef = useRef(activeTab);
-  activeTabRef.current = activeTab;
-
-  const editingTopicRef = useRef(editingTopic);
-  editingTopicRef.current = editingTopic;
-
+  const activeTabRef = useRef<"tests" | "create" | "learning" | "admins">(activeTab);
+  const editingTopicRef = useRef<TopicItem | null>(editingTopic);
   const isCreatingMockTestRef = useRef(isCreatingMockTest);
-  isCreatingMockTestRef.current = isCreatingMockTest;
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  useEffect(() => {
+    editingTopicRef.current = editingTopic;
+  }, [editingTopic]);
+
+  useEffect(() => {
+    isCreatingMockTestRef.current = isCreatingMockTest;
+  }, [isCreatingMockTest]);
 
   // Unified back handler for Admin: modal -> subtab (e.g. learning) -> mock tests root -> entrance portal
-  const handleAdminStepBack = (e?: Event) => {
-    // 1. If Topic Learning Content Editor modal is open, close it (1 step back)
-    if (editingTopicRef.current) {
-      if (e) e.preventDefault();
-      setEditingTopic(null);
-      return;
-    }
+  const handleAdminStepBack = useCallback(
+    (e?: Event) => {
+      // 1. If Topic Learning Content Editor modal is open, close it (1 step back)
+      if (editingTopicRef.current) {
+        if (e) e.preventDefault();
+        setEditingTopic(null);
+        return;
+      }
 
-    // 2. If New Mock Test form is open, close it (1 step back)
-    if (isCreatingMockTestRef.current) {
-      if (e) e.preventDefault();
-      setIsCreatingMockTest(false);
-      return;
-    }
+      // 2. If New Mock Test form is open, close it (1 step back)
+      if (isCreatingMockTestRef.current) {
+        if (e) e.preventDefault();
+        setIsCreatingMockTest(false);
+        return;
+      }
 
-    // 3. If on a subtab ("learning", "create", "admins"), return to "tests" tab (1 step back)
-    if (activeTabRef.current !== "tests") {
-      if (e) e.preventDefault();
-      setActiveTab("tests");
-      return;
-    }
+      // 3. If on a subtab ("learning", "create", "admins"), return to "tests" tab (1 step back)
+      if (activeTabRef.current !== "tests") {
+        if (e) e.preventDefault();
+        setActiveTab("tests");
+        return;
+      }
 
-    // 4. If already on the root "tests" tab and called from UI button, return to Entrance Portal
-    if (!e) {
-      router.push("/");
-    }
-  };
+      // 4. If already on the root "tests" tab and called from UI button, prompt logout confirmation
+      if (!e) {
+        setIsLogoutModalOpen(true);
+      }
+    },
+    []
+  );
 
   // Intercept back navigation so mobile phone gestures / back buttons come back 1 step instead of exiting app
   useEffect(() => {
@@ -219,8 +271,8 @@ export function AdminPanel({
         return;
       }
 
-      // 5. If already on the root "tests" tab, safely navigate back to Entrance Portal instead of exiting!
-      router.push("/");
+      // 5. If already on the root "tests" tab, prompt confirmation modal before leaving!
+      setIsLogoutModalOpen(true);
     };
 
     const onAdminStepBack = (e: Event) => {
@@ -266,7 +318,7 @@ export function AdminPanel({
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(subjects[0]?.id || "");
   const [selectedChapterId, setSelectedChapterId] = useState<string>("");
   const [selectedTopicId, setSelectedTopicId] = useState<string>("");
-  const [selectedExamId, setSelectedExamId] = useState<string>(exams[0]?.id || "");
+  const [selectedExamId, setSelectedExamId] = useState<string>(adminExams[0]?.id || "");
   const [questionText, setQuestionText] = useState<string>("");
   const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium");
   const [marks, setMarks] = useState<number>(1);
@@ -291,11 +343,21 @@ export function AdminPanel({
   const isEditingExisting = activeQuestionIndex < currentTestQuestions.length;
   const currentEditingQuestion = isEditingExisting ? currentTestQuestions[activeQuestionIndex] : null;
 
-  // Sign out handler
-  const handleSignOut = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    window.location.href = "/login?role=admin";
+  // Sign out handlers (prompts confirmation modal before ending session)
+  const handleSignOut = () => {
+    setIsLogoutModalOpen(true);
+  };
+
+  const handleConfirmSignOut = async () => {
+    try {
+      setIsSigningOut(true);
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      window.location.href = "/login?role=admin";
+    } catch {
+      setIsSigningOut(false);
+      setIsLogoutModalOpen(false);
+    }
   };
 
   // Populate form with question data
@@ -308,7 +370,7 @@ export function AdminPanel({
     setSelectedSubjectId(q.subject_id || q.subject?.id || subjects[0]?.id || "");
     setSelectedChapterId(q.chapter_id || "");
     setSelectedTopicId(q.topic_id || "");
-    setSelectedExamId(q.exam_id || currentTargetTest?.exam_id || exams[0]?.id || "");
+    setSelectedExamId(q.exam_id || currentTargetTest?.exam_id || adminExams[0]?.id || "");
 
     const sortedOpts = [...(q.options || [])].sort((a, b) =>
       a.option_label.localeCompare(b.option_label)
@@ -405,6 +467,209 @@ export function AdminPanel({
     const updated = [...options] as [string, string, string, string];
     updated[index] = value;
     setOptions(updated);
+  };
+
+  const populatePracticeQuestionForm = (question: AdminPracticeQuestionItem) => {
+    setPracticeEditingId(question.id);
+    setPracticeQuestionText(question.question_text || "");
+    setPracticeOptions([
+      question.options.find((o) => o.option_label === "A")?.option_text || "",
+      question.options.find((o) => o.option_label === "B")?.option_text || "",
+      question.options.find((o) => o.option_label === "C")?.option_text || "",
+      question.options.find((o) => o.option_label === "D")?.option_text || "",
+    ]);
+    setPracticeCorrectOption(question.correct_option_label || "A");
+    setPracticeDifficulty(question.difficulty || "medium");
+    setPracticeMarks(question.marks ?? 1);
+    setPracticeExplanation(question.explanation || "");
+    setPracticeSuccessMessage("");
+    setPracticeErrorMessage("");
+  };
+
+  const openPracticeQuestionEditor = (topic: TopicItem) => {
+    setPracticeTopic(topic);
+    setPracticeQuestions([]);
+    setPracticeQuestionIndex(0);
+    setPracticeEditingId(null);
+    setPracticeQuestionText("");
+    setPracticeOptions(["", "", "", ""]);
+    setPracticeCorrectOption("A");
+    setPracticeDifficulty("medium");
+    setPracticeMarks(1);
+    setPracticeExplanation("");
+    setPracticeSuccessMessage("");
+    setPracticeErrorMessage("");
+    setPracticeQuestionsLoading(true);
+
+    startTransition(async () => {
+      const res = await getAdminTopicPracticeQuestions(topic.id);
+      setPracticeQuestionsLoading(false);
+
+      if (res.success) {
+        setPracticeQuestions(res.questions ?? []);
+        if ((res.questions ?? []).length > 0) {
+          populatePracticeQuestionForm((res.questions ?? [])[0]);
+        }
+      } else {
+        setPracticeErrorMessage(res.error || "Failed to load practice questions.");
+      }
+    });
+  };
+
+  const handlePracticeQuestionNavigation = (index: number) => {
+    if (index < 0 || index >= practiceQuestions.length) return;
+    setPracticeQuestionIndex(index);
+    populatePracticeQuestionForm(practiceQuestions[index]);
+  };
+
+  const handleNewPracticeQuestion = () => {
+    setPracticeQuestionIndex(practiceQuestions.length);
+    setPracticeEditingId(null);
+    setPracticeQuestionText("");
+    setPracticeOptions(["", "", "", ""]);
+    setPracticeCorrectOption("A");
+    setPracticeDifficulty("medium");
+    setPracticeMarks(1);
+    setPracticeExplanation("");
+    setPracticeSuccessMessage("");
+    setPracticeErrorMessage("");
+  };
+
+  const handlePracticeOptionChange = (index: number, value: string) => {
+    const updated = [...practiceOptions] as [string, string, string, string];
+    updated[index] = value;
+    setPracticeOptions(updated);
+  };
+
+  const handleCreatePracticeQuestion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPracticeSuccessMessage("");
+    setPracticeErrorMessage("");
+
+    if (!practiceTopic) return;
+
+    const chapter = adminChapters.find((item) => item.id === practiceTopic.chapter_id);
+    const subjectId = chapter?.subject_id;
+
+    if (!subjectId) {
+      setPracticeErrorMessage("Unable to determine the subject for this topic.");
+      return;
+    }
+
+    if (!practiceQuestionText.trim()) {
+      setPracticeErrorMessage("Please enter the question statement.");
+      return;
+    }
+
+    if (practiceOptions.some((option) => !option.trim())) {
+      setPracticeErrorMessage("Please enter all 4 options (A, B, C, D).");
+      return;
+    }
+
+    if (!practiceExplanation.trim()) {
+      setPracticeErrorMessage("Please provide the solution explanation.");
+      return;
+    }
+
+    startTransition(async () => {
+      const payload = {
+        question_text: practiceQuestionText.trim(),
+        difficulty: practiceDifficulty,
+        explanation: practiceExplanation.trim(),
+        marks: Number(practiceMarks) || 1,
+        options: [
+          { label: "A", text: practiceOptions[0].trim() },
+          { label: "B", text: practiceOptions[1].trim() },
+          { label: "C", text: practiceOptions[2].trim() },
+          { label: "D", text: practiceOptions[3].trim() },
+        ],
+        correct_option_label: practiceCorrectOption,
+      };
+
+      const res = practiceEditingId
+        ? await updateAdminPracticeQuestion(practiceEditingId, payload)
+        : await createAdminPracticeQuestion({
+            subject_id: subjectId,
+            chapter_id: practiceTopic.chapter_id,
+            topic_id: practiceTopic.id,
+            ...payload,
+          });
+
+      if (res.success) {
+        setPracticeSuccessMessage(
+          practiceEditingId
+            ? "✅ Practice question updated successfully."
+            : "✅ Practice question saved and published for this topic."
+        );
+
+        const refreshed = await getAdminTopicPracticeQuestions(practiceTopic.id);
+        if (refreshed.success) {
+          setPracticeQuestions(refreshed.questions ?? []);
+          const targetIndex = practiceEditingId
+            ? Math.max(0, (refreshed.questions ?? []).findIndex((q) => q.id === practiceEditingId))
+            : Math.max(0, (refreshed.questions ?? []).length - 1);
+          setPracticeQuestionIndex(targetIndex);
+          const refreshedQuestions = refreshed.questions ?? [];
+          if (refreshedQuestions[targetIndex]) {
+            populatePracticeQuestionForm(refreshedQuestions[targetIndex]);
+          }
+        }
+      } else {
+        setPracticeErrorMessage(res.error || "Failed to save practice question.");
+      }
+    });
+  };
+
+  // Handler: Create Mock Test
+  const handleCreateExam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTestErrorMessage("");
+    setTestSuccessMessage("");
+
+    if (!newExamName.trim()) {
+      setTestErrorMessage("Please enter an exam name.");
+      return;
+    }
+
+    const parsedNegativeMarking =
+      newExamNegativeMarking.trim() === "" ? null : Number(newExamNegativeMarking);
+
+    if (
+      parsedNegativeMarking !== null &&
+      (!Number.isFinite(parsedNegativeMarking) || parsedNegativeMarking < 0)
+    ) {
+      setTestErrorMessage("Negative marking ratio must be a valid non-negative number.");
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await createAdminExam(
+        newExamName.trim(),
+        newExamDescription.trim(),
+        parsedNegativeMarking
+      );
+
+      if (res.success && res.exam) {
+        const createdExam: ExamItem = {
+          id: res.exam.id,
+          name: res.exam.name,
+          slug: res.exam.slug,
+        };
+
+        setAdminExams((prev) => [...prev, createdExam]);
+        setNewTestExamId(createdExam.id);
+        setSelectedExamId(createdExam.id);
+        setNewExamName("");
+        setNewExamDescription("");
+        setNewExamNegativeMarking("");
+        setIsAddingExam(false);
+        setTestSuccessMessage(
+          `✅ Exam "${createdExam.name}" created in Supabase. It is saved as unpublished until you are ready to use it.`
+        );
+      } else {
+        setTestErrorMessage(res.error || "Failed to create exam.");
+      }
+    });
   };
 
   // Handler: Create Mock Test
@@ -716,6 +981,39 @@ export function AdminPanel({
     });
   };
 
+  // Learning Handler: Create Subject
+  const handleCreateSubject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLearningErrorMessage("");
+    setLearningSuccessMessage("");
+
+    if (!newSubjectName.trim()) {
+      setLearningErrorMessage("Please enter a subject name.");
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await createAdminSubject(
+        newSubjectName.trim(),
+        newSubjectDescription.trim()
+      );
+
+      if (res.success && res.subject) {
+        setAdminSubjects((prev) => [...prev, res.subject]);
+        setSelectedLearningSubjectId(res.subject.id);
+        setSelectedSubjectId(res.subject.id);
+        setNewSubjectName("");
+        setNewSubjectDescription("");
+        setIsAddingSubject(false);
+        setLearningSuccessMessage(
+          `✅ Subject "${res.subject.name}" added to Supabase and synced to the admin/student learning hierarchy!`
+        );
+      } else {
+        setLearningErrorMessage(res.error || "Failed to create subject.");
+      }
+    });
+  };
+
   // Learning Handler: Create Chapter
   const handleCreateChapter = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -813,10 +1111,48 @@ export function AdminPanel({
 
   // Add Resource Row in Topic Editor Modal
   const handleAddResourceRow = () => {
-    setEditResources((prev) => [
-      ...prev,
-      { title: "", url: "", type: "pdf" },
-    ]);
+    setEditResources((prev) => {
+      const newIndex = prev.length;
+      setPdfUploadTargetIndex(newIndex);
+      setTimeout(() => learningPdfInputRef.current?.click(), 0);
+      return [...prev, { title: "", url: "", type: "pdf" }];
+    });
+  };
+
+  // Upload a PDF from the administrator's device into Supabase Storage
+  const handlePdfFileSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    const targetIndex = pdfUploadTargetIndex;
+    event.target.value = "";
+    setPdfUploadTargetIndex(null);
+
+    if (!file || targetIndex === null || !editingTopic) return;
+
+    setUploadingPdfIndex(targetIndex);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("topic_id", editingTopic.id);
+
+    const result = await uploadLearningPdf(formData);
+    setUploadingPdfIndex(null);
+
+    if (!result.success || !result.url) {
+      setLearningErrorMessage(result.error || "Failed to upload PDF.");
+      return;
+    }
+
+    setEditResources((prev) => {
+      const copy = [...prev];
+      copy[targetIndex] = {
+        ...copy[targetIndex],
+        title: result.title || file.name.replace(/\.pdf$/i, ""),
+        url: result.url,
+        type: "pdf",
+      };
+      return copy;
+    });
+    setLearningErrorMessage("");
+    setLearningSuccessMessage(`PDF "${file.name}" uploaded successfully. Save the topic to attach it to students' My Learning.`);
   };
 
   // Update Resource Row
@@ -840,6 +1176,8 @@ export function AdminPanel({
   // Save Topic Rich Learning Content to Supabase
   const handleSaveTopicContent = async () => {
     if (!editingTopic) return;
+    setLearningErrorMessage("");
+    setLearningSuccessMessage("");
     setIsSavingTopicContent(true);
 
     const validResources = editResources.filter(
@@ -856,6 +1194,7 @@ export function AdminPanel({
     setIsSavingTopicContent(false);
 
     if (res.success && res.topic) {
+      setLearningErrorMessage("");
       setAdminTopics((prev) =>
         prev.map((t) => (t.id === editingTopic.id ? { ...t, ...res.topic } : t))
       );
@@ -900,11 +1239,7 @@ export function AdminPanel({
                   : "Return to Entrance Portal"
               }
             >
-              <span className="text-sm font-black leading-none">‹</span>
-              <span className="text-[11px] uppercase tracking-wider font-bold">
-                {activeTab !== "tests" ? "Back" : "Portal"}
-              </span>
-            </button>
+   </button>
 
             <span className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-black uppercase tracking-wider text-white shadow-xs hidden sm:inline-block">
               ADMIN CONTROL
@@ -1038,6 +1373,14 @@ export function AdminPanel({
 
                   <button
                     type="button"
+                    onClick={() => setIsAddingExam((prev) => !prev)}
+                    className="rounded-xl border border-blue-300 bg-blue-50 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-blue-800 hover:bg-blue-100 active:scale-95 transition-all flex items-center gap-2"
+                  >
+                    <span>{isAddingExam ? "✕ Cancel Exam" : "➕ Add Exam"}</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => setIsCreatingMockTest(!isCreatingMockTest)}
                     className="rounded-xl bg-blue-700 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 transition-all flex items-center gap-2"
                   >
@@ -1046,7 +1389,72 @@ export function AdminPanel({
                 </div>
               </div>
 
-              {/* Status messages for Mock Tests */}
+{/* Status messages for Mock Tests */}              {isAddingExam && (
+                <form onSubmit={handleCreateExam} className="mt-6 rounded-2xl border border-blue-200 bg-blue-50/50 p-5">
+                  <div className="mb-4">
+                    <h3 className="text-sm font-extrabold text-slate-900">Add New Exam</h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      This creates the exam directly in Supabase. New exams are unpublished by default.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        Exam Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={newExamName}
+                        onChange={(e) => setNewExamName(e.target.value)}
+                        placeholder="e.g. IIITH UG Entrance 2027"
+                        className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-600"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        Negative Marking Ratio
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={newExamNegativeMarking}
+                        onChange={(e) => setNewExamNegativeMarking(e.target.value)}
+                        placeholder="e.g. 0.25"
+                        className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-600"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        Description
+                      </label>
+                      <input
+                        type="text"
+                        value={newExamDescription}
+                        onChange={(e) => setNewExamDescription(e.target.value)}
+                        placeholder="Exam syllabus or instructions"
+                        className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-600"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={isPending}
+                      className="rounded-xl bg-emerald-600 px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-emerald-700 disabled:opacity-60 transition-all"
+                    >
+                      {isPending ? "Saving..." : "Save Exam to Supabase"}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+
               {testSuccessMessage && (
                 <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800 flex items-center gap-2">
                   <span>{testSuccessMessage}</span>
@@ -1090,7 +1498,7 @@ export function AdminPanel({
                         onChange={(e) => setNewTestExamId(e.target.value)}
                         className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-600 shadow-xs"
                       >
-                        {exams.map((ex) => (
+                        {adminExams.map((ex) => (
                           <option key={ex.id} value={ex.id}>
                             {ex.name}
                           </option>
@@ -1263,20 +1671,47 @@ export function AdminPanel({
 
                           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
                             <span className="text-xs text-slate-500 font-medium">
-                              {t.status === "published" ? "Available in Student Portal" : "Draft — ready for questions"}
+                              {t.is_free ? "Free for every student" : t.status === "published" ? "Available in Student Portal" : "Draft — ready for questions"}
                             </span>
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleSelectTargetTest(t.id);
-                                switchTab("create");
-                              }}
-                              className="rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 transition-all flex items-center gap-1.5"
-                            >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  startTransition(async () => {
+                                    const result = await setFreeAdminMockTest(t.id);
+                                    if (!result.success) {
+                                      setTestErrorMessage(result.error || "Unable to set the free mock test.");
+                                      setTestSuccessMessage("");
+                                      return;
+                                    }
+                                    setTestErrorMessage("");
+                                    setTestSuccessMessage(`${t.name} is now the free mock test for all students.`);
+                                    setMockTests((current) => current.map((item) => ({
+                                      ...item,
+                                      is_free: item.id === t.id,
+                                    })));
+                                    router.refresh();
+                                  });
+                                }}
+                                disabled={isPending || t.status !== "published" || t.test_type !== "mock" || Boolean(t.is_free)}
+                                className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+                              >
+                                {t.is_free ? "✓ Free for Students" : "Set as Free Test"}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleSelectTargetTest(t.id);
+                                  switchTab("create");
+                                }}
+                                className="rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 transition-all flex items-center gap-1.5"
+                              >
                               <span>➕ Manage &amp; Add Questions</span>
                               <span>&rarr;</span>
-                            </button>
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );
@@ -1492,7 +1927,7 @@ export function AdminPanel({
                       className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-600 shadow-xs"
                       required
                     >
-                      {subjects.map((sub) => (
+                      {adminSubjects.map((sub) => (
                         <option key={sub.id} value={sub.id}>
                           {sub.name}
                         </option>
@@ -1810,9 +2245,55 @@ export function AdminPanel({
                 </div>
               )}
 
+              {/* Subject Management */}
+              <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900">Subjects</h3>
+                    <p className="mt-0.5 text-[11px] text-slate-500">
+                      Add a new subject directly to the Supabase subjects table.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingSubject((prev) => !prev)}
+                    className="rounded-xl bg-blue-700 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-blue-800 active:scale-95 transition-all"
+                  >
+                    {isAddingSubject ? "Cancel" : "+ Add Subject"}
+                  </button>
+                </div>
+
+                {isAddingSubject && (
+                  <form onSubmit={handleCreateSubject} className="mt-4 grid gap-3 sm:grid-cols-[1fr_1.5fr_auto]">
+                    <input
+                      type="text"
+                      placeholder="Subject name"
+                      value={newSubjectName}
+                      onChange={(e) => setNewSubjectName(e.target.value)}
+                      className="rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-800 outline-none focus:border-blue-600"
+                      required
+                    />
+                    <input
+                      type="text"
+                      placeholder="Description (optional)"
+                      value={newSubjectDescription}
+                      onChange={(e) => setNewSubjectDescription(e.target.value)}
+                      className="rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-800 outline-none focus:border-blue-600"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isPending}
+                      className="rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-emerald-700 disabled:opacity-60"
+                    >
+                      {isPending ? "Saving..." : "Save Subject"}
+                    </button>
+                  </form>
+                )}
+              </div>
+
               {/* Subject Selector Tabs */}
               <div className="mt-6 flex flex-wrap gap-2 border-b border-slate-200 pb-3">
-                {subjects.map((sub) => {
+                {adminSubjects.map((sub) => {
                   const chapCount = adminChapters.filter((c) => c.subject_id === sub.id).length;
                   const isSelected = selectedLearningSubjectId === sub.id;
                   return (
@@ -1843,7 +2324,7 @@ export function AdminPanel({
               <form onSubmit={handleCreateChapter} className="mt-6 flex flex-wrap items-center gap-3">
                 <input
                   type="text"
-                  placeholder={`Add new chapter to ${subjects.find((s) => s.id === selectedLearningSubjectId)?.name || "Subject"}...`}
+                  placeholder={`Add new chapter to ${adminSubjects.find((s) => s.id === selectedLearningSubjectId)?.name || "Subject"}...`}
                   value={newChapterName}
                   onChange={(e) => setNewChapterName(e.target.value)}
                   className="w-full sm:w-80 rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-800 outline-none focus:border-blue-600"
@@ -1956,14 +2437,24 @@ export function AdminPanel({
 
                                       {/* Action to edit learning material */}
                                       <div className="mt-1 pt-2 border-t border-slate-100 flex items-center justify-end">
-                                        <button
-                                          type="button"
-                                          onClick={() => handleOpenTopicEditor(topic)}
-                                          className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-800 hover:bg-blue-100 transition-all flex items-center gap-1"
-                                        >
-                                          <span>✏️</span>
-                                          <span>Edit Notes &amp; Formulas</span>
-                                        </button>
+                                        <div className="flex flex-wrap items-center justify-end gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleOpenTopicEditor(topic)}
+                                            className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-800 hover:bg-blue-100 transition-all flex items-center gap-1"
+                                          >
+                                            <span>✏️</span>
+                                            <span>Edit Notes &amp; Formulas</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => openPracticeQuestionEditor(topic)}
+                                            className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800 hover:bg-emerald-100 transition-all flex items-center gap-1"
+                                          >
+                                            <span>📝</span>
+                                            <span>Add / Edit Practice Questions</span>
+                                          </button>
+                                        </div>
                                       </div>
                                     </div>
                                   );
@@ -2004,6 +2495,238 @@ export function AdminPanel({
                 )}
               </div>
             </div>
+
+            {/* TOPIC PRACTICE QUESTION EDITOR */}
+            {practiceTopic && (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-xs animate-in fade-in">
+                <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-2xl">
+                  <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+                    <div>
+                      <span className="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-emerald-800 border border-emerald-200">
+                        Topic Practice Questions
+                      </span>
+                      <h3 className="mt-2 text-xl font-black text-slate-900">
+                        {practiceTopic.name}
+                      </h3>
+                      <p className="mt-1 text-xs text-slate-500">
+                        View, navigate, add, and edit all practice questions for this topic.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPracticeTopic(null)}
+                      className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {practiceQuestionsLoading ? (
+                    <div className="py-14 text-center">
+                      <div className="text-3xl">⏳</div>
+                      <p className="mt-3 text-sm font-bold text-slate-700">Loading topic practice questions...</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Question Navigator</p>
+                          <p className="text-sm font-black text-slate-900">
+                            {practiceEditingId
+                              ? `Question ${Math.min(practiceQuestionIndex + 1, practiceQuestions.length)} of ${practiceQuestions.length}`
+                              : "New Practice Question"}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handlePracticeQuestionNavigation(practiceQuestionIndex - 1)}
+                            disabled={practiceQuestionIndex <= 0 || practiceQuestions.length === 0}
+                            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            ← Previous
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handlePracticeQuestionNavigation(practiceQuestionIndex + 1)}
+                            disabled={practiceQuestionIndex >= practiceQuestions.length - 1 || practiceQuestions.length === 0}
+                            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            Next →
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleNewPracticeQuestion}
+                            className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700"
+                          >
+                            + New Question
+                          </button>
+                        </div>
+                      </div>
+
+                      {practiceQuestions.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {practiceQuestions.map((question, index) => (
+                            <button
+                              key={question.id}
+                              type="button"
+                              onClick={() => handlePracticeQuestionNavigation(index)}
+                              className={`h-8 min-w-8 rounded-lg border px-2 text-[11px] font-black transition-all ${
+                                practiceEditingId === question.id
+                                  ? "border-emerald-600 bg-emerald-600 text-white"
+                                  : "border-slate-200 bg-white text-slate-700 hover:border-emerald-400 hover:bg-emerald-50"
+                              }`}
+                              title={`Open question ${index + 1}`}
+                            >
+                              {index + 1}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {practiceSuccessMessage && (
+                        <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-800">
+                          {practiceSuccessMessage}
+                        </div>
+                      )}
+                      {practiceErrorMessage && (
+                        <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-800">
+                          ⚠️ {practiceErrorMessage}
+                        </div>
+                      )}
+
+                      <form onSubmit={handleCreatePracticeQuestion} className="mt-5 space-y-5">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Topic</label>
+                            <input
+                              value={practiceTopic.name}
+                              readOnly
+                              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-700"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Difficulty</label>
+                            <select
+                              value={practiceDifficulty}
+                              onChange={(e) => setPracticeDifficulty(e.target.value as "easy" | "medium" | "hard")}
+                              className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 outline-none focus:border-emerald-600"
+                            >
+                              <option value="easy">Easy</option>
+                              <option value="medium">Medium</option>
+                              <option value="hard">Hard</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Question Statement *</label>
+                          <textarea
+                            rows={4}
+                            value={practiceQuestionText}
+                            onChange={(e) => setPracticeQuestionText(e.target.value)}
+                            placeholder="Enter the practice question..."
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3.5 text-sm text-slate-900 outline-none focus:border-emerald-600"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <div className="mb-2 flex items-center justify-between">
+                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Options &amp; Correct Answer *</label>
+                            <span className="text-xs font-bold text-emerald-700">Correct: {practiceCorrectOption}</span>
+                          </div>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {(["A", "B", "C", "D"] as const).map((label, idx) => {
+                              const isCorrect = practiceCorrectOption === label;
+                              return (
+                                <div
+                                  key={label}
+                                  className={`flex items-start gap-3 rounded-xl border p-3 transition-all ${
+                                    isCorrect
+                                      ? "border-emerald-500 bg-emerald-50/50 ring-1 ring-emerald-400"
+                                      : "border-slate-200 bg-slate-50/50"
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="practiceCorrectOption"
+                                    checked={isCorrect}
+                                    onChange={() => setPracticeCorrectOption(label)}
+                                    className="mt-1 h-4 w-4 cursor-pointer"
+                                  />
+                                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black ${
+                                    isCorrect ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-700"
+                                  }`}>
+                                    {label}
+                                  </span>
+                                  <input
+                                    type="text"
+                                    value={practiceOptions[idx]}
+                                    onChange={(e) => handlePracticeOptionChange(idx, e.target.value)}
+                                    placeholder={`Option ${label} text...`}
+                                    className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-800 outline-none focus:border-emerald-600"
+                                    required
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="grid gap-4 sm:grid-cols-[1fr_2fr]">
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Marks</label>
+                            <input
+                              type="number"
+                              min="0.5"
+                              step="0.5"
+                              value={practiceMarks}
+                              onChange={(e) => setPracticeMarks(Number(e.target.value))}
+                              className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-900 outline-none focus:border-emerald-600"
+                            />
+                            <p className="mt-1 text-[10px] text-slate-400">No negative marking is applied in student practice.</p>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Solution Explanation *</label>
+                            <textarea
+                              rows={5}
+                              value={practiceExplanation}
+                              onChange={(e) => setPracticeExplanation(e.target.value)}
+                              placeholder="Enter the explanation that students can open after answering..."
+                              className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-900 outline-none focus:border-emerald-600"
+                              required
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                          <p className="text-[11px] text-slate-500">
+                            Practice questions are scoped to this topic and are not added to Mock Tests.
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setPracticeTopic(null)}
+                              className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50"
+                            >
+                              Close
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={isPending}
+                              className="rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-emerald-600/20 hover:bg-emerald-700 disabled:opacity-50"
+                            >
+                              {isPending ? "Saving..." : practiceEditingId ? "Save Changes" : "Save Practice Question"}
+                            </button>
+                          </div>
+                        </div>
+                      </form>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* TOPIC RICH CONTENT EDITOR MODAL */}
             {editingTopic && (
@@ -2090,7 +2813,7 @@ export function AdminPanel({
                           PDFs, Reference Books &amp; Old Exam Materials
                         </label>
                         <p className="text-[11px] text-slate-500">
-                          Add links to PDF textbooks, formula booklets, or reference documents for students.
+                          Add documents and reference materials directly from your device.
                         </p>
                       </div>
 
@@ -2099,13 +2822,20 @@ export function AdminPanel({
                         onClick={handleAddResourceRow}
                         className="rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-800 transition-all flex items-center gap-1 shadow-xs"
                       >
-                        <span>+ Add Material</span>
+                        <span>+ Add Document from Device</span>
                       </button>
+                      <input
+                        ref={learningPdfInputRef}
+                        type="file"
+                        
+                        className="hidden"
+                        onChange={handlePdfFileSelected}
+                      />
                     </div>
 
                     {editResources.length === 0 ? (
                       <p className="text-xs text-slate-400 italic py-2">
-                        No materials attached yet. Click &quot;+ Add Material&quot; to link PDFs, books, or formula guides.
+                        No materials attached yet. Click &quot;+ Add Document from Device&quot; to attach a document.
                       </p>
                     ) : (
                       <div className="space-y-2.5">
@@ -2114,19 +2844,6 @@ export function AdminPanel({
                             key={idx}
                             className="flex flex-wrap sm:flex-nowrap items-center gap-2 rounded-lg border border-slate-200 bg-white p-2.5 shadow-2xs"
                           >
-                            <select
-                              value={res.type}
-                              onChange={(e) =>
-                                handleUpdateResourceRow(idx, "type", e.target.value)
-                              }
-                              className="rounded-md border border-slate-200 bg-slate-50 p-2 text-xs font-semibold text-slate-700 outline-none"
-                            >
-                              <option value="pdf">📄 PDF Document</option>
-                              <option value="book">📖 Reference Book</option>
-                              <option value="formula_sheet">⚡ Formula Sheet</option>
-                              <option value="notes">📝 Revision Notes</option>
-                            </select>
-
                             <input
                               type="text"
                               value={res.title}
@@ -2137,15 +2854,33 @@ export function AdminPanel({
                               className="flex-1 min-w-[150px] rounded-md border border-slate-200 p-2 text-xs text-slate-800 outline-none focus:border-blue-600"
                             />
 
-                            <input
-                              type="url"
-                              value={res.url}
-                              onChange={(e) =>
-                                handleUpdateResourceRow(idx, "url", e.target.value)
-                              }
-                              placeholder="URL (https://...)"
-                              className="flex-1 min-w-[150px] rounded-md border border-slate-200 p-2 text-xs text-slate-800 outline-none focus:border-blue-600"
-                            />
+                            {res.type === "pdf" ? (
+                              <button
+                                type="button"
+                                disabled={uploadingPdfIndex === idx}
+                                onClick={() => {
+                                  setPdfUploadTargetIndex(idx);
+                                  learningPdfInputRef.current?.click();
+                                }}
+                                className="flex-1 min-w-[150px] rounded-md border border-blue-200 bg-blue-50 p-2 text-left text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+                              >
+                                {uploadingPdfIndex === idx
+                                  ? "Uploading PDF..."
+                                  : res.url
+                                    ? `📄 ${res.title || "PDF uploaded"} — Click to replace`
+                                    : "📎 Select PDF from device"}
+                              </button>
+                            ) : (
+                              <input
+                                type="url"
+                                value={res.url}
+                                onChange={(e) =>
+                                  handleUpdateResourceRow(idx, "url", e.target.value)
+                                }
+                                placeholder="URL (https://...)"
+                                className="flex-1 min-w-[150px] rounded-md border border-slate-200 p-2 text-xs text-slate-800 outline-none focus:border-blue-600"
+                              />
+                            )}
 
                             <button
                               type="button"
@@ -2257,6 +2992,23 @@ export function AdminPanel({
           </div>
         )}
       </main>
+
+      {/* Admin Log Out Confirmation Modal */}
+      <LogoutConfirmModal
+        isOpen={isLogoutModalOpen}
+        onClose={() => {
+          setIsLogoutModalOpen(false);
+          if (typeof window !== "undefined") {
+            window.history.pushState({ adminStudio: true, tab: activeTab }, "");
+          }
+        }}
+        onConfirm={handleConfirmSignOut}
+        isLoading={isSigningOut}
+        title="Admin Log Out Confirmation"
+        message="You are exiting from Administrator Studio. Are you sure you want to log out and end your admin session?"
+        confirmText="Yes, Log Out"
+        cancelText="Cancel"
+      />
     </div>
   );
 }
