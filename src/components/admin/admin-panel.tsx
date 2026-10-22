@@ -8,6 +8,7 @@ import {
   deleteAdminQuestion,
   addAdminUserByEmail,
   createAdminMockTest,
+  updateAdminMockTestName,
   deleteAdminMockTest,
   publishAdminMockTest,
   setFreeAdminMockTest,
@@ -901,6 +902,34 @@ export function AdminPanel({
     });
   };
 
+  // Handler: Rename Mock Test
+  const handleRenameMockTest = async (test: TestItem) => {
+    const proposedName = window.prompt("Enter a new name for this mock test:", test.name);
+    if (proposedName === null) return;
+
+    const trimmedName = proposedName.trim();
+    if (!trimmedName) {
+      setTestErrorMessage("Mock test name cannot be empty.");
+      setTestSuccessMessage("");
+      return;
+    }
+    if (trimmedName === test.name) return;
+
+    setTestErrorMessage("");
+    setTestSuccessMessage("");
+    startTransition(async () => {
+      const res = await updateAdminMockTestName(test.id, trimmedName);
+      if (res.success && res.test) {
+        setMockTests((prev) =>
+          prev.map((item) => item.id === test.id ? { ...item, name: res.test!.name } : item)
+        );
+        setTestSuccessMessage(`Mock test renamed to "${res.test.name}" and saved to Supabase.`);
+      } else {
+        setTestErrorMessage(res.error || "Failed to rename mock test in Supabase.");
+      }
+    });
+  };
+
   // Handler: Delete Mock Test
   const handleDeleteMockTest = async (testId: string, testName: string) => {
     if (
@@ -1572,7 +1601,25 @@ export function AdminPanel({
                               <div className="flex items-center gap-1.5">
                                 <button
                                   type="button"
-                                  onClick={() => handleDeleteMockTest(t.id, t.name)}
+                                  onClick={() => handleRenameMockTest(t)}
+                                  disabled={isPending}
+                                  className="rounded-lg p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                                  title="Edit mock test name"
+                                  aria-label={`Edit name of ${t.name}`}
+                                >
+                                  <svg
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a2.1 2.1 0 013.0 3l-1.687 1.688M18 8.25l-8.5 8.5L6 17.5l.75-3.5 8.5-8.5M5 20h14" />
+                                  </svg>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteMockTest(t.id, t.name)
                                   disabled={isPending}
                                   className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
                                   title="Delete mock test"
