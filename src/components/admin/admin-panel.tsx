@@ -1211,7 +1211,7 @@ export function AdminPanel({
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => handleDeleteMockTest(t.id, t.name)
+                                  onClick={() => handleDeleteMockTest(t.id, t.name)}
                                   disabled={isPending}
                                   className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
                                   title="Delete mock test"
