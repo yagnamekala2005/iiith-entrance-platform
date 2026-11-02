@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCachedAuthUser } from "@/lib/auth/session";
 import { getPublishedExams, getPublishedTests, getLearningProgress } from "@/lib/content/queries";
 import { getUserAttempts } from "@/lib/attempts/queries";
+import { getStudentProfile } from "@/lib/profile/queries";
 import { StartAttemptButton } from "@/components/attempts/start-attempt-button";
 
 export const dynamic = "force-dynamic";
@@ -20,12 +21,15 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const [exams, rawTests, attempts, learningProgress] = await Promise.all([
+  const [exams, rawTests, attempts, learningProgress, profile] = await Promise.all([
     getPublishedExams(),
     getPublishedTests(),
     getUserAttempts(user.id),
     getLearningProgress(user.id),
+    getStudentProfile(user.id),
   ]);
+
+  const isProfileComplete = profile?.is_completed ?? false;
 
   const tests = rawTests.filter((t) => !OLD_TEST_IDS.has(t.id));
   const totalQuestionsCount = tests.reduce((acc, t) => acc + (t.total_questions || 0), 0) || 40;
@@ -65,6 +69,36 @@ export default async function DashboardPage() {
             className="rounded-xl bg-amber-600 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-amber-600/20 hover:bg-amber-700 transition-all active:scale-95"
           >
             Resume Live Exam &rarr;
+          </Link>
+        </div>
+      )}
+
+      {/* Profile Incomplete Notification Banner */}
+      {!isProfileComplete && (
+        <div className="mb-8 rounded-2xl border border-amber-300 bg-amber-50 p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
+          <div className="flex items-start gap-3.5">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-200 text-xl shrink-0">
+              🔒
+            </span>
+            <div>
+              <p className="text-xs font-black uppercase tracking-wider text-amber-900">
+                Action Required &bull; CBT Mock Tests Locked
+              </p>
+              <h3 className="text-base font-bold text-slate-900">
+                Complete your Student Profile
+              </h3>
+              <p className="text-xs text-amber-800 leading-relaxed">
+                Please enter your Full Name, Mobile Number, DOB, Gender, Location, and Academic Year (P1 or P2) to unlock timed mock test simulations.
+              </p>
+            </div>
+          </div>
+
+          <Link
+            href="/profile?notice=profile_required&returnTo=/dashboard"
+            prefetch={true}
+            className="rounded-xl bg-amber-600 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-amber-600/20 hover:bg-amber-700 transition-all active:scale-95 shrink-0"
+          >
+            Complete Profile Now &rarr;
           </Link>
         </div>
       )}
@@ -186,7 +220,11 @@ export default async function DashboardPage() {
                       >
                         Instructions
                       </Link>
-                      <StartAttemptButton testId={test.id} />
+                      <StartAttemptButton
+                        testId={test.id}
+                        isProfileComplete={isProfileComplete}
+                        returnUrl="/dashboard"
+                      />
                     </div>
                   </div>
                 </div>

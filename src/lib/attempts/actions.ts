@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getStudentProfile } from "@/lib/profile/queries";
 
 export interface ActionResult<T = unknown> {
   success: boolean;
@@ -18,6 +19,32 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
 
     if (!user) {
       return { success: false, error: "You must be signed in to take a test." };
+    }
+
+    // Check for an existing in-progress attempt to resume first
+    const { data: existingAttempt } = await supabase
+      .from("test_attempts")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("test_id", testId)
+      .eq("status", "in_progress")
+      .order("created_at", { ascending: false })
+      .maybeSingle();
+
+    if (existingAttempt) {
+      return {
+        success: true,
+        data: { attemptId: existingAttempt.id, isResumed: true },
+      };
+    }
+
+    // Gating rule: Profile must be completed before writing mock tests
+    const profile = await getStudentProfile(user.id);
+    if (!profile || !profile.is_completed) {
+      return {
+        success: false,
+        error: "Please complete your student profile (Full Name, Mobile Number, DOB, Gender, Location, Year P1/P2) before starting mock tests.",
+      };
     }
 
     // Call the server-authoritative start_test_attempt RPC
@@ -49,23 +76,6 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
 
     if (test.status !== "published") {
       return { success: false, error: "This test is not currently published." };
-    }
-
-    // Check for an existing in-progress attempt to resume
-    const { data: existingAttempt } = await supabase
-      .from("test_attempts")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("test_id", testId)
-      .eq("status", "in_progress")
-      .order("created_at", { ascending: false })
-      .maybeSingle();
-
-    if (existingAttempt) {
-      return {
-        success: true,
-        data: { attemptId: existingAttempt.id, isResumed: true },
-      };
     }
 
     const { data: testQuestions, error: tqErr } = await supabase

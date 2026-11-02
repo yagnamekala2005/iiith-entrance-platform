@@ -2043,3 +2043,17 @@ begin
 
 end $$;
 
+
+
+-- ==========================================================================
+-- 8. STUDENT PROFILE EXTENDED FIELDS
+-- ==========================================================================
+alter table public.profiles
+  add column if not exists full_name text,
+  add column if not exists mobile_number text,
+  add column if not exists dob text,
+  add column if not exists gender text,
+  add column if not exists location text,
+  add column if not exists academic_year text,
+  add column if not exists subscription text default 'Free',
+  add column if not exists is_completed boolean default false;

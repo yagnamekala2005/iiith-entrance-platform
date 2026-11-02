@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTestBySlug } from "@/lib/content/queries";
 import { getActiveAttemptForTest } from "@/lib/attempts/queries";
+import { getCachedAuthUser } from "@/lib/auth/session";
+import { getStudentProfile } from "@/lib/profile/queries";
 import { StartAttemptButton } from "@/components/attempts/start-attempt-button";
 
 interface PageProps {
@@ -10,12 +12,17 @@ interface PageProps {
 
 export default async function TestDetailPage({ params }: PageProps) {
   const { testSlug } = await params;
-  const test = await getTestBySlug(testSlug);
+  const user = await getCachedAuthUser();
+  const [test, profile] = await Promise.all([
+    getTestBySlug(testSlug),
+    user ? getStudentProfile(user.id) : null,
+  ]);
 
   if (!test) {
     notFound();
   }
 
+  const isProfileComplete = profile?.is_completed ?? false;
   const activeAttempt = await getActiveAttemptForTest(test.id);
 
   const durationMinutes = Math.round(test.duration_seconds / 60);
@@ -157,6 +164,31 @@ export default async function TestDetailPage({ params }: PageProps) {
         </div>
       </section>
 
+      {/* Profile Incomplete Warning Banner */}
+      {!isProfileComplete && !activeAttempt && (
+        <div className="mt-8 rounded-2xl border border-amber-300 bg-amber-50 p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
+          <div className="flex items-start gap-3.5">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-200 text-xl shrink-0">
+              🔒
+            </span>
+            <div>
+              <h3 className="text-sm font-bold text-amber-950">
+                Exam Locked — Student Profile Required
+              </h3>
+              <p className="mt-0.5 text-xs text-amber-800 leading-relaxed max-w-xl">
+                Please complete your student profile (Full Name, Mobile Number, DOB, Gender, Location, and Academic Year P1/P2) to enable this computer-based mock test.
+              </p>
+            </div>
+          </div>
+          <Link
+            href={`/profile?notice=profile_required&returnTo=/tests/${testSlug}`}
+            className="rounded-xl bg-amber-600 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-amber-700 transition-colors shrink-0 shadow-xs active:scale-95"
+          >
+            Complete Profile to Start &rarr;
+          </Link>
+        </div>
+      )}
+
       {/* Start / Resume Practice Attempt action */}
       <div className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-xs">
         <Link
@@ -170,6 +202,8 @@ export default async function TestDetailPage({ params }: PageProps) {
             testId={test.id}
             hasActiveAttempt={Boolean(activeAttempt)}
             activeAttemptId={activeAttempt?.id}
+            isProfileComplete={isProfileComplete}
+            returnUrl={`/tests/${testSlug}`}
           />
         </div>
       </div>
