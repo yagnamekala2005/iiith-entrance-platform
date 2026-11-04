@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getStudentProfile } from "@/lib/profile/queries";
 
 export interface ActionResult<T = unknown> {
   success: boolean;
@@ -19,6 +19,32 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
 
     if (!user) {
       return { success: false, error: "You must be signed in to take a test." };
+    }
+
+    // Check for an existing in-progress attempt to resume first
+    const { data: existingAttempt } = await supabase
+      .from("test_attempts")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("test_id", testId)
+      .eq("status", "in_progress")
+      .order("created_at", { ascending: false })
+      .maybeSingle();
+
+    if (existingAttempt) {
+      return {
+        success: true,
+        data: { attemptId: existingAttempt.id, isResumed: true },
+      };
+    }
+
+    // Gating rule: Profile must be completed before writing mock tests
+    const profile = await getStudentProfile(user.id);
+    if (!profile || !profile.is_completed) {
+      return {
+        success: false,
+        error: "Please complete your student profile (Full Name, Mobile Number, DOB, Gender, Location, Year P1/P2) before starting mock tests.",
+      };
     }
 
     // Call the server-authoritative start_test_attempt RPC
@@ -50,48 +76,6 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
 
     if (test.status !== "published") {
       return { success: false, error: "This test is not currently published." };
-    }
-
-    // Check for an existing in-progress attempt to resume
-    const { data: existingAttempt } = await supabase
-      .from("test_attempts")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("test_id", testId)
-      .eq("status", "in_progress")
-      .order("created_at", { ascending: false })
-      .maybeSingle();
-
-    if (existingAttempt) {
-      return {
-        success: true,
-        data: { attemptId: existingAttempt.id, isResumed: true },
-      };
-    }
-
-    if (test.test_type === "mock" && !test.is_free) {
-      const adminClient = createAdminClient();
-      const { data: adminMembership } = await adminClient
-        .from("admin_users")
-        .select("user_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (!adminMembership) {
-        const { data: activeSubscription, error: subscriptionError } = await supabase
-          .from("mock_test_subscriptions")
-          .select("id")
-          .eq("user_id", user.id)
-          .eq("status", "active")
-          .gt("expires_at", new Date().toISOString())
-          .lte("starts_at", new Date().toISOString())
-          .limit(1)
-          .maybeSingle();
-
-        if (subscriptionError || !activeSubscription) {
-          return { success: false, error: "An active ₹99 subscription is required to access all mock tests." };
-        }
-      }
     }
 
     const { data: testQuestions, error: tqErr } = await supabase

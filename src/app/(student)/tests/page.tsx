@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { getPublishedTests, getPublishedExams } from "@/lib/content/queries";
+import { getCachedAuthUser } from "@/lib/auth/session";
+import { getStudentProfile } from "@/lib/profile/queries";
 import { StartAttemptButton } from "@/components/attempts/start-attempt-button";
 import { SubscribeForMocksButton } from "@/components/payments/subscribe-for-mocks-button";
 import { createClient } from "@/lib/supabase/server";
@@ -18,6 +20,10 @@ interface PageProps {
 
 export default async function TestsDirectoryPage({ searchParams }: PageProps) {
   const { exam: examFilter } = await searchParams;
+  const user = await getCachedAuthUser();
+  const profile = user ? await getStudentProfile(user.id) : null;
+  const isProfileComplete = profile?.is_completed ?? false;
+
   const [rawTests, exams] = await Promise.all([
     getPublishedTests(examFilter),
     getPublishedExams(),
@@ -98,6 +104,31 @@ export default async function TestsDirectoryPage({ searchParams }: PageProps) {
         </div>
       </div>
 
+      {/* Profile Incomplete Notification Banner */}
+      {!isProfileComplete && (
+        <div className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
+          <div className="flex items-start gap-3.5">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-200 text-xl shrink-0">
+              🔒
+            </span>
+            <div>
+              <h3 className="text-sm font-bold text-amber-950">
+                Mock Tests Locked — Student Profile Required
+              </h3>
+              <p className="mt-0.5 text-xs text-amber-800 leading-relaxed max-w-2xl">
+                To write competitive mock tests, generate official scorecards, and track your progress, you must complete your student profile details (Full Name, Mobile Number, DOB, Gender, Location, and Academic Year P1/P2).
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/profile?notice=profile_required&returnTo=/tests"
+            className="rounded-xl bg-amber-600 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-amber-700 transition-colors shrink-0 shadow-xs active:scale-95"
+          >
+            Complete Profile Now &rarr;
+          </Link>
+        </div>
+      )}
+
       {/* Tests Grid */}
       <div className="mt-8 grid gap-6 md:grid-cols-2">
         {tests.length === 0 ? (
@@ -174,11 +205,11 @@ export default async function TestsDirectoryPage({ searchParams }: PageProps) {
                     >
                       Instructions
                     </Link>
-                    {test.test_type !== "mock" || test.is_free || hasSubscription ? (
-                      <StartAttemptButton testId={test.id} />
-                    ) : (
-                      <SubscribeForMocksButton compact />
-                    )}
+                    <StartAttemptButton
+                      testId={test.id}
+                      isProfileComplete={isProfileComplete}
+                      returnUrl="/tests"
+                    />
                   </div>
                 </div>
               </div>

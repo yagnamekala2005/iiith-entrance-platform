@@ -10,9 +10,16 @@ import { createClient } from "@/lib/supabase/client";
 interface StudentNavbarProps {
   userEmail: string;
   isAdmin: boolean;
+  isProfileComplete?: boolean;
+  studentYear?: string;
 }
 
-export function StudentNavbar({ userEmail, isAdmin }: StudentNavbarProps) {
+export function StudentNavbar({
+  userEmail,
+  isAdmin,
+  isProfileComplete = false,
+  studentYear = "",
+}: StudentNavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isExitConfirmOpen, setIsExitConfirmOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -117,6 +124,19 @@ export function StudentNavbar({ userEmail, isAdmin }: StudentNavbarProps) {
             Dashboard
           </Link>
           <Link
+            href="/profile"
+            prefetch={true}
+            className={`hover:text-blue-700 transition-colors flex items-center gap-1.5 ${
+              pathname === "/profile" ? "text-blue-700" : ""
+            }`}
+          >
+            <span>👤</span>
+            <span>Profile</span>
+            {!isProfileComplete && (
+              <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" title="Profile Incomplete" />
+            )}
+          </Link>
+          <Link
             href="/learning"
             prefetch={true}
             className={`hover:text-blue-700 transition-colors flex items-center gap-1 ${
@@ -195,9 +215,33 @@ export function StudentNavbar({ userEmail, isAdmin }: StudentNavbarProps) {
               href="/dashboard"
               prefetch={true}
               onClick={() => setMobileMenuOpen(false)}
-              className="rounded-lg px-3 py-2 hover:bg-slate-50 hover:text-blue-700"
+              className="rounded-lg px-3 py-2 hover:bg-slate-50 hover:text-blue-700 flex items-center justify-between"
             >
-              📊 Student Dashboard
+              <span>📊 Student Dashboard</span>
+            </Link>
+            <Link
+              href="/profile"
+              prefetch={true}
+              onClick={() => setMobileMenuOpen(false)}
+              className={`rounded-lg px-3 py-2 flex items-center justify-between ${
+                pathname === "/profile"
+                  ? "bg-blue-50 text-blue-800 font-bold"
+                  : "hover:bg-slate-50 hover:text-blue-700"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span>👤</span>
+                <span>My Profile</span>
+              </div>
+              {isProfileComplete ? (
+                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                  {studentYear ? `${studentYear} • Free` : "Completed"}
+                </span>
+              ) : (
+                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 animate-pulse">
+                  Action Required
+                </span>
+              )}
             </Link>
             <Link
               href="/learning"
@@ -216,9 +260,14 @@ export function StudentNavbar({ userEmail, isAdmin }: StudentNavbarProps) {
               href="/tests"
               prefetch={true}
               onClick={() => setMobileMenuOpen(false)}
-              className="rounded-lg px-3 py-2 hover:bg-slate-50 hover:text-blue-700"
+              className="rounded-lg px-3 py-2 hover:bg-slate-50 hover:text-blue-700 flex items-center justify-between"
             >
-              ⏱️ Timed Mock Tests (UGEE & SPEC)
+              <span>⏱️ Timed Mock Tests (UGEE & SPEC)</span>
+              {!isProfileComplete && (
+                <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                  Locked
+                </span>
+              )}
             </Link>
             <Link
               href="/attempts"
