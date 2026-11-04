@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { AdminPanel } from "@/components/admin/admin-panel";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +46,7 @@ export default async function AdminPage() {
     adminClient.from("chapters").select("id, name, subject_id").order("display_order", { ascending: true }),
     adminClient.from("topics").select("id, name, chapter_id, description").order("display_order", { ascending: true }),
     adminClient.from("exams").select("id, name, slug"),
-    adminClient.from("tests").select("id, name, slug, duration_seconds, test_type, exam_id, description, status").neq("status", "archived").order("created_at", { ascending: false }),
+    adminClient.from("tests").select("id, name, slug, duration_seconds, test_type, exam_id, description, status, is_free").neq("status", "archived").order("created_at", { ascending: false }),
     adminClient.auth.admin.listUsers(),
     adminClient.from("admin_users").select("user_id"),
   ]);
@@ -114,7 +115,13 @@ export default async function AdminPage() {
   }));
 
   return (
-    <AdminPanel
+    <>
+      <div className="mx-auto max-w-7xl px-4 pt-5 sm:px-6 lg:px-8">
+        <Link href="/admin/subscription-plans" className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-800 hover:bg-blue-100">
+          Manage Subscription Plans →
+        </Link>
+      </div>
+      <AdminPanel
       currentAdminEmail={user.email || ""}
       subjects={subjects || []}
       chapters={chapters || []}
@@ -123,6 +130,7 @@ export default async function AdminPage() {
       tests={tests}
       initialQuestions={initialQuestions}
       adminUsersList={enrolledAdmins}
-    />
+      />
+    </>
   );
 }

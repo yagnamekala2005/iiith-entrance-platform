@@ -66,7 +66,7 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
     // Fallback: Validate and execute with direct queries if RPC is not yet registered
     const { data: test, error: testErr } = await supabase
       .from("tests")
-      .select("id, status, name")
+      .select("id, status, name, test_type, is_free")
       .eq("id", testId)
       .maybeSingle();
 

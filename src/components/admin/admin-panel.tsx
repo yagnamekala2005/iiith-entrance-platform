@@ -8,8 +8,10 @@ import {
   deleteAdminQuestion,
   addAdminUserByEmail,
   createAdminMockTest,
+  updateAdminMockTestName,
   deleteAdminMockTest,
   publishAdminMockTest,
+  setFreeAdminMockTest,
   cleanAllOldMockTests,
   createAdminSubject,
   createAdminExam,
@@ -65,6 +67,7 @@ interface TestItem {
   exam_id?: string;
   description?: string;
   status?: string;
+  is_free?: boolean;
 }
 
 interface QuestionAdminItem {
@@ -899,6 +902,34 @@ export function AdminPanel({
     });
   };
 
+  // Handler: Rename Mock Test
+  const handleRenameMockTest = async (test: TestItem) => {
+    const proposedName = window.prompt("Enter a new name for this mock test:", test.name);
+    if (proposedName === null) return;
+
+    const trimmedName = proposedName.trim();
+    if (!trimmedName) {
+      setTestErrorMessage("Mock test name cannot be empty.");
+      setTestSuccessMessage("");
+      return;
+    }
+    if (trimmedName === test.name) return;
+
+    setTestErrorMessage("");
+    setTestSuccessMessage("");
+    startTransition(async () => {
+      const res = await updateAdminMockTestName(test.id, trimmedName);
+      if (res.success && res.test) {
+        setMockTests((prev) =>
+          prev.map((item) => item.id === test.id ? { ...item, name: res.test!.name } : item)
+        );
+        setTestSuccessMessage(`Mock test renamed to "${res.test.name}" and saved to Supabase.`);
+      } else {
+        setTestErrorMessage(res.error || "Failed to rename mock test in Supabase.");
+      }
+    });
+  };
+
   // Handler: Delete Mock Test
   const handleDeleteMockTest = async (testId: string, testName: string) => {
     if (
@@ -1570,6 +1601,24 @@ export function AdminPanel({
                               <div className="flex items-center gap-1.5">
                                 <button
                                   type="button"
+                                  onClick={() => handleRenameMockTest(t)}
+                                  disabled={isPending}
+                                  className="rounded-lg p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                                  title="Edit mock test name"
+                                  aria-label={`Edit name of ${t.name}`}
+                                >
+                                  <svg
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a2.1 2.1 0 013.0 3l-1.687 1.688M18 8.25l-8.5 8.5L6 17.5l.75-3.5 8.5-8.5M5 20h14" />
+                                  </svg>
+                                </button>
+                                <button
+                                  type="button"
                                   onClick={() => handleDeleteMockTest(t.id, t.name)}
                                   disabled={isPending}
                                   className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
@@ -1622,20 +1671,47 @@ export function AdminPanel({
 
                           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
                             <span className="text-xs text-slate-500 font-medium">
-                              {t.status === "published" ? "Available in Student Portal" : "Draft — ready for questions"}
+                              {t.is_free ? "Free for every student" : t.status === "published" ? "Available in Student Portal" : "Draft — ready for questions"}
                             </span>
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleSelectTargetTest(t.id);
-                                switchTab("create");
-                              }}
-                              className="rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 transition-all flex items-center gap-1.5"
-                            >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  startTransition(async () => {
+                                    const result = await setFreeAdminMockTest(t.id);
+                                    if (!result.success) {
+                                      setTestErrorMessage(result.error || "Unable to set the free mock test.");
+                                      setTestSuccessMessage("");
+                                      return;
+                                    }
+                                    setTestErrorMessage("");
+                                    setTestSuccessMessage(`${t.name} is now the free mock test for all students.`);
+                                    setMockTests((current) => current.map((item) => ({
+                                      ...item,
+                                      is_free: item.id === t.id,
+                                    })));
+                                    router.refresh();
+                                  });
+                                }}
+                                disabled={isPending || t.status !== "published" || t.test_type !== "mock" || Boolean(t.is_free)}
+                                className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+                              >
+                                {t.is_free ? "✓ Free for Students" : "Set as Free Test"}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleSelectTargetTest(t.id);
+                                  switchTab("create");
+                                }}
+                                className="rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 transition-all flex items-center gap-1.5"
+                              >
                               <span>➕ Manage &amp; Add Questions</span>
                               <span>&rarr;</span>
-                            </button>
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );
