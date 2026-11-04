@@ -31,7 +31,6 @@ export default async function TestsDirectoryPage({ searchParams }: PageProps) {
 
   const tests = rawTests.filter((t) => !OLD_TEST_IDS.has(t.id));
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
   const { data: activeSubscription } = user
     ? await supabase
         .from("mock_test_subscriptions")
