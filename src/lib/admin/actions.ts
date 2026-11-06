@@ -799,6 +799,62 @@ export async function createAdminMockTest(input: CreateMockTestInput) {
   }
 }
 
+
+export async function updateAdminMockTestName(testId: string, name: string) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { success: false, error: "Unauthorized" };
+
+    const adminClient = createAdminClient();
+    const { data: adminMembership, error: adminCheckError } = await adminClient
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (adminCheckError) {
+      console.error("updateAdminMockTestName admin check failed:", adminCheckError);
+      return { success: false, error: "Unable to verify admin authorization." };
+    }
+
+    if (!adminMembership) {
+      return { success: false, error: "Admin authorization required." };
+    }
+
+    const trimmedName = name.trim();
+    if (!testId || !trimmedName) {
+      return { success: false, error: "Mock test ID and name are required." };
+    }
+    if (trimmedName.length > 160) {
+      return { success: false, error: "Mock test name must be 160 characters or fewer." };
+    }
+
+    const { data: updatedTest, error } = await adminClient
+      .from("tests")
+      .update({ name: trimmedName })
+      .eq("id", testId)
+      .select("id, name")
+      .single();
+
+    if (error || !updatedTest) {
+      console.error("updateAdminMockTestName error:", error);
+      return { success: false, error: error?.message || "Failed to update mock test name in Supabase." };
+    }
+
+    revalidatePath("/admin");
+    revalidatePath("/dashboard");
+    revalidatePath("/tests");
+    revalidatePath("/", "layout");
+
+    return { success: true, test: updatedTest };
+  } catch (err) {
+    console.error("updateAdminMockTestName error:", err);
+    return { success: false, error: "Failed to update mock test name in Supabase." };
+  }
+}
+
 export async function deleteAdminMockTest(testId: string) {
   try {
     const supabase = await createClient();
@@ -1713,3 +1769,65 @@ export async function sendPasswordResetEmailAction(email: string, origin: string
 
 
 
+
+
+/**
+ * Set the single published mock test that is free for every student.
+ * The service-role RPC is callable only from this authenticated, admin-checked action.
+ */
+export async function setFreeAdminMockTest(testId: string) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { success: false, error: "Authentication required." };
+    }
+
+    if (!testId) {
+      return { success: false, error: "Choose a mock test first." };
+    }
+
+    const adminClient = createAdminClient();
+    const { data: membership, error: membershipError } = await adminClient
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (membershipError || !membership) {
+      return {
+        success: false,
+        error: membershipError ? "Unable to verify admin authorization." : "Admin authorization required.",
+      };
+    }
+
+    const { data: test, error: testError } = await adminClient
+      .from("tests")
+      .select("id, test_type, status")
+      .eq("id", testId)
+      .maybeSingle();
+
+    if (testError || !test) {
+      return { success: false, error: "Mock test not found." };
+    }
+
+    if (test.test_type !== "mock" || test.status !== "published") {
+      return { success: false, error: "Only a published mock test can be selected as free." };
+    }
+
+    const { error } = await adminClient.rpc("set_free_mock_test", { p_test_id: testId });
+
+    if (error) {
+      console.error("setFreeAdminMockTest failed:", error);
+      return { success: false, error: "Could not update the free mock test. Apply the Supabase migration and try again." };
+    }
+
+    revalidatePath("/admin");
+    revalidatePath("/tests");
+    return { success: true };
+  } catch (error) {
+    console.error("setFreeAdminMockTest error:", error);
+    return { success: false, error: "Unexpected error while selecting the free mock test." };
+  }
+}

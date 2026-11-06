@@ -1,7 +1,11 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+<<<<<<< HEAD
 import { getStudentProfile } from "@/lib/profile/queries";
+=======
+import { createAdminClient } from "@/lib/supabase/admin";
+>>>>>>> 1602901d919da43d34b49360f13770a49012eaab
 
 export interface ActionResult<T = unknown> {
   success: boolean;
@@ -66,7 +70,7 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
     // Fallback: Validate and execute with direct queries if RPC is not yet registered
     const { data: test, error: testErr } = await supabase
       .from("tests")
-      .select("id, status, name")
+      .select("id, status, name, test_type, is_free")
       .eq("id", testId)
       .maybeSingle();
 
@@ -78,6 +82,51 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
       return { success: false, error: "This test is not currently published." };
     }
 
+<<<<<<< HEAD
+=======
+    // Check for an existing in-progress attempt to resume
+    const { data: existingAttempt } = await supabase
+      .from("test_attempts")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("test_id", testId)
+      .eq("status", "in_progress")
+      .order("created_at", { ascending: false })
+      .maybeSingle();
+
+    if (existingAttempt) {
+      return {
+        success: true,
+        data: { attemptId: existingAttempt.id, isResumed: true },
+      };
+    }
+
+    if (test.test_type === "mock" && !test.is_free) {
+      const adminClient = createAdminClient();
+      const { data: adminMembership } = await adminClient
+        .from("admin_users")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!adminMembership) {
+        const { data: activeSubscription, error: subscriptionError } = await supabase
+          .from("mock_test_subscriptions")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("status", "active")
+          .gt("expires_at", new Date().toISOString())
+          .lte("starts_at", new Date().toISOString())
+          .limit(1)
+          .maybeSingle();
+
+        if (subscriptionError || !activeSubscription) {
+          return { success: false, error: "An active ₹99 subscription is required to access all mock tests." };
+        }
+      }
+    }
+
+>>>>>>> 1602901d919da43d34b49360f13770a49012eaab
     const { data: testQuestions, error: tqErr } = await supabase
       .from("test_questions")
       .select("question_id, section_id, display_order, marks, negative_marks")
