@@ -211,3 +211,35 @@ button, a, [role="button"] {
 @media (prefers-reduced-motion: reduce) {
   .app-skeleton::after { animation: none; }
 }
+
+
+.native-dialog-overlay {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.native-dialog-panel {
+  transform-origin: center bottom;
+}
+
+@media (max-width: 639px) {
+  .native-dialog-overlay {
+    align-items: flex-end;
+    padding: 0;
+    padding-top: 2rem;
+  }
+
+  .native-dialog-panel {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 1.5rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom));
+    border-radius: 1.5rem 1.5rem 0 0;
+    border-bottom: 0;
+    animation: app-sheet-enter 180ms ease-out both;
+  }
+}
+
+@keyframes app-sheet-enter {
+  from { opacity: 0.8; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
