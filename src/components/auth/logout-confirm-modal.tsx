@@ -61,7 +61,7 @@ export function LogoutConfirmModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="logout-modal-title"
-      className="fixed inset-0 z-[999999] flex min-h-screen w-screen items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-in fade-in duration-150"
+      className="native-dialog-overlay fixed inset-0 z-[999999] flex min-h-screen w-screen items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-in fade-in duration-150"
       style={{
         position: "fixed",
         top: 0,
@@ -77,7 +77,7 @@ export function LogoutConfirmModal({
       }}
     >
       <div
-        className="relative mx-auto my-auto w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150"
+        className="native-dialog-panel relative mx-auto my-auto w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-col items-center text-center">
