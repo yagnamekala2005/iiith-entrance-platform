@@ -1,16 +1,21 @@
 package com.iiith.entrance;
 
 import android.content.Intent;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.view.View;
+import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginHandle;
@@ -29,57 +34,52 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
     public class AndroidSecurityBridge {
         @JavascriptInterface
         public void enableScreenshotRestriction() {
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
-                }
-            });
+            runOnUiThread(() -> getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE));
         }
 
         @JavascriptInterface
         public void disableScreenshotRestriction() {
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
-                }
-            });
+            runOnUiThread(() -> getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE));
         }
     }
 
     public void updateSecurityFlagForUrl(String url) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                if (url != null && url.contains("/attempts/") && !url.contains("/result") && !url.contains("/review")) {
-                    getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
-                } else {
-                    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
-                }
+        runOnUiThread(() -> {
+            if (url != null && url.contains("/attempts/") && !url.contains("/result") && !url.contains("/review")) {
+                getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
+            } else {
+                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
             }
         });
+    }
+
+    private void configureSystemBars() {
+        Window window = getWindow();
+        window.setStatusBarColor(Color.rgb(248, 250, 252));
+        window.setNavigationBarColor(Color.WHITE);
+        WindowCompat.setDecorFitsSystemWindows(window, true);
+        WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(window, window.getDecorView());
+        if (controller != null) {
+            controller.setAppearanceLightStatusBars(true);
+            controller.setAppearanceLightNavigationBars(true);
+        }
     }
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-
         if (requestCode >= GoogleProvider.REQUEST_AUTHORIZE_GOOGLE_MIN
                 && requestCode < GoogleProvider.REQUEST_AUTHORIZE_GOOGLE_MAX) {
             PluginHandle pluginHandle = getBridge().getPlugin("SocialLogin");
-
             if (pluginHandle == null) {
                 Log.i("Google Activity Result", "SocialLogin login handle is null");
                 return;
             }
-
             Plugin plugin = pluginHandle.getInstance();
             if (!(plugin instanceof SocialLoginPlugin)) {
                 Log.i("Google Activity Result", "SocialLogin plugin instance is not SocialLoginPlugin");
                 return;
             }
-
             ((SocialLoginPlugin) plugin).handleGoogleLoginIntent(requestCode, data);
         }
     }
@@ -90,10 +90,7 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
 
     public void openRazorpayCheckout(JSONObject options, RazorpayNativePlugin plugin) throws Exception {
         String keyId = options.optString("key", "");
-        if (keyId.isEmpty()) {
-            throw new IllegalArgumentException("Razorpay key ID is missing.");
-        }
-
+        if (keyId.isEmpty()) throw new IllegalArgumentException("Razorpay key ID is missing.");
         runOnUiThread(() -> {
             try {
                 activeRazorpayPlugin = plugin;
@@ -103,9 +100,7 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
                 checkout.open(MainActivity.this, options);
             } catch (Exception error) {
                 activeRazorpayPlugin = null;
-                plugin.onNativePaymentError(-1, error.getMessage() != null
-                    ? error.getMessage()
-                    : "Unable to initialize Razorpay checkout.");
+                plugin.onNativePaymentError(-1, error.getMessage() != null ? error.getMessage() : "Unable to initialize Razorpay checkout.");
             }
         });
     }
@@ -139,25 +134,23 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(RazorpayNativePlugin.class);
         super.onCreate(savedInstanceState);
-
+        configureSystemBars();
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED, WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED);
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
 
-        new Handler(Looper.getMainLooper()).post(new Runnable() {
-            @Override
-            public void run() {
-                WebView webView = getBridge() != null ? getBridge().getWebView() : null;
-                if (webView != null) {
-                    webView.addJavascriptInterface(new AndroidSecurityBridge(), "AndroidSecurityBridge");
-
-                    WebSettings webSettings = webView.getSettings();
-                    webSettings.setDomStorageEnabled(true);
-                    webSettings.setDatabaseEnabled(true);
-                    webSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
-                    webSettings.setLoadsImagesAutomatically(true);
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                        webSettings.setOffscreenPreRaster(true);
-                    }
+        new Handler(Looper.getMainLooper()).post(() -> {
+            WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+            if (webView != null) {
+                webView.addJavascriptInterface(new AndroidSecurityBridge(), "AndroidSecurityBridge");
+                WebSettings webSettings = webView.getSettings();
+                webSettings.setDomStorageEnabled(true);
+                webSettings.setDatabaseEnabled(true);
+                webSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
+                webSettings.setLoadsImagesAutomatically(true);
+                webSettings.setSupportZoom(false);
+                webSettings.setBuiltInZoomControls(false);
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                    webSettings.setOffscreenPreRaster(true);
                 }
             }
         });
@@ -166,29 +159,18 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
             @Override
             public void handleOnBackPressed() {
                 WebView webView = getBridge() != null ? getBridge().getWebView() : null;
-
                 if (webView != null && webView.canGoBack()) {
                     webView.goBack();
-                    if (webView.getUrl() != null) {
-                        updateSecurityFlagForUrl(webView.getUrl());
-                    }
+                    if (webView.getUrl() != null) updateSecurityFlagForUrl(webView.getUrl());
                     return;
                 }
-
                 if (doubleBackToExitPressedOnce) {
                     moveTaskToBack(true);
                     return;
                 }
-
                 doubleBackToExitPressedOnce = true;
                 Toast.makeText(MainActivity.this, "Press back again to exit", Toast.LENGTH_SHORT).show();
-
-                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        doubleBackToExitPressedOnce = false;
-                    }
-                }, 2000);
+                new Handler(Looper.getMainLooper()).postDelayed(() -> doubleBackToExitPressedOnce = false, 2000);
             }
         });
     }
@@ -198,25 +180,15 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
         WebView webView = getBridge() != null ? getBridge().getWebView() : null;
         if (webView != null && webView.canGoBack()) {
             webView.goBack();
-            if (webView.getUrl() != null) {
-                updateSecurityFlagForUrl(webView.getUrl());
-            }
+            if (webView.getUrl() != null) updateSecurityFlagForUrl(webView.getUrl());
             return;
         }
-
         if (doubleBackToExitPressedOnce) {
             super.onBackPressed();
             return;
         }
-
         doubleBackToExitPressedOnce = true;
         Toast.makeText(this, "Press back again to exit", Toast.LENGTH_SHORT).show();
-
-        new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                doubleBackToExitPressedOnce = false;
-            }
-        }, 2000);
+        new Handler(Looper.getMainLooper()).postDelayed(() -> doubleBackToExitPressedOnce = false, 2000);
     }
 }
