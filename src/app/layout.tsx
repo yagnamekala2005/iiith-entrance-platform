@@ -1,4 +1,4 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -19,19 +19,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "IIITH Entrance Preparation",
   description: "Focused preparation for IIITH UGEE and SPEC.",
-  applicationName: "IIITH Entrance Mock Test",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "IIITH Prep",
-  },
-};
-
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  viewportFit: "cover",
-  themeColor: "#f8fafc",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
