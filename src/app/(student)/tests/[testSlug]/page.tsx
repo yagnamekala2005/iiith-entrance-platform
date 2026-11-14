@@ -27,7 +27,10 @@ export default async function TestDetailPage({ params }: PageProps) {
   const isProfileComplete = profile?.is_completed ?? false;
   const activeAttempt = await getActiveAttemptForTest(test.id);
   const supabase = await createClient();
+<<<<<<< HEAD
   const { data: { user } } = await supabase.auth.getUser();
+=======
+>>>>>>> 35fe2d3c290d49f4202312781433a3f7e2fe2835
   const { data: activeSubscription } = user
     ? await supabase
         .from("mock_test_subscriptions")
