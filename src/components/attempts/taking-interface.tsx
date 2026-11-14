@@ -321,24 +321,24 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
   const canUseCalculator = !isAptitudeSubject;
 
   return (
-    <div className="min-h-screen bg-[#f1f5f9] flex flex-col font-sans selection:bg-blue-600 selection:text-white cbt-exam-container no-screenshot">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans selection:bg-[#2E3AE3] selection:text-white cbt-exam-container no-screenshot">
       {/* Strict Anti-Screenshot & Screen Capture Protection Shield */}
       <AntiScreenshotShield strictExamMode={true} />
 
       {/* Auto-Submit Expiration Modal */}
       {autoSubmitTriggered && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-in fade-in">
-          <div className="max-w-md w-full rounded-2xl bg-white p-6 sm:p-8 text-center shadow-2xl">
+          <div className="max-w-md w-full rounded-3xl bg-white p-6 sm:p-8 text-center shadow-2xl border border-slate-100">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100 text-3xl">
               ⏰
             </div>
-            <h2 className="mt-4 text-2xl font-black text-slate-900">Time Has Expired!</h2>
+            <h2 className="mt-4 text-2xl font-black text-[#1F2227]">Time Has Expired!</h2>
             <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
               Your test duration has ended. The system is automatically evaluating and scoring your answers.
             </p>
             <div className="mt-6 flex justify-center">
-              <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-xs font-bold text-blue-800">
-                <span className="h-2 w-2 animate-ping rounded-full bg-blue-600"></span>
+              <span className="inline-flex items-center gap-2 rounded-full bg-[#EEF2FF] px-4 py-2 text-xs font-bold text-[#2E3AE3]">
+                <span className="h-2 w-2 animate-ping rounded-full bg-[#2E3AE3]"></span>
                 Submitting Exam & Grading Answers...
               </span>
             </div>
@@ -347,29 +347,29 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
       )}
 
       {/* Top CBT Real-Time Navigation Bar */}
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md shadow-xs">
+      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl shadow-xs pt-safe">
         {/* Main Header Bar */}
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 sm:px-6 py-2 sm:py-3.5">
           {/* Left: 1-Step Back Navigation & Test Identity */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+            {/* Submit button replacing the previous page / exit return button per user instruction */}
             <button
               type="button"
-              onClick={() => handleStepBack()}
-              className="flex items-center gap-1 sm:gap-1.5 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 active:scale-95 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-slate-700 transition-all shadow-xs shrink-0"
-              title="Exit and Submit Exam"
-              aria-label="Exit and Submit Exam"
+              onClick={() => setIsExitModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 px-3 py-1.5 text-xs font-black text-white transition-all shadow-sm shadow-emerald-600/20 shrink-0"
+              title="Submit Exam"
+              aria-label="Submit Exam"
             >
-              <span className="text-xs">🚪</span>
-              <span className="hidden sm:inline">Exit Exam</span>
-              <span className="sm:hidden text-[11px]">Exit</span>
+              <span className="text-xs">✓</span>
+              <span className="font-extrabold">Submit</span>
             </button>
 
-            <span className="rounded-lg bg-blue-700 px-2 sm:px-2.5 py-1 text-[10px] sm:text-xs font-black tracking-widest text-white uppercase shadow-xs shrink-0">
+            <span className="rounded-lg bg-[#2E3AE3] px-2 sm:px-2.5 py-1 text-[10px] sm:text-xs font-black tracking-widest text-white uppercase shadow-xs shrink-0">
               CBT
             </span>
 
             <div className="min-w-0 flex-1">
-              <h1 className="text-xs sm:text-base font-extrabold text-slate-900 truncate" title={data.test.name}>
+              <h1 className="text-xs sm:text-base font-extrabold text-[#1F2227] truncate" title={data.test.name}>
                 {data.test.name}
               </h1>
               <p className="text-[10px] text-slate-500 hidden sm:block truncate">
@@ -423,8 +423,8 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                 onClick={() => setIsCalculatorOpen((prev) => !prev)}
                 className={`flex items-center gap-1.5 rounded-xl border px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs font-bold transition-all shadow-xs shrink-0 ${
                   isCalculatorOpen
-                    ? "border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/20"
-                    : "border-slate-300 bg-white text-slate-800 hover:border-blue-500 hover:bg-blue-50/60"
+                    ? "border-[#2E3AE3] bg-[#2E3AE3] text-white shadow-md shadow-[#2E3AE3]/20"
+                    : "border-slate-300 bg-white text-slate-800 hover:border-[#2E3AE3] hover:bg-[#EEF2FF]"
                 }`}
                 title="Open Scientific Calculator"
               >
@@ -437,7 +437,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
             <button
               type="button"
               onClick={() => setIsSubmitModalOpen(true)}
-              className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all shrink-0"
+              className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black uppercase tracking-wider text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all shrink-0"
             >
               Submit Exam
             </button>
@@ -448,7 +448,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
             <button
               type="button"
               onClick={() => setIsSubmitModalOpen(true)}
-              className="rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all"
+              className="rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-black uppercase tracking-wider text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all"
             >
               Submit
             </button>
@@ -465,7 +465,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                   ? "border-rose-400 bg-rose-50 text-rose-700 animate-pulse"
                   : isTimeWarning
                   ? "border-amber-300 bg-amber-50 text-amber-900"
-                  : "border-slate-300 bg-white text-slate-900 shadow-2xs"
+                  : "border-slate-200 bg-white text-slate-900 shadow-2xs"
               }`}
             >
               <span className="text-xs">⏱️</span>
@@ -482,8 +482,8 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                   onClick={() => setIsCalculatorOpen((prev) => !prev)}
                   className={`flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-bold transition-all shadow-2xs ${
                     isCalculatorOpen
-                      ? "border-blue-600 bg-blue-600 text-white"
-                      : "border-slate-300 bg-white text-slate-800 active:bg-slate-100"
+                      ? "border-[#2E3AE3] bg-[#2E3AE3] text-white"
+                      : "border-slate-200 bg-white text-slate-800 active:bg-slate-100"
                   }`}
                   title="Open Scientific Calculator"
                 >
@@ -496,7 +496,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
               <button
                 type="button"
                 onClick={() => setIsMobilePaletteOpen(true)}
-                className="flex items-center gap-1 rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-800 shadow-2xs active:bg-slate-100"
+                className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-800 shadow-2xs active:bg-slate-100"
                 aria-label="Open Question Palette"
               >
                 <span>📋</span>
@@ -522,16 +522,16 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                   key={sub.name}
                   type="button"
                   onClick={() => setCurrentIndex(sub.startIndex)}
-                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold whitespace-nowrap transition-all ${
+                  className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold whitespace-nowrap transition-all ${
                     isCurrent
-                      ? "bg-blue-700 text-white shadow-sm"
-                      : "border border-slate-200 bg-white text-slate-700 hover:border-blue-400 hover:text-blue-900"
+                      ? "bg-[#2E3AE3] text-white shadow-sm shadow-[#2E3AE3]/25"
+                      : "border border-slate-200 bg-white text-slate-700 hover:border-[#2E3AE3]/40 hover:text-[#2E3AE3]"
                   }`}
                 >
                   <span>{sub.name}</span>
                   <span
                     className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
-                      isCurrent ? "bg-blue-900 text-blue-200" : "bg-slate-100 text-slate-600"
+                      isCurrent ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
                     }`}
                   >
                     {answeredCount}/{sub.count}
@@ -548,34 +548,34 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Question Display Column (2 cols wide) */}
           <div className="lg:col-span-2 space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-7 shadow-xs">
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-7 shadow-xs">
               {/* Question metadata header */}
               <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-2">
-                  <span className="rounded-lg bg-blue-700 px-3 py-1 text-xs font-black text-white shadow-xs">
+                  <span className="rounded-xl bg-[#2E3AE3] px-3 py-1 text-xs font-black text-white shadow-xs">
                     Question {currentIndex + 1} of {totalQuestions}
                   </span>
-                  <span className="rounded bg-blue-50 px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-blue-800">
+                  <span className="rounded-lg bg-[#EEF2FF] px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-[#2E3AE3]">
                     {currentSubjectName}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <span
-                    className={`rounded border px-2 py-0.5 text-xs font-bold uppercase ${
+                    className={`rounded-lg border px-2 py-0.5 text-xs font-bold uppercase ${
                       difficultyColors[currentQuestion?.difficulty || "medium"]
                     }`}
                   >
                     {currentQuestion?.difficulty}
                   </span>
-                  <span className="rounded bg-slate-50 border border-slate-200 px-2 py-0.5 text-xs font-bold text-slate-700 font-mono">
+                  <span className="rounded-lg bg-slate-50 border border-slate-200 px-2 py-0.5 text-xs font-bold text-slate-700 font-mono">
                     +{currentQuestion?.marks} / -{currentQuestion?.negative_marks}
                   </span>
                 </div>
               </div>
 
               {/* Question Statement */}
-              <div className="mt-5 text-base sm:text-lg leading-relaxed text-slate-900 font-normal whitespace-pre-wrap select-none">
+              <div className="mt-5 text-base sm:text-lg leading-relaxed text-[#1F2227] font-normal whitespace-pre-wrap select-none">
                 {currentQuestion?.question_text}
               </div>
 
@@ -588,17 +588,17 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                       key={option.id}
                       type="button"
                       onClick={() => handleSelectOption(option.id)}
-                      className={`flex w-full items-start gap-3.5 rounded-xl border p-4 text-left text-sm sm:text-base transition-all min-h-[52px] ${
+                      className={`flex w-full items-start gap-3.5 rounded-2xl border-2 p-4 text-left text-sm sm:text-base transition-all min-h-[54px] active:scale-[0.99] ${
                         isSelected
-                          ? "border-blue-600 bg-blue-50/70 text-blue-950 ring-2 ring-blue-600 shadow-xs font-medium"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                          ? "border-[#2E3AE3] bg-[#EEF2FF] text-[#1F2227] ring-1 ring-[#2E3AE3]/30 shadow-xs font-medium"
+                          : "border-slate-200/90 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50/70"
                       }`}
                     >
                       <span
-                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black transition-all ${
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl text-xs font-black transition-all ${
                           isSelected
-                            ? "bg-blue-700 text-white"
-                            : "border border-slate-300 bg-slate-100 text-slate-700"
+                            ? "bg-[#2E3AE3] text-white shadow-xs"
+                            : "border border-slate-200 bg-slate-100 text-slate-700"
                         }`}
                       >
                         {option.option_label}
@@ -620,8 +620,8 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                   onClick={handleToggleMark}
                   className={`flex-1 sm:flex-none rounded-xl border px-3 sm:px-4 py-2.5 sm:py-2 text-xs font-bold uppercase tracking-wider transition-all text-center ${
                     currentQuestion?.marked_for_review
-                      ? "border-purple-600 bg-purple-50 text-purple-700"
-                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                      ? "border-amber-400 bg-amber-50 text-amber-900"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                   }`}
                 >
                   {currentQuestion?.marked_for_review ? "★ Marked" : "☆ Mark Review"}
@@ -651,7 +651,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                 <button
                   type="button"
                   onClick={handleMarkAndNext}
-                  className="rounded-xl border border-purple-300 bg-purple-50 px-3.5 py-2 text-xs font-bold uppercase text-purple-800 hover:bg-purple-100 hidden sm:block"
+                  className="rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-2 text-xs font-bold uppercase text-amber-900 hover:bg-amber-100 hidden sm:block"
                 >
                   Mark & Next
                 </button>
@@ -660,7 +660,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                   <button
                     type="button"
                     onClick={handleSaveAndNext}
-                    className="flex-1 sm:flex-none rounded-xl bg-blue-700 px-4 sm:px-5 py-2.5 sm:py-2 text-xs font-bold uppercase text-white shadow-xs hover:bg-blue-800 active:scale-95 transition-all text-center"
+                    className="flex-1 sm:flex-none rounded-xl bg-[#2E3AE3] px-4 sm:px-5 py-2.5 sm:py-2 text-xs font-black uppercase text-white shadow-md shadow-[#2E3AE3]/25 hover:bg-[#252fb8] active:scale-95 transition-all text-center"
                   >
                     Save & Next &rarr;
                   </button>
@@ -668,7 +668,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                   <button
                     type="button"
                     onClick={() => setIsSubmitModalOpen(true)}
-                    className="flex-1 sm:flex-none rounded-xl bg-emerald-600 px-4 sm:px-5 py-2.5 sm:py-2 text-xs font-bold uppercase text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all text-center"
+                    className="flex-1 sm:flex-none rounded-xl bg-emerald-600 px-4 sm:px-5 py-2.5 sm:py-2 text-xs font-black uppercase text-white shadow-md shadow-emerald-600/25 hover:bg-emerald-700 active:scale-95 transition-all text-center"
                   >
                     Submit Exam &rarr;
                   </button>
@@ -778,7 +778,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                     window.history.pushState({ cbtTaking: true }, "");
                   }
                 }}
-                className="w-full rounded-xl bg-blue-700 py-3.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-blue-800 shadow-md shadow-blue-700/20 active:scale-95 transition-all disabled:opacity-50"
+                className="w-full rounded-2xl bg-[#2E3AE3] py-3.5 text-xs font-black uppercase tracking-wider text-white hover:bg-[#252fb8] shadow-md shadow-[#2E3AE3]/25 active:scale-95 transition-all disabled:opacity-50"
               >
                 Keep Writing Exam
               </button>
@@ -786,7 +786,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                 type="button"
                 disabled={isSubmitting}
                 onClick={handleConfirmSubmit}
-                className="w-full rounded-xl bg-emerald-600 py-3.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-emerald-700 shadow-md shadow-emerald-600/20 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full rounded-2xl bg-emerald-600 py-3.5 text-xs font-black uppercase tracking-wider text-white hover:bg-emerald-700 shadow-md shadow-emerald-600/25 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {isSubmitting ? (
                   <>

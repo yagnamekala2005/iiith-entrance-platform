@@ -5,11 +5,26 @@
   --foreground: #0f172a;
   --muted: #64748b;
   --line: #e2e8f0;
-  --primary: #1e3a8a;
-  --primary-hover: #172554;
-  --accent: #2563eb;
-  --accent-light: #eff6ff;
+  --primary: #2E3AE3;
+  --primary-hover: #222CB8;
+  --accent: #2E3AE3;
+  --accent-light: #eff2ff;
   --accent-emerald: #059669;
+
+  /* Prostuti Dribbble Design Reference Tokens */
+  --prostuti-blue: #2E3AE3;
+  --prostuti-blue-hover: #222CB8;
+  --prostuti-blue-light: #EEF2FF;
+  --prostuti-blue-subtle: #E0E7FF;
+  --prostuti-dark: #1F2227;
+  --prostuti-dark-card: #272C34;
+  --prostuti-slate: #6E89CE;
+  --prostuti-slate-light: #A7B2CE;
+  --prostuti-slate-border: #D3D7DB;
+  --prostuti-amber: #BD712A;
+  --prostuti-amber-light: #FEF3C7;
+  --prostuti-emerald: #10B981;
+  --prostuti-emerald-light: #D1FAE5;
 }
 
 @theme inline {
@@ -31,6 +46,7 @@ body {
   max-width: 100vw;
   width: 100%;
   position: relative;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -41,10 +57,23 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Android Safe Area Utilities */
+.pt-safe {
+  padding-top: max(env(safe-area-inset-top), 0px);
+}
+
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+.pb-safe-nav {
+  padding-bottom: calc(max(env(safe-area-inset-bottom), 12px) + 72px);
+}
+
 /* Custom scrollbar for question palettes and code */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: #f1f5f9;
@@ -93,4 +122,3 @@ input, textarea, select {
   -webkit-user-select: text;
   user-select: text;
 }
-

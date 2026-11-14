@@ -36,15 +36,15 @@ export function QuestionPalette({
   const totalAttempted = answeredCount + answeredAndMarkedCount;
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs sticky top-28">
+    <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs sticky top-28 space-y-4">
       {/* Palette Header */}
       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
         <div>
-          <h3 className="text-xs font-black uppercase tracking-wider text-slate-900">
+          <h3 className="text-xs font-black uppercase tracking-wider text-[#1F2227]">
             Question Palette
           </h3>
           <p className="text-[11px] font-semibold text-slate-500">
-            <span className="text-blue-700 font-bold">{totalAttempted}</span> of {questions.length} Attempted
+            <span className="text-[#2E3AE3] font-black">{totalAttempted}</span> of {questions.length} Answered
           </p>
         </div>
 
@@ -53,7 +53,7 @@ export function QuestionPalette({
           <select
             value={selectedSubjectFilter}
             onChange={(e) => setSelectedSubjectFilter(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-bold text-slate-700 outline-none focus:border-blue-600"
+            className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-700 outline-none focus:border-[#2E3AE3]"
           >
             <option value="all">All Sections ({questions.length})</option>
             {subjectNames.map((name) => (
@@ -66,7 +66,7 @@ export function QuestionPalette({
       </div>
 
       {/* Grid of Question Buttons */}
-      <div className="mt-4 max-h-[340px] overflow-y-auto pr-1">
+      <div className="max-h-[340px] overflow-y-auto pr-1">
         <div className="grid grid-cols-5 gap-2">
           {filteredIndexedQuestions.map((q) => {
             const isCurrent = q.originalIndex === currentIndex;
@@ -80,11 +80,11 @@ export function QuestionPalette({
             } else if (isMarked) {
               btnClasses = "bg-amber-100 text-amber-900 border-amber-300 font-bold";
             } else if (isAnswered) {
-              btnClasses = "bg-blue-600 text-white border-blue-700 font-bold shadow-xs";
+              btnClasses = "bg-[#2E3AE3] text-white border-[#222CB8] font-bold shadow-xs";
             }
 
             if (isCurrent) {
-              btnClasses += " ring-2 ring-blue-500 ring-offset-2 scale-105 font-black";
+              btnClasses += " ring-2 ring-[#2E3AE3] ring-offset-2 scale-105 font-black";
             }
 
             return (
@@ -92,7 +92,7 @@ export function QuestionPalette({
                 key={q.id}
                 type="button"
                 onClick={() => onSelectQuestion(q.originalIndex)}
-                className={`flex h-9 w-9 items-center justify-center rounded-xl text-xs transition-all ${btnClasses}`}
+                className={`flex h-9 w-9 items-center justify-center rounded-xl text-xs transition-all active:scale-95 ${btnClasses}`}
                 title={`Question ${q.originalIndex + 1} (${q.subject_name || "General"})`}
               >
                 {q.originalIndex + 1}
@@ -102,47 +102,24 @@ export function QuestionPalette({
         </div>
       </div>
 
-      {/* CBT Legend & Real-Time Statistics */}
-      <div className="mt-5 border-t border-slate-100 pt-4 space-y-2 text-xs">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full bg-blue-600"></span>
-            <span className="text-slate-600 font-medium">Answered / Attempted</span>
-          </div>
-          <span className="font-bold text-blue-800">{answeredCount}</span>
+      {/* Visual Status Legend */}
+      <div className="border-t border-slate-100 pt-3 grid grid-cols-2 gap-2 text-[11px] font-semibold text-slate-600">
+        <div className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded-md bg-[#2E3AE3] shrink-0" />
+          <span>Answered ({answeredCount})</span>
         </div>
-
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full bg-slate-200 border border-slate-300"></span>
-            <span className="text-slate-600 font-medium">Not Attempted</span>
-          </div>
-          <span className="font-bold text-slate-700">{unattemptedCount}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded-md bg-slate-200 shrink-0" />
+          <span>Unanswered ({unattemptedCount})</span>
         </div>
-
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full bg-amber-200 border border-amber-400"></span>
-            <span className="text-slate-600 font-medium">Marked for Review</span>
-          </div>
-          <span className="font-bold text-amber-700">{markedCount}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded-md bg-amber-200 border border-amber-400 shrink-0" />
+          <span>Review ({markedCount})</span>
         </div>
-
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full bg-purple-600"></span>
-            <span className="text-slate-600 font-medium">Answered & Marked</span>
-          </div>
-          <span className="font-bold text-purple-700">{answeredAndMarkedCount}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded-md bg-purple-600 shrink-0" />
+          <span>Ans + Review ({answeredAndMarkedCount})</span>
         </div>
-      </div>
-
-      {/* Quick Summary Progress Bar */}
-      <div className="mt-4 rounded-xl bg-slate-50 border border-slate-200 p-2.5 text-center text-xs">
-        <span className="text-slate-500 font-medium">Exam Progress: </span>
-        <strong className="text-blue-800 font-bold">
-          {Math.round((totalAttempted / (questions.length || 1)) * 100)}% Answered
-        </strong>
       </div>
     </div>
   );

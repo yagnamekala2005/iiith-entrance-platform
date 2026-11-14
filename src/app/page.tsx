@@ -5,18 +5,18 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col font-sans selection:bg-blue-600 selection:text-white relative overflow-x-hidden w-full max-w-full">
       {/* Main Navigation */}
-      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-md">
+      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl pt-safe">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8 py-3.5">
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-700 text-white font-black text-sm shadow-md shadow-blue-600/20">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#2E3AE3] text-white font-black text-sm shadow-md shadow-[#2E3AE3]/25">
                 II
               </span>
               <div>
-                <span className="text-base sm:text-lg font-black tracking-tight text-slate-950 block leading-tight">
+                <span className="text-base sm:text-lg font-black tracking-tight text-[#1F2227] block leading-tight">
                   IIITH PREP
                 </span>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-blue-700 block">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#2E3AE3] block">
                   Entrance Portal
                 </span>
               </div>
@@ -25,16 +25,16 @@ export default function Home() {
 
           {/* Center Links (Desktop) */}
           <nav className="hidden md:flex items-center gap-7 text-xs font-bold uppercase tracking-wider text-slate-600">
-            <a href="#subjects" className="hover:text-blue-700 transition-colors">
+            <a href="#subjects" className="hover:text-[#2E3AE3] transition-colors">
               4 Core Subjects
             </a>
-            <a href="#exams" className="hover:text-blue-700 transition-colors">
+            <a href="#exams" className="hover:text-[#2E3AE3] transition-colors">
               UGEE & SPEC
             </a>
-            <a href="#features" className="hover:text-blue-700 transition-colors">
+            <a href="#features" className="hover:text-[#2E3AE3] transition-colors">
               CBT Features
             </a>
-            <a href="#portals" className="hover:text-blue-700 transition-colors">
+            <a href="#portals" className="hover:text-[#2E3AE3] transition-colors">
               Dual Portals
             </a>
           </nav>
@@ -43,21 +43,21 @@ export default function Home() {
           <div className="flex items-center gap-2.5 sm:gap-3">
             <Link
               href="/login?role=admin"
-              className="rounded-xl border border-slate-300 bg-white px-3 sm:px-4 py-2 text-xs font-bold text-slate-700 hover:border-slate-400 hover:bg-slate-50 transition-all"
+              className="rounded-xl border border-slate-200 bg-white px-3 sm:px-4 py-2 text-xs font-bold text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-all shadow-2xs"
             >
-              🛡️ Admin Portal
+              🛡️ Admin
             </Link>
 
             <Link
               href="/login?role=student"
-              className="rounded-xl border border-blue-200 bg-blue-50 px-3 sm:px-4 py-2 text-xs font-bold text-blue-800 hover:bg-blue-100 transition-all"
+              className="rounded-xl border border-blue-200 bg-[#EEF2FF] px-3 sm:px-4 py-2 text-xs font-bold text-[#2E3AE3] hover:bg-blue-100 transition-all"
             >
               Sign In
             </Link>
 
             <Link
               href="/register"
-              className="rounded-xl bg-blue-700 px-4 sm:px-5 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/25 hover:bg-blue-800 active:scale-95 transition-all hidden sm:inline-block"
+              className="rounded-xl bg-[#2E3AE3] px-4 sm:px-5 py-2 text-xs font-black uppercase tracking-wider text-white shadow-md shadow-[#2E3AE3]/25 hover:bg-[#252fb8] active:scale-95 transition-all hidden sm:inline-block"
             >
               Get Started
             </Link>
@@ -66,24 +66,24 @@ export default function Home() {
       </header>
 
       {/* Hero Section with Interactive Mockup */}
-      <section className="relative overflow-hidden pt-12 pb-16 lg:pt-20 lg:pb-24 bg-gradient-to-b from-white via-slate-50 to-[#f8fafc]">
+      <section className="relative overflow-hidden pt-10 pb-14 lg:pt-16 lg:pb-20 bg-gradient-to-b from-white via-slate-50 to-[#F8FAFC]">
         {/* Subtle decorative grid */}
         <div className="absolute inset-0 bg-grid-pattern opacity-60 pointer-events-none"></div>
 
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid gap-12 lg:grid-cols-12 lg:items-center">
             {/* Left Column: Headlines & Call to Action */}
-            <div className="lg:col-span-6 space-y-6">
-              <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50/80 px-3.5 py-1 text-xs font-bold text-blue-900 shadow-xs">
+            <div className="lg:col-span-6 space-y-5">
+              <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-[#EEF2FF] px-3.5 py-1 text-xs font-bold text-[#2E3AE3] shadow-2xs">
                 <span>🎯</span>
-                <span>Authentic IIITH Exam Simulation Platform</span>
+                <span>Authentic IIITH Exam Simulation</span>
               </div>
 
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-slate-950 leading-[1.08]">
-                Ace UGEE & SPEC with <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-800">Real-Time Mock Tests.</span>
+              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-[#1F2227] leading-[1.08]">
+                Ace UGEE & SPEC with <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#2E3AE3] via-indigo-600 to-[#2E3AE3]">Real-Time Mock Tests.</span>
               </h1>
 
-              <p className="text-base sm:text-lg leading-relaxed text-slate-600 font-normal max-w-xl">
+              <p className="text-sm sm:text-base leading-relaxed text-slate-600 font-normal max-w-xl">
                 Experience real Computer-Based Tests (CBT) featuring live countdown timers, 4 core subjects (Maths, Physics, Chemistry, Aptitude), auto-submission on timer expiry, and in-depth performance scorecards with attempted vs. unattempted metrics.
               </p>
 
@@ -91,23 +91,16 @@ export default function Home() {
               <div className="pt-2 flex flex-wrap gap-3">
                 <Link
                   href="/register"
-                  className="rounded-xl bg-blue-700 px-6 py-3.5 text-sm font-bold uppercase tracking-wider text-white shadow-lg shadow-blue-700/30 hover:bg-blue-800 active:scale-95 transition-all text-center"
+                  className="rounded-2xl bg-[#2E3AE3] px-6 py-3.5 text-xs sm:text-sm font-black uppercase tracking-wider text-white shadow-lg shadow-[#2E3AE3]/30 hover:bg-[#252fb8] active:scale-95 transition-all text-center"
                 >
                   Start Live Mock Test &rarr;
                 </Link>
 
                 <Link
                   href="/login?role=student"
-                  className="rounded-xl border border-slate-300 bg-white px-6 py-3.5 text-sm font-bold text-slate-700 hover:border-slate-400 hover:bg-slate-50 transition-all text-center"
+                  className="rounded-2xl border border-slate-300 bg-white px-5 py-3.5 text-xs sm:text-sm font-bold text-slate-700 hover:border-slate-400 hover:bg-slate-50 transition-all text-center shadow-2xs"
                 >
                   Student Dashboard
-                </Link>
-
-                <Link
-                  href="/login?role=admin"
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-3.5 text-sm font-bold text-slate-700 hover:border-slate-400 hover:bg-slate-50 transition-all text-center"
-                >
-                  Admin Control &rarr;
                 </Link>
               </div>
 

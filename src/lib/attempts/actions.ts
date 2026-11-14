@@ -1,11 +1,8 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-<<<<<<< HEAD
 import { getStudentProfile } from "@/lib/profile/queries";
-=======
 import { createAdminClient } from "@/lib/supabase/admin";
->>>>>>> 1602901d919da43d34b49360f13770a49012eaab
 
 export interface ActionResult<T = unknown> {
   success: boolean;
@@ -82,25 +79,6 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
       return { success: false, error: "This test is not currently published." };
     }
 
-<<<<<<< HEAD
-=======
-    // Check for an existing in-progress attempt to resume
-    const { data: existingAttempt } = await supabase
-      .from("test_attempts")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("test_id", testId)
-      .eq("status", "in_progress")
-      .order("created_at", { ascending: false })
-      .maybeSingle();
-
-    if (existingAttempt) {
-      return {
-        success: true,
-        data: { attemptId: existingAttempt.id, isResumed: true },
-      };
-    }
-
     if (test.test_type === "mock" && !test.is_free) {
       const adminClient = createAdminClient();
       const { data: adminMembership } = await adminClient
@@ -125,8 +103,6 @@ export async function startTestAttempt(testId: string): Promise<ActionResult<{ a
         }
       }
     }
-
->>>>>>> 1602901d919da43d34b49360f13770a49012eaab
     const { data: testQuestions, error: tqErr } = await supabase
       .from("test_questions")
       .select("question_id, section_id, display_order, marks, negative_marks")
