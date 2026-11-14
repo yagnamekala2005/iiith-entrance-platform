@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCachedAuthUser } from "@/lib/auth/session";
 import { getStudentProfile } from "@/lib/profile/queries";
@@ -20,33 +19,13 @@ export default async function StudentProfilePage() {
   }
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8 font-sans">
-      {/* 1-Step Back Navigation */}
-      <div className="mb-3">
-        <Link
-          href="/dashboard"
-          prefetch={true}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 active:scale-95 px-3 py-1.5 text-xs font-bold text-slate-700 transition-all shadow-2xs"
-          title="Return to Student Dashboard"
-        >
-          <span className="text-sm font-black leading-none">‹</span>
-          <span>Back to Dashboard</span>
-        </Link>
-      </div>
-
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 mb-6">
-        <Link href="/dashboard" className="hover:text-blue-700">Dashboard</Link>
-        <span>/</span>
-        <span className="text-blue-700">My Student Profile</span>
-      </div>
-
-      <div className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
-          Student Profile & Access
+    <main className="mx-auto max-w-2xl px-4 py-5 sm:py-7 font-sans">
+      <div className="mb-5">
+        <h1 className="text-xl sm:text-2xl font-black tracking-tight text-[#1F2227]">
+          Student Profile
         </h1>
-        <p className="mt-1.5 text-xs sm:text-sm text-slate-600 leading-relaxed">
-          Manage your personal details, academic year (P1 / P2), and view your free CBT mock test subscription.
+        <p className="mt-1 text-xs text-slate-500 font-medium">
+          Manage your personal details, academic year (P1 / P2), and view CBT mock test access.
         </p>
       </div>
 
@@ -54,4 +33,3 @@ export default async function StudentProfilePage() {
     </main>
   );
 }
-

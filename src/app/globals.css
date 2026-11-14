@@ -25,6 +25,8 @@
   --prostuti-amber-light: #FEF3C7;
   --prostuti-emerald: #10B981;
   --prostuti-emerald-light: #D1FAE5;
+  --font-geist-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-geist-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 @theme inline {
@@ -47,6 +49,16 @@ body {
   width: 100%;
   position: relative;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent harsh blue background on browser/Android autofill inputs */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0px 1000px white inset !important;
+  -webkit-text-fill-color: #1F2227 !important;
+  transition: background-color 5000s ease-in-out 0s;
 }
 
 body {

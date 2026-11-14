@@ -58,7 +58,7 @@ function RegisterContent() {
       }
 
       setSuccess(true);
-      setMessage("Student account created successfully! You can now sign in to start practicing.");
+      setMessage("Student account created successfully! You can now sign in.");
       setEmail("");
       setPassword("");
     } catch {
@@ -69,28 +69,43 @@ function RegisterContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-between font-sans pt-safe pb-safe px-4 sm:px-6">
-      {/* Top Branding Header */}
-      <div className="w-full max-w-sm mx-auto pt-6 sm:pt-10 text-center">
-        {/* App Icon Badge */}
-        <div className="mx-auto flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-[#2E3AE3] text-white font-black text-xl sm:text-2xl shadow-lg shadow-[#2E3AE3]/30 tracking-tight">
-          II
+    <div className="min-h-screen bg-white flex flex-col justify-between font-sans pt-safe pb-safe selection:bg-[#2E3AE3] selection:text-white">
+      {/* Decorative gentle top gradient curve */}
+      <div className="absolute top-0 left-0 right-0 h-72 bg-gradient-to-b from-[#EEF2FF] via-[#F8FAFC] to-white pointer-events-none -z-10" />
+
+      {/* Main Content Container */}
+      <div className="w-full max-w-md mx-auto px-5 sm:px-6 py-6 sm:py-10 flex-1 flex flex-col justify-center">
+        {/* App Emblem & Branding */}
+        <div className="text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#2E3AE3] to-[#1D2696] text-white shadow-lg shadow-[#2E3AE3]/30">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7 text-white">
+              <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+              <path d="M6 12v5c3 3 9 3 12 0v-5" />
+            </svg>
+          </div>
+
+          <div className="mt-3 flex items-center justify-center gap-2">
+            <span className="text-xl font-black tracking-tight text-[#1F2227]">
+              IIITH PREP
+            </span>
+            <span className="rounded-full bg-[#EEF2FF] px-2.5 py-0.5 text-[10px] font-black text-[#2E3AE3] uppercase tracking-wider border border-[#2E3AE3]/20">
+              UGEE & SPEC
+            </span>
+          </div>
+
+          <h2 className="mt-4 text-2xl font-black text-[#1F2227] tracking-tight">
+            Create Account 🚀
+          </h2>
+          <p className="mt-1 text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
+            Join IIITH Entrance Prep to practice authentic timed CBT mock tests
+          </p>
         </div>
 
-        <h1 className="mt-3 text-2xl sm:text-3xl font-black tracking-tight text-[#1F2227]">
-          Create Account
-        </h1>
-        <p className="mt-0.5 text-xs sm:text-sm font-bold text-[#2E3AE3] uppercase tracking-wider">
-          Student Registration
-        </p>
-      </div>
-
-      {/* Main Registration Card */}
-      <div className="w-full max-w-sm mx-auto my-auto py-4">
-        <div className="rounded-3xl border border-slate-200/90 bg-white p-6 sm:p-7 shadow-xl space-y-4">
+        {/* Form Body */}
+        <div className="mt-6 space-y-4">
           {/* Success Notification */}
           {success && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 text-xs font-semibold text-emerald-800 animate-in fade-in leading-relaxed">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/90 p-3.5 text-xs font-semibold text-emerald-800 animate-in fade-in leading-relaxed">
               <p className="font-bold text-emerald-900">✓ Account Created Successfully!</p>
               <p className="mt-1">{message}</p>
               <div className="mt-3">
@@ -107,20 +122,20 @@ function RegisterContent() {
 
           {/* Error message */}
           {message && !success && (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-800 animate-in fade-in leading-relaxed">
-              {message}
+            <div className="rounded-2xl border border-rose-200 bg-rose-50/90 p-3.5 text-xs font-semibold text-rose-800 animate-in fade-in leading-relaxed flex items-start gap-2">
+              <span className="text-sm shrink-0">⚠️</span>
+              <span>{message}</span>
             </div>
           )}
 
           {/* Social Sign-In */}
-          <div>
-            <GoogleOAuthButton disabled={loading} role="student" />
-          </div>
+          <GoogleOAuthButton disabled={loading} role="student" />
 
-          <div className="flex items-center gap-3 py-0.5">
+          {/* Divider */}
+          <div className="flex items-center gap-3 py-1">
             <span className="h-px flex-1 bg-slate-200" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              or email
+            <span className="text-[11px] font-bold text-slate-400 lowercase tracking-wider">
+              or register with email
             </span>
             <span className="h-px flex-1 bg-slate-200" />
           </div>
@@ -128,26 +143,40 @@ function RegisterContent() {
           {/* Form */}
           <form className="space-y-3.5" onSubmit={handleSubmit}>
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1" htmlFor="email">
-                Email Address
+              <label className="block text-xs font-bold text-slate-700 mb-1.5" htmlFor="email">
+                Email address
               </label>
-              <input
-                id="email"
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="student@example.com"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-3 text-sm text-[#1F2227] outline-none focus:border-[#2E3AE3] focus:bg-white focus:ring-2 focus:ring-[#2E3AE3]/15 transition-all font-medium placeholder:text-slate-400"
-              />
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                    <rect width="20" height="16" x="2" y="4" rx="2" />
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L1 7" />
+                  </svg>
+                </span>
+                <input
+                  id="email"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="student@example.com"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/60 pl-11 pr-4 py-3 text-sm text-[#1F2227] outline-none focus:border-[#2E3AE3] focus:bg-white focus:ring-4 focus:ring-[#2E3AE3]/10 transition-all font-medium placeholder:text-slate-400"
+                />
+              </div>
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1" htmlFor="password">
-                Password
+              <label className="block text-xs font-bold text-slate-700 mb-1.5" htmlFor="password">
+                Create password
               </label>
               <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                    <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                </span>
                 <input
                   id="password"
                   type={showPassword ? "text" : "password"}
@@ -156,13 +185,13 @@ function RegisterContent() {
                   autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Min 6 characters"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-3 text-sm text-[#1F2227] outline-none focus:border-[#2E3AE3] focus:bg-white focus:ring-2 focus:ring-[#2E3AE3]/15 transition-all font-medium placeholder:text-slate-400 pr-10"
+                  placeholder="At least 6 characters"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/60 pl-11 pr-11 py-3 text-sm text-[#1F2227] outline-none focus:border-[#2E3AE3] focus:bg-white focus:ring-4 focus:ring-[#2E3AE3]/10 transition-all font-medium placeholder:text-slate-400"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs font-bold p-1"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs font-bold p-1"
                 >
                   {showPassword ? "Hide" : "Show"}
                 </button>
@@ -173,7 +202,7 @@ function RegisterContent() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-2xl bg-[#2E3AE3] hover:bg-[#252fb8] py-3.5 text-xs font-black uppercase tracking-wider text-white shadow-md shadow-[#2E3AE3]/25 transition-all active:scale-98 flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
+              className="w-full rounded-2xl bg-[#2E3AE3] hover:bg-[#252fb8] h-13 text-sm font-black text-white shadow-lg shadow-[#2E3AE3]/30 transition-all active:scale-[0.98] flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
             >
               {loading ? (
                 <>
@@ -181,29 +210,27 @@ function RegisterContent() {
                   <span>Creating Account...</span>
                 </>
               ) : (
-                <span>Register & Start Practicing</span>
+                <span>Register & Start Practicing →</span>
               )}
             </button>
           </form>
         </div>
 
         {/* Sign In Link */}
-        <p className="mt-4 text-center text-xs text-slate-500 font-medium">
+        <p className="mt-6 text-center text-xs text-slate-500 font-medium">
           Already have an account?{" "}
           <Link
             href="/login"
             prefetch={true}
-            className="font-bold text-[#2E3AE3] hover:underline"
+            className="font-black text-[#2E3AE3] hover:underline"
           >
             Sign In &rarr;
           </Link>
         </p>
       </div>
 
-      {/* Bottom Subtle Tagline */}
-      <div className="w-full max-w-sm mx-auto pb-4 text-center text-[11px] text-slate-400 font-medium">
-        IIITH UGEE & SPEC Authentic CBT Simulation
-      </div>
+      {/* Android Safe Area Bottom Spacer */}
+      <div className="h-4 w-full" aria-hidden="true" />
     </div>
   );
 }
@@ -212,7 +239,7 @@ export default function RegisterPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
+        <div className="min-h-screen bg-white flex items-center justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-3 border-[#2E3AE3] border-t-transparent" />
         </div>
       }
