@@ -137,33 +137,44 @@ export function StudentNavbar({
               </div>
             </div>
 
-            {/* Right: Quick actions (Admin badge & Profile Avatar) */}
-            <div className="flex items-center gap-2">
+            {/* Right: Quick actions (Admin badge & Profile Avatar & Sign Out) */}
+            <div className="flex items-center gap-1.5 sm:gap-2">
               {isAdmin && (
                 <Link
                   href="/admin"
                   prefetch={true}
-                  className="rounded-full bg-slate-900 text-white px-2.5 py-1 text-[10px] font-black uppercase tracking-wider shadow-xs active:scale-95 transition-transform"
+                  className="rounded-full bg-slate-900 text-white px-2.5 py-1 text-[10px] font-black uppercase tracking-wider shadow-xs active:scale-95 transition-transform flex items-center gap-1"
                 >
-                  Admin
+                  <span>🛡️</span>
+                  <span>Admin</span>
                 </Link>
               )}
 
               <Link
                 href="/profile"
                 prefetch={true}
-                className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-bold text-slate-700 active:scale-95 transition-transform shadow-2xs"
+                className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-bold text-slate-700 active:scale-95 transition-transform shadow-2xs"
               >
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#EEF2FF] text-xs">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#EEF2FF] text-xs">
                   {avatarUrl && avatarUrl.length < 5 ? avatarUrl : "👨‍🎓"}
                 </span>
-                <span className="text-[11px] font-extrabold text-[#2E3AE3]">
+                <span className="text-[10px] font-extrabold text-[#2E3AE3]">
                   {studentYear || "P1/P2"}
                 </span>
                 {!isProfileComplete && (
                   <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" title="Profile Incomplete" />
                 )}
               </Link>
+
+              <button
+                type="button"
+                onClick={() => setIsExitConfirmOpen(true)}
+                className="flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50/80 hover:bg-rose-100 px-2.5 py-1 text-xs font-bold text-rose-700 active:scale-95 transition-all shadow-2xs"
+                title="Sign Out"
+              >
+                <span className="text-xs">🚪</span>
+                <span className="text-[10px] font-black uppercase tracking-wider">Sign Out</span>
+              </button>
             </div>
           </div>
 

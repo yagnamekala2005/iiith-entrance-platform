@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useTransition, useMemo, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   createAdminQuestion,
@@ -1254,15 +1255,24 @@ export function AdminPanel({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <span className="text-xs text-slate-300 hidden md:block">
               Logged in: <strong className="text-sky-300">{currentAdminEmail}</strong>
             </span>
 
+            <Link
+              href="/dashboard"
+              className="rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs active:scale-95"
+              title="Switch to Student Dashboard"
+            >
+              <span>👨‍🎓</span>
+              <span className="hidden xs:inline">Student View</span>
+            </Link>
+
             <button
               type="button"
               onClick={handleSignOut}
-              className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-300 hover:bg-rose-900/60 hover:border-rose-700 hover:text-white transition-all flex items-center gap-1.5 shadow-xs"
+              className="rounded-xl border border-rose-800/80 bg-rose-950/60 hover:bg-rose-900 px-3 py-1.5 text-xs font-bold text-rose-200 hover:text-white transition-all flex items-center gap-1.5 shadow-xs active:scale-95"
               title="Sign out of Admin Session"
             >
               <span>🚪</span>

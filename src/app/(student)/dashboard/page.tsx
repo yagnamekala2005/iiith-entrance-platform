@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getCachedAuthUser } from "@/lib/auth/session";
+import { getCachedUserAndRole } from "@/lib/auth/session";
 import { getPublishedTests, getLearningProgress } from "@/lib/content/queries";
 import { getUserAttempts } from "@/lib/attempts/queries";
 import { getStudentProfile } from "@/lib/profile/queries";
 import { StartAttemptButton } from "@/components/attempts/start-attempt-button";
+import SignOutButton from "@/components/auth/sign-out-button";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ const OLD_TEST_IDS = new Set([
 ]);
 
 export default async function DashboardPage() {
-  const user = await getCachedAuthUser();
+  const { user, isAdmin } = await getCachedUserAndRole();
 
   if (!user) {
     redirect("/login");
@@ -57,34 +58,49 @@ export default async function DashboardPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-4 sm:px-6 py-4 sm:py-6 font-sans space-y-5">
-      {/* 1. Mobile Greeting Bar */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+      {/* 1. Mobile Greeting Bar - Elevated Card with Clean Alignment & Sign Out */}
+      <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#2E3AE3] to-[#1D2696] text-white text-2xl shadow-md shadow-[#2E3AE3]/20 shrink-0">
             {profile?.avatar_url && profile.avatar_url.length < 5 ? profile.avatar_url : "👨‍🎓"}
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg sm:text-xl font-black text-[#1F2227] tracking-tight">
-                Hey, {displayName} 👋
-              </h1>
-              <span className="rounded-full bg-[#EEF2FF] px-2 py-0.5 text-[10px] font-black text-[#2E3AE3] border border-[#2E3AE3]/20">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-base sm:text-lg font-black text-[#1F2227] tracking-tight truncate">
+              Hey, {displayName} 👋
+            </h1>
+            <div className="flex items-center gap-2 flex-wrap mt-0.5">
+              <span className="rounded-full bg-[#EEF2FF] px-2 py-0.5 text-[10px] font-black text-[#2E3AE3] border border-[#2E3AE3]/20 shrink-0">
                 {academicYear}
               </span>
+              <span className="text-[11px] text-slate-500 font-medium truncate">
+                IIITH Entrance Prep
+              </span>
             </div>
-            <p className="text-xs text-slate-500 font-medium">
-              IIITH UGEE & SPEC Entrance Prep
-            </p>
           </div>
         </div>
 
-        <Link
-          href="/tests"
-          prefetch={true}
-          className="rounded-2xl bg-[#2E3AE3] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-md shadow-[#2E3AE3]/25 hover:bg-[#222CB8] active:scale-95 transition-all shrink-0"
-        >
-          Mock Tests &rarr;
-        </Link>
+        {/* Right Actions: Admin Access (if admin) & Prominent Sign Out */}
+        <div className="flex items-center gap-2 shrink-0">
+          {isAdmin && (
+            <Link
+              href="/admin"
+              prefetch={true}
+              className="rounded-2xl bg-slate-900 hover:bg-slate-800 text-white px-3 py-2 text-xs font-black uppercase tracking-wider shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
+              title="Go to Admin Management Studio"
+            >
+              <span>🛡️</span>
+              <span className="hidden sm:inline">Admin</span>
+            </Link>
+          )}
+
+          <SignOutButton
+            className="rounded-2xl border border-rose-200 bg-rose-50/80 hover:bg-rose-100 active:scale-95 px-3 py-2 text-xs font-black uppercase tracking-wider text-rose-700 transition-all flex items-center gap-1.5 shadow-2xs"
+            roleLabel={isAdmin ? "Admin" : "Student"}
+          >
+            <span>🚪</span>
+            <span>Sign Out</span>
+          </SignOutButton>
+        </div>
       </div>
 
       {/* 2. Active Test Alert (Urgent State) */}
@@ -266,7 +282,7 @@ export default async function DashboardPage() {
               <Link
                 href={`/tests/${latestTest.slug}`}
                 prefetch={true}
-                className="text-xs font-bold text-slate-600 hover:text-slate-900"
+                className="rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 px-3.5 py-2.5 text-xs font-bold text-slate-700 transition-all text-center"
               >
                 View Instructions &rarr;
               </Link>
@@ -282,7 +298,7 @@ export default async function DashboardPage() {
         </section>
       )}
 
-      {/* 6. Four Core Subjects Grid */}
+      {/* 6. Four Core Subjects Grid - Pixel-Perfect Equal Heights */}
       <section className="space-y-2.5">
         <div className="flex items-center justify-between">
           <h3 className="text-base sm:text-lg font-black text-[#1F2227] tracking-tight">
@@ -297,19 +313,19 @@ export default async function DashboardPage() {
           </Link>
         </div>
 
-        <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-4">
+        <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
           {/* Subject 1: Mathematics */}
           <Link
             href="/learning"
             prefetch={true}
-            className="rounded-2xl border border-blue-200/80 bg-gradient-to-b from-blue-50/70 to-white p-3.5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between active:scale-95"
+            className="rounded-2xl border border-blue-200/80 bg-gradient-to-b from-blue-50/70 to-white p-3.5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between h-full min-h-[148px] active:scale-95"
           >
             <div>
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white text-base shadow-xs">
                 📐
               </div>
               <h4 className="mt-2.5 text-sm font-black text-slate-900">Mathematics</h4>
-              <p className="text-[10px] text-slate-500 mt-0.5">Calculus, Algebra, Coordinate</p>
+              <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 truncate">Calculus, Algebra, Coordinate</p>
             </div>
             <div className="mt-3 pt-2 border-t border-blue-100/80 text-[11px] font-bold text-blue-700">
               Practice &rarr;
@@ -320,14 +336,14 @@ export default async function DashboardPage() {
           <Link
             href="/learning"
             prefetch={true}
-            className="rounded-2xl border border-amber-200/80 bg-gradient-to-b from-amber-50/70 to-white p-3.5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between active:scale-95"
+            className="rounded-2xl border border-amber-200/80 bg-gradient-to-b from-amber-50/70 to-white p-3.5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between h-full min-h-[148px] active:scale-95"
           >
             <div>
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-600 text-white text-base shadow-xs">
                 ⚡
               </div>
               <h4 className="mt-2.5 text-sm font-black text-slate-900">Physics</h4>
-              <p className="text-[10px] text-slate-500 mt-0.5">Mechanics, Electromagnetism</p>
+              <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 truncate">Mechanics, Electromagnetism</p>
             </div>
             <div className="mt-3 pt-2 border-t border-amber-100/80 text-[11px] font-bold text-amber-800">
               Practice &rarr;
@@ -338,14 +354,14 @@ export default async function DashboardPage() {
           <Link
             href="/learning"
             prefetch={true}
-            className="rounded-2xl border border-emerald-200/80 bg-gradient-to-b from-emerald-50/70 to-white p-3.5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between active:scale-95"
+            className="rounded-2xl border border-emerald-200/80 bg-gradient-to-b from-emerald-50/70 to-white p-3.5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between h-full min-h-[148px] active:scale-95"
           >
             <div>
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-white text-base shadow-xs">
                 🧪
               </div>
               <h4 className="mt-2.5 text-sm font-black text-slate-900">Chemistry</h4>
-              <p className="text-[10px] text-slate-500 mt-0.5">Physical, Organic, Inorganic</p>
+              <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 truncate">Physical, Organic, Inorganic</p>
             </div>
             <div className="mt-3 pt-2 border-t border-emerald-100/80 text-[11px] font-bold text-emerald-800">
               Practice &rarr;
@@ -356,14 +372,14 @@ export default async function DashboardPage() {
           <Link
             href="/learning"
             prefetch={true}
-            className="rounded-2xl border border-purple-200/80 bg-gradient-to-b from-purple-50/70 to-white p-3.5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between active:scale-95"
+            className="rounded-2xl border border-purple-200/80 bg-gradient-to-b from-purple-50/70 to-white p-3.5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between h-full min-h-[148px] active:scale-95"
           >
             <div>
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-600 text-white text-base shadow-xs">
                 🧠
               </div>
               <h4 className="mt-2.5 text-sm font-black text-slate-900">Aptitude</h4>
-              <p className="text-[10px] text-slate-500 mt-0.5">REAP Reasoning, Logic</p>
+              <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 truncate">REAP Reasoning, Logic</p>
             </div>
             <div className="mt-3 pt-2 border-t border-purple-100/80 text-[11px] font-bold text-purple-800">
               Practice &rarr;
@@ -389,8 +405,8 @@ export default async function DashboardPage() {
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold text-slate-800 truncate max-w-[200px] sm:max-w-md">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-slate-800 truncate">
                 {latestAttempt.test?.name || "Mock Test"}
               </p>
               <div className="flex items-center gap-2 mt-1">
@@ -407,7 +423,7 @@ export default async function DashboardPage() {
             <Link
               href={`/attempts/${latestAttempt.id}/result`}
               prefetch={true}
-              className="rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 transition-all shrink-0 active:scale-95"
+              className="rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 px-3.5 py-2 text-xs font-bold text-slate-700 transition-all shrink-0 active:scale-95"
             >
               Review &rarr;
             </Link>
