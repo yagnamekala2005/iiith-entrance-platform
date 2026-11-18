@@ -137,19 +137,8 @@ export function StudentNavbar({
               </div>
             </div>
 
-            {/* Right: Quick actions (Admin badge & Profile Avatar & Sign Out) */}
+            {/* Right: Quick actions (Profile Avatar & Sign Out) */}
             <div className="flex items-center gap-1.5 sm:gap-2">
-              {isAdmin && (
-                <Link
-                  href="/admin"
-                  prefetch={true}
-                  className="rounded-full bg-slate-900 text-white px-2.5 py-1 text-[10px] font-black uppercase tracking-wider shadow-xs active:scale-95 transition-transform flex items-center gap-1"
-                >
-                  <span>🛡️</span>
-                  <span>Admin</span>
-                </Link>
-              )}
-
               <Link
                 href="/profile"
                 prefetch={true}

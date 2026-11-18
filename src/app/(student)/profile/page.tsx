@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getCachedAuthUser } from "@/lib/auth/session";
+import { getCachedUserAndRole } from "@/lib/auth/session";
 import { getStudentProfile } from "@/lib/profile/queries";
 import { ProfileForm } from "@/components/profile/profile-form";
 import SignOutButton from "@/components/auth/sign-out-button";
@@ -7,7 +8,7 @@ import SignOutButton from "@/components/auth/sign-out-button";
 export const dynamic = "force-dynamic";
 
 export default async function StudentProfilePage() {
-  const user = await getCachedAuthUser();
+  const { user, isAdmin } = await getCachedUserAndRole();
 
   if (!user) {
     redirect("/login");
@@ -40,6 +41,28 @@ export default async function StudentProfilePage() {
       </div>
 
       <ProfileForm initialProfile={profile} />
+
+      {isAdmin && (
+        <div className="mt-6 rounded-3xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs flex items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-base">🛡️</span>
+              <p className="text-xs font-black uppercase tracking-wider text-slate-900">
+                Admin Console
+              </p>
+            </div>
+            <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+              Manage test question bank, student test submissions, and subscription plans.
+            </p>
+          </div>
+          <Link
+            href="/admin"
+            className="rounded-2xl bg-slate-900 text-white px-3.5 py-2 text-xs font-black uppercase tracking-wider hover:bg-slate-800 active:scale-95 transition-all shrink-0 shadow-xs"
+          >
+            Open Admin &rarr;
+          </Link>
+        </div>
+      )}
     </main>
   );
 }
