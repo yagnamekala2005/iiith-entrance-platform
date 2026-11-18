@@ -16,6 +16,15 @@ interface StudentLearningViewProps {
 export function StudentLearningView({ subjects, learningProgress }: StudentLearningViewProps) {
   const [selectedSubjectSlug, setSelectedSubjectSlug] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [expandedChapterIds, setExpandedChapterIds] = useState<Record<string, boolean>>({});
+
+  const toggleChapter = (chapterId: string) => {
+    setExpandedChapterIds((prev) => ({
+      ...prev,
+      [chapterId]: !prev[chapterId],
+    }));
+  };
+
   const [selectedTopic, setSelectedTopic] = useState<{
     topic: Topic;
     chapterName: string;
@@ -445,7 +454,7 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
               key={subject.id}
               className={`rounded-2xl border ${meta.borderClass} bg-white p-5 sm:p-7 shadow-xs transition-all`}
             >
-              {/* Subject Header */}
+              {/* Subject Header with Small Arrow to View All Mock Tests */}
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-3">
                   <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl shadow-xs">
@@ -460,6 +469,14 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
                   </div>
                 </div>
 
+                <Link
+                  href="/tests"
+                  prefetch={true}
+                  className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white hover:bg-[#EEF2FF] hover:border-[#2E3AE3]/30 px-3.5 py-1.5 text-xs font-bold text-slate-700 hover:text-[#2E3AE3] active:scale-95 transition-all shadow-2xs group"
+                >
+                  <span>View All Mock Tests</span>
+                  <span className="text-[#2E3AE3] group-hover:translate-x-0.5 transition-transform">&rarr;</span>
+                </Link>
               </div>
 
               {/* Chapters & Subtopics Grid */}
@@ -469,117 +486,176 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
                     No chapters configured for this subject yet.
                   </p>
                 ) : (
-                  filteredChapters.map((chapter) => (
-                    <div
-                      key={chapter.id}
-                      className="flex flex-col justify-between rounded-xl border border-slate-200 bg-slate-50/50 p-4 transition-all hover:border-slate-300 hover:bg-white hover:shadow-xs"
-                    >
-                      <div>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="rounded bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 border border-slate-200">
-                            Chapter
-                          </span>
-                          <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
-                            {(() => {
-                              const chapterTopicIds = (chapter.topics || []).map((topic) => topic.id);
-                              const completedCount = chapterTopicIds.filter((id) =>
-                                completedTopicIds.includes(id)
-                              ).length;
-                              return completedCount === chapterTopicIds.length && chapterTopicIds.length > 0
-                                ? <span className="text-emerald-700">✓ {completedCount}/{chapterTopicIds.length} completed</span>
-                                : `${completedCount}/${chapterTopicIds.length} topics`;
-                            })()}
-                          </span>
-                        </div>
+                  filteredChapters.map((chapter) => {
+                    const isExpanded = Boolean(expandedChapterIds[chapter.id]) || Boolean(searchQuery.trim());
+                    const chapterTopicIds = (chapter.topics || []).map((topic) => topic.id);
+                    const completedCount = chapterTopicIds.filter((id) =>
+                      completedTopicIds.includes(id)
+                    ).length;
+                    const allCompleted =
+                      chapterTopicIds.length > 0 &&
+                      chapterTopicIds.every((id) => completedTopicIds.includes(id));
 
-                        <div className="mt-2 flex items-start justify-between gap-2">
-                          <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug">
-                            {chapter.name}
-                          </h3>
-                          {(() => {
-                            const chapterTopicIds = (chapter.topics || []).map((topic) => topic.id);
-                            const allCompleted =
-                              chapterTopicIds.length > 0 &&
-                              chapterTopicIds.every((id) => completedTopicIds.includes(id));
-                            return allCompleted ? (
-                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-black text-emerald-700">
-                                ✓
+                    return (
+                      <div
+                        key={chapter.id}
+                        className="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 transition-all hover:border-slate-300 hover:bg-white hover:shadow-xs"
+                      >
+                        <div>
+                          {/* Chapter Header - Clickable to toggle/release lessons */}
+                          <div
+                            onClick={() => toggleChapter(chapter.id)}
+                            className="cursor-pointer select-none group/chap"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="rounded-md bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 border border-slate-200">
+                                Chapter
                               </span>
-                            ) : null;
-                          })()}
-                        </div>
+                              <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
+                                {completedCount === chapterTopicIds.length && chapterTopicIds.length > 0 ? (
+                                  <span className="text-emerald-700 font-bold">
+                                    ✓ {completedCount}/{chapterTopicIds.length} completed
+                                  </span>
+                                ) : (
+                                  `${completedCount}/${chapterTopicIds.length} topics`
+                                )}
+                              </span>
+                            </div>
 
-                        {/* Subtopics List as Interactive Cards */}
-                        <div className="mt-3 space-y-2 border-t border-slate-200/60 pt-3">
-                          {(!chapter.topics || chapter.topics.length === 0) ? (
-                            <p className="text-[11px] text-slate-400 italic">No subtopics added yet.</p>
-                          ) : (
-                            chapter.topics.map((topic) => {
-                              const content = parseTopicLearningContent(topic.description);
-                              const hasNotes = Boolean(content.explanation && content.explanation.trim());
-                              const hasFormulas = Boolean(content.formulas && content.formulas.trim());
-                              const resourceCount = content.resources?.length || 0;
+                            <div className="mt-2.5 flex items-start justify-between gap-2">
+                              <h3 className="text-sm sm:text-base font-bold text-slate-900 group-hover/chap:text-[#2E3AE3] transition-colors leading-snug">
+                                {chapter.name}
+                              </h3>
 
-                              const isTopicCompleted = completedTopicIds.includes(topic.id);
+                              <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
+                                {allCompleted && (
+                                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-xs font-black text-emerald-700">
+                                    ✓
+                                  </span>
+                                )}
 
-                              return (
-                                <button
-                                  key={topic.id}
-                                  type="button"
-                                  onClick={() =>
-                                    openTopicModal({
-                                      topic,
-                                      chapterName: chapter.name,
-                                      subjectName: subject.name,
-                                      subjectSlug: subject.slug,
-                                    })
-                                  }
-                                  className="w-full text-left rounded-lg border border-slate-200 bg-white p-2.5 transition-all hover:border-blue-400 hover:bg-blue-50/40 hover:shadow-2xs active:scale-[0.99] group"
+                                {/* Small Arrow to Release Mocks & Lessons */}
+                                <span
+                                  className={`flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-2xs group-hover/chap:border-[#2E3AE3]/40 group-hover/chap:text-[#2E3AE3] transition-all duration-200 ${
+                                    isExpanded ? "rotate-180 bg-[#EEF2FF] text-[#2E3AE3]" : ""
+                                  }`}
+                                  title={isExpanded ? "Collapse Lessons" : "Release Lessons"}
+                                  aria-label={isExpanded ? "Collapse Lessons" : "Release Lessons"}
                                 >
-                                  <div className="flex items-center justify-between gap-1">
-                                    <span className="text-xs font-bold text-slate-800 group-hover:text-blue-900">
-                                      {topic.name}
-                                    </span>
-                                    <span className="flex items-center gap-1 text-xs font-bold">
-                                      {isTopicCompleted ? (
-                                        <span className="text-emerald-600">✓ Completed</span>
-                                      ) : (
-                                        <span className="text-slate-400 group-hover:text-blue-600">&rarr;</span>
-                                      )}
-                                    </span>
-                                  </div>
+                                  <svg
+                                    viewBox="0 0 20 20"
+                                    fill="currentColor"
+                                    className="h-4 w-4"
+                                  >
+                                    <path
+                                      fillRule="evenodd"
+                                      d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                                      clipRule="evenodd"
+                                    />
+                                  </svg>
+                                </span>
+                              </div>
+                            </div>
+                          </div>
 
-                                  {/* Badges for study material availability */}
-                                  <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                                    {hasNotes && (
-                                      <span className="rounded bg-blue-50 px-1.5 py-0.2 text-[9px] font-bold text-blue-700 border border-blue-200">
-                                        📝 Notes
-                                      </span>
-                                    )}
-                                    {hasFormulas && (
-                                      <span className="rounded bg-amber-50 px-1.5 py-0.2 text-[9px] font-bold text-amber-700 border border-amber-200">
-                                        ⚡ Formulas
-                                      </span>
-                                    )}
-                                    {resourceCount > 0 && (
-                                      <span className="rounded bg-emerald-50 px-1.5 py-0.2 text-[9px] font-bold text-emerald-700 border border-emerald-200">
-                                        📚 {resourceCount} Materials
-                                      </span>
-                                    )}
-                                    {!hasNotes && !hasFormulas && resourceCount === 0 && (
-                                      <span className="text-[10px] text-slate-400 italic">
-                                        Click to view overview
-                                      </span>
-                                    )}
-                                  </div>
-                                </button>
-                              );
-                            })
+                          {/* Subtopics List - Released when Small Arrow is toggled */}
+                          {isExpanded ? (
+                            <div className="mt-3.5 space-y-2 border-t border-slate-200/60 pt-3 animate-in fade-in duration-200">
+                              {(!chapter.topics || chapter.topics.length === 0) ? (
+                                <p className="text-[11px] text-slate-400 italic">No subtopics added yet.</p>
+                              ) : (
+                                chapter.topics.map((topic) => {
+                                  const content = parseTopicLearningContent(topic.description);
+                                  const hasNotes = Boolean(content.explanation && content.explanation.trim());
+                                  const hasFormulas = Boolean(content.formulas && content.formulas.trim());
+                                  const resourceCount = content.resources?.length || 0;
+                                  const isTopicCompleted = completedTopicIds.includes(topic.id);
+
+                                  return (
+                                    <button
+                                      key={topic.id}
+                                      type="button"
+                                      onClick={() =>
+                                        openTopicModal({
+                                          topic,
+                                          chapterName: chapter.name,
+                                          subjectName: subject.name,
+                                          subjectSlug: subject.slug,
+                                        })
+                                      }
+                                      className="w-full text-left rounded-lg border border-slate-200 bg-white p-2.5 transition-all hover:border-blue-400 hover:bg-blue-50/40 hover:shadow-2xs active:scale-[0.99] group"
+                                    >
+                                      <div className="flex items-center justify-between gap-1">
+                                        <span className="text-xs font-bold text-slate-800 group-hover:text-blue-900">
+                                          {topic.name}
+                                        </span>
+                                        <span className="flex items-center gap-1 text-xs font-bold">
+                                          {isTopicCompleted ? (
+                                            <span className="text-emerald-600">✓ Completed</span>
+                                          ) : (
+                                            <span className="text-slate-400 group-hover:text-blue-600">&rarr;</span>
+                                          )}
+                                        </span>
+                                      </div>
+
+                                      {/* Badges for study material availability */}
+                                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                                        {hasNotes && (
+                                          <span className="rounded bg-blue-50 px-1.5 py-0.2 text-[9px] font-bold text-blue-700 border border-blue-200">
+                                            📝 Notes
+                                          </span>
+                                        )}
+                                        {hasFormulas && (
+                                          <span className="rounded bg-amber-50 px-1.5 py-0.2 text-[9px] font-bold text-amber-700 border border-amber-200">
+                                            ⚡ Formulas
+                                          </span>
+                                        )}
+                                        {resourceCount > 0 && (
+                                          <span className="rounded bg-emerald-50 px-1.5 py-0.2 text-[9px] font-bold text-emerald-700 border border-emerald-200">
+                                            📚 {resourceCount} Materials
+                                          </span>
+                                        )}
+                                        {!hasNotes && !hasFormulas && resourceCount === 0 && (
+                                          <span className="text-[10px] text-slate-400 italic">
+                                            Click to view overview
+                                          </span>
+                                        )}
+                                      </div>
+                                    </button>
+                                  );
+                                })
+                              )}
+
+                              <div className="pt-2.5 mt-2 flex items-center justify-between text-[11px] border-t border-slate-200/50">
+                                <span className="text-slate-400 font-medium">Topic Mocks &amp; Practice</span>
+                                <Link
+                                  href="/tests"
+                                  className="font-bold text-[#2E3AE3] hover:underline flex items-center gap-1"
+                                >
+                                  <span>View Mock Tests</span>
+                                  <span>&rarr;</span>
+                                </Link>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => toggleChapter(chapter.id)}
+                              className="mt-3 pt-2.5 border-t border-slate-200/50 flex items-center justify-between text-xs text-slate-500 hover:text-[#2E3AE3] transition-colors w-full text-left"
+                            >
+                              <span className="text-[11px] font-semibold text-slate-500">
+                                {chapter.topics?.length || 0} Lessons &bull; Tap arrow to release
+                              </span>
+                              <span className="text-xs font-bold text-[#2E3AE3] flex items-center gap-1">
+                                <span>View Mocks</span>
+                                <span>&rarr;</span>
+                              </span>
+                            </button>
                           )}
                         </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
