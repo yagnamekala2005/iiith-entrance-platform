@@ -5,7 +5,6 @@ import { getPublishedTests, getLearningProgress } from "@/lib/content/queries";
 import { getUserAttempts } from "@/lib/attempts/queries";
 import { getStudentProfile } from "@/lib/profile/queries";
 import { StartAttemptButton } from "@/components/attempts/start-attempt-button";
-import SignOutButton from "@/components/auth/sign-out-button";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +15,7 @@ const OLD_TEST_IDS = new Set([
 ]);
 
 export default async function DashboardPage() {
-  const { user, isAdmin } = await getCachedUserAndRole();
+  const { user } = await getCachedUserAndRole();
 
   if (!user) {
     redirect("/login");
@@ -58,48 +57,23 @@ export default async function DashboardPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-4 sm:px-6 py-4 sm:py-6 font-sans space-y-5">
-      {/* 1. Mobile Greeting Bar - Elevated Card with Clean Alignment & Sign Out */}
-      <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#2E3AE3] to-[#1D2696] text-white text-2xl shadow-md shadow-[#2E3AE3]/20 shrink-0">
-            {profile?.avatar_url && profile.avatar_url.length < 5 ? profile.avatar_url : "👨‍🎓"}
-          </div>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-base sm:text-lg font-black text-[#1F2227] tracking-tight truncate">
+      {/* 1. Mobile Greeting Bar - Elevated Card with Clean Alignment */}
+      <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center gap-3.5">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#2E3AE3] to-[#1D2696] text-white text-2xl shadow-md shadow-[#2E3AE3]/20 shrink-0">
+          {profile?.avatar_url && profile.avatar_url.length < 5 ? profile.avatar_url : "👨‍🎓"}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-base sm:text-lg font-black text-[#1F2227] tracking-tight">
               Hey, {displayName} 👋
             </h1>
-            <div className="flex items-center gap-2 flex-wrap mt-0.5">
-              <span className="rounded-full bg-[#EEF2FF] px-2 py-0.5 text-[10px] font-black text-[#2E3AE3] border border-[#2E3AE3]/20 shrink-0">
-                {academicYear}
-              </span>
-              <span className="text-[11px] text-slate-500 font-medium truncate">
-                IIITH Entrance Prep
-              </span>
-            </div>
+            <span className="rounded-full bg-[#EEF2FF] px-2.5 py-0.5 text-[10px] font-black text-[#2E3AE3] border border-[#2E3AE3]/20 shrink-0">
+              {academicYear}
+            </span>
           </div>
-        </div>
-
-        {/* Right Actions: Admin Access (if admin) & Prominent Sign Out */}
-        <div className="flex items-center gap-2 shrink-0">
-          {isAdmin && (
-            <Link
-              href="/admin"
-              prefetch={true}
-              className="rounded-2xl bg-slate-900 hover:bg-slate-800 text-white px-3 py-2 text-xs font-black uppercase tracking-wider shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
-              title="Go to Admin Management Studio"
-            >
-              <span>🛡️</span>
-              <span className="hidden sm:inline">Admin</span>
-            </Link>
-          )}
-
-          <SignOutButton
-            className="rounded-2xl border border-rose-200 bg-rose-50/80 hover:bg-rose-100 active:scale-95 px-3 py-2 text-xs font-black uppercase tracking-wider text-rose-700 transition-all flex items-center gap-1.5 shadow-2xs"
-            roleLabel={isAdmin ? "Admin" : "Student"}
-          >
-            <span>🚪</span>
-            <span>Sign Out</span>
-          </SignOutButton>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">
+            IIITH Entrance Prep
+          </p>
         </div>
       </div>
 

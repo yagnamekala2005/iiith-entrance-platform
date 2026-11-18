@@ -169,11 +169,11 @@ export function StudentNavbar({
               <button
                 type="button"
                 onClick={() => setIsExitConfirmOpen(true)}
-                className="flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50/80 hover:bg-rose-100 px-2.5 py-1 text-xs font-bold text-rose-700 active:scale-95 transition-all shadow-2xs"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-rose-200 bg-rose-50/80 hover:bg-rose-100 text-rose-700 active:scale-95 transition-all shadow-2xs"
                 title="Sign Out"
+                aria-label="Sign Out"
               >
-                <span className="text-xs">🚪</span>
-                <span className="text-[10px] font-black uppercase tracking-wider">Sign Out</span>
+                <span className="text-sm leading-none">🚪</span>
               </button>
             </div>
           </div>
