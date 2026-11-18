@@ -272,11 +272,11 @@ export default async function DashboardPage() {
         </section>
       )}
 
-      {/* 6. Four Core Subjects Grid - Pixel-Perfect Equal Heights */}
+      {/* 6. Learning Progress Section - Replaces Core Exam Subjects */}
       <section className="space-y-2.5">
         <div className="flex items-center justify-between">
           <h3 className="text-base sm:text-lg font-black text-[#1F2227] tracking-tight">
-            Core Exam Subjects
+            Learning Progress
           </h3>
           <Link
             href="/learning"
@@ -287,79 +287,32 @@ export default async function DashboardPage() {
           </Link>
         </div>
 
-        <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-          {/* Subject 1: Mathematics */}
-          <Link
-            href="/learning"
-            prefetch={true}
-            className="rounded-2xl border border-blue-200/80 bg-gradient-to-b from-blue-50/70 to-white p-3.5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between h-full min-h-[148px] active:scale-95"
-          >
+        <Link
+          href="/learning"
+          prefetch={true}
+          className="block rounded-3xl border border-blue-100/90 bg-[#F4F7FF] p-4 sm:p-5 shadow-xs hover:border-[#2E3AE3]/40 active:scale-98 transition-all"
+        >
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white text-base shadow-xs">
-                📐
-              </div>
-              <h4 className="mt-2.5 text-sm font-black text-slate-900">Mathematics</h4>
-              <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 truncate">Calculus, Algebra, Coordinate</p>
+              <span className="text-[11px] font-black uppercase tracking-wider text-[#2E3AE3] block">
+                Learning Progress
+              </span>
+              <p className="mt-1 text-base sm:text-lg font-bold text-slate-900">
+                {learningProgress.completedTopics} of {learningProgress.totalTopics} topics completed
+              </p>
             </div>
-            <div className="mt-3 pt-2 border-t border-blue-100/80 text-[11px] font-bold text-blue-700">
-              Practice &rarr;
-            </div>
-          </Link>
+            <span className="text-2xl sm:text-3xl font-black text-[#2E3AE3]">
+              {learningProgress.percentage}%
+            </span>
+          </div>
 
-          {/* Subject 2: Physics */}
-          <Link
-            href="/learning"
-            prefetch={true}
-            className="rounded-2xl border border-amber-200/80 bg-gradient-to-b from-amber-50/70 to-white p-3.5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between h-full min-h-[148px] active:scale-95"
-          >
-            <div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-600 text-white text-base shadow-xs">
-                ⚡
-              </div>
-              <h4 className="mt-2.5 text-sm font-black text-slate-900">Physics</h4>
-              <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 truncate">Mechanics, Electromagnetism</p>
-            </div>
-            <div className="mt-3 pt-2 border-t border-amber-100/80 text-[11px] font-bold text-amber-800">
-              Practice &rarr;
-            </div>
-          </Link>
-
-          {/* Subject 3: Chemistry */}
-          <Link
-            href="/learning"
-            prefetch={true}
-            className="rounded-2xl border border-emerald-200/80 bg-gradient-to-b from-emerald-50/70 to-white p-3.5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between h-full min-h-[148px] active:scale-95"
-          >
-            <div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-white text-base shadow-xs">
-                🧪
-              </div>
-              <h4 className="mt-2.5 text-sm font-black text-slate-900">Chemistry</h4>
-              <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 truncate">Physical, Organic, Inorganic</p>
-            </div>
-            <div className="mt-3 pt-2 border-t border-emerald-100/80 text-[11px] font-bold text-emerald-800">
-              Practice &rarr;
-            </div>
-          </Link>
-
-          {/* Subject 4: Aptitude */}
-          <Link
-            href="/learning"
-            prefetch={true}
-            className="rounded-2xl border border-purple-200/80 bg-gradient-to-b from-purple-50/70 to-white p-3.5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between h-full min-h-[148px] active:scale-95"
-          >
-            <div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-600 text-white text-base shadow-xs">
-                🧠
-              </div>
-              <h4 className="mt-2.5 text-sm font-black text-slate-900">Aptitude</h4>
-              <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 truncate">REAP Reasoning, Logic</p>
-            </div>
-            <div className="mt-3 pt-2 border-t border-purple-100/80 text-[11px] font-bold text-purple-800">
-              Practice &rarr;
-            </div>
-          </Link>
-        </div>
+          <div className="mt-3.5 h-3 overflow-hidden rounded-full bg-slate-200/80">
+            <div
+              className="h-full rounded-full bg-[#2E3AE3] transition-all duration-500"
+              style={{ width: `${learningProgress.percentage}%` }}
+            />
+          </div>
+        </Link>
       </section>
 
       {/* 7. Recent Result Card (if any) */}
