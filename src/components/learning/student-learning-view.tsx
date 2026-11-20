@@ -16,12 +16,12 @@ interface StudentLearningViewProps {
 export function StudentLearningView({ subjects, learningProgress }: StudentLearningViewProps) {
   const [selectedSubjectSlug, setSelectedSubjectSlug] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [expandedChapterIds, setExpandedChapterIds] = useState<Record<string, boolean>>({});
+  const [expandedSubjectIds, setExpandedSubjectIds] = useState<Record<string, boolean>>({});
 
-  const toggleChapter = (chapterId: string) => {
-    setExpandedChapterIds((prev) => ({
+  const toggleSubject = (subjectId: string, currentExpanded: boolean) => {
+    setExpandedSubjectIds((prev) => ({
       ...prev,
-      [chapterId]: !prev[chapterId],
+      [subjectId]: !currentExpanded,
     }));
   };
 
@@ -449,19 +449,31 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
             return null;
           }
 
+          const isSubjectExpanded =
+            expandedSubjectIds[subject.id] !== undefined
+              ? expandedSubjectIds[subject.id]
+              : (selectedSubjectSlug === subject.slug || Boolean(query));
+
           return (
             <div
               key={subject.id}
-              className={`rounded-2xl border ${meta.borderClass} bg-white p-5 sm:p-7 shadow-xs transition-all`}
+              className={`rounded-3xl border ${meta.borderClass} bg-white p-5 sm:p-7 shadow-xs transition-all`}
             >
-              {/* Subject Header with Small Arrow to View All Mock Tests */}
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl shadow-xs">
+              {/* Subject Header with Dropdown Arrow at Right End */}
+              <div
+                onClick={() => toggleSubject(subject.id, isSubjectExpanded)}
+                className={`flex items-center justify-between gap-3 cursor-pointer select-none group/subj transition-colors ${
+                  isSubjectExpanded ? "border-b border-slate-100 pb-4" : ""
+                }`}
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl shadow-xs shrink-0 group-hover/subj:scale-105 transition-transform">
                     {meta.icon}
                   </span>
-                  <div>
-                    <h2 className="text-xl sm:text-2xl font-black text-slate-900">{subject.name}</h2>
+                  <div className="min-w-0">
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 group-hover/subj:text-[#2E3AE3] transition-colors truncate">
+                      {subject.name}
+                    </h2>
                     <span className="text-xs text-slate-500 font-medium">
                       {subject.chapters?.length || 0} Chapters &bull;{" "}
                       {subject.chapters?.reduce((acc, c) => acc + (c.topics?.length || 0), 0) || 0} Subtopics
@@ -469,44 +481,78 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
                   </div>
                 </div>
 
-                <Link
-                  href="/tests"
-                  prefetch={true}
-                  className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white hover:bg-[#EEF2FF] hover:border-[#2E3AE3]/30 px-3.5 py-1.5 text-xs font-bold text-slate-700 hover:text-[#2E3AE3] active:scale-95 transition-all shadow-2xs group"
-                >
-                  <span>View All Mock Tests</span>
-                  <span className="text-[#2E3AE3] group-hover:translate-x-0.5 transition-transform">&rarr;</span>
-                </Link>
+                {/* Right End: View All Mock Tests + Subject Dropdown Arrow */}
+                <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                  <Link
+                    href="/tests"
+                    prefetch={true}
+                    onClick={(e) => e.stopPropagation()}
+                    className="hidden xs:flex items-center gap-1.5 rounded-full border border-slate-200 bg-white hover:bg-[#EEF2FF] hover:border-[#2E3AE3]/30 px-3.5 py-1.5 text-xs font-bold text-slate-700 hover:text-[#2E3AE3] active:scale-95 transition-all shadow-2xs group"
+                  >
+                    <span>View All Mock Tests</span>
+                    <span className="text-[#2E3AE3] group-hover:translate-x-0.5 transition-transform">&rarr;</span>
+                  </Link>
+
+                  {/* Dropdown Arrow at Right End of Subject */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSubject(subject.id, isSubjectExpanded);
+                    }}
+                    className={`flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-600 shadow-2xs group-hover/subj:border-[#2E3AE3]/40 group-hover/subj:bg-[#EEF2FF] group-hover/subj:text-[#2E3AE3] transition-all duration-200 ${
+                      isSubjectExpanded ? "rotate-180 bg-[#EEF2FF] text-[#2E3AE3] border-[#2E3AE3]/40" : ""
+                    }`}
+                    title={isSubjectExpanded ? `Collapse ${subject.name}` : `View ${subject.name} Lessons`}
+                    aria-label={isSubjectExpanded ? `Collapse ${subject.name}` : `View ${subject.name} Lessons`}
+                  >
+                    <svg
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      className="h-5 w-5"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
-              {/* Chapters & Subtopics Grid */}
-              <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredChapters.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic col-span-full">
-                    No chapters configured for this subject yet.
-                  </p>
-                ) : (
-                  filteredChapters.map((chapter) => {
-                    const isExpanded = Boolean(expandedChapterIds[chapter.id]) || Boolean(searchQuery.trim());
-                    const chapterTopicIds = (chapter.topics || []).map((topic) => topic.id);
-                    const completedCount = chapterTopicIds.filter((id) =>
-                      completedTopicIds.includes(id)
-                    ).length;
-                    const allCompleted =
-                      chapterTopicIds.length > 0 &&
-                      chapterTopicIds.every((id) => completedTopicIds.includes(id));
-
-                    return (
-                      <div
-                        key={chapter.id}
-                        className="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 transition-all hover:border-slate-300 hover:bg-white hover:shadow-xs"
+              {/* Chapters & Lessons Grid - Revealed when Subject Dropdown is Clicked */}
+              {isSubjectExpanded && (
+                <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 animate-in fade-in duration-200">
+                  {filteredChapters.length === 0 ? (
+                    <div className="col-span-full py-4 text-center">
+                      <p className="text-xs text-slate-400 italic">
+                        No chapters configured for this subject yet.
+                      </p>
+                      <Link
+                        href="/tests"
+                        className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-[#2E3AE3] hover:underline"
                       >
-                        <div>
-                          {/* Chapter Header - Clickable to toggle/release lessons */}
-                          <div
-                            onClick={() => toggleChapter(chapter.id)}
-                            className="cursor-pointer select-none group/chap"
-                          >
+                        <span>Browse general mock tests</span>
+                        <span>&rarr;</span>
+                      </Link>
+                    </div>
+                  ) : (
+                    filteredChapters.map((chapter) => {
+                      const chapterTopicIds = (chapter.topics || []).map((topic) => topic.id);
+                      const completedCount = chapterTopicIds.filter((id) =>
+                        completedTopicIds.includes(id)
+                      ).length;
+                      const allCompleted =
+                        chapterTopicIds.length > 0 &&
+                        chapterTopicIds.every((id) => completedTopicIds.includes(id));
+
+                      return (
+                        <div
+                          key={chapter.id}
+                          className="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 sm:p-5 transition-all hover:border-slate-300 hover:bg-white hover:shadow-xs"
+                        >
+                          <div>
                             <div className="flex items-center justify-between gap-2">
                               <span className="rounded-md bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 border border-slate-200">
                                 Chapter
@@ -523,44 +569,18 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
                             </div>
 
                             <div className="mt-2.5 flex items-start justify-between gap-2">
-                              <h3 className="text-sm sm:text-base font-bold text-slate-900 group-hover/chap:text-[#2E3AE3] transition-colors leading-snug">
+                              <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug">
                                 {chapter.name}
                               </h3>
-
-                              <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
-                                {allCompleted && (
-                                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-xs font-black text-emerald-700">
-                                    ✓
-                                  </span>
-                                )}
-
-                                {/* Small Arrow to Release Mocks & Lessons */}
-                                <span
-                                  className={`flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-2xs group-hover/chap:border-[#2E3AE3]/40 group-hover/chap:text-[#2E3AE3] transition-all duration-200 ${
-                                    isExpanded ? "rotate-180 bg-[#EEF2FF] text-[#2E3AE3]" : ""
-                                  }`}
-                                  title={isExpanded ? "Collapse Lessons" : "Release Lessons"}
-                                  aria-label={isExpanded ? "Collapse Lessons" : "Release Lessons"}
-                                >
-                                  <svg
-                                    viewBox="0 0 20 20"
-                                    fill="currentColor"
-                                    className="h-4 w-4"
-                                  >
-                                    <path
-                                      fillRule="evenodd"
-                                      d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-                                      clipRule="evenodd"
-                                    />
-                                  </svg>
+                              {allCompleted && (
+                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-xs font-black text-emerald-700 shrink-0">
+                                  ✓
                                 </span>
-                              </div>
+                              )}
                             </div>
-                          </div>
 
-                          {/* Subtopics List - Released when Small Arrow is toggled */}
-                          {isExpanded ? (
-                            <div className="mt-3.5 space-y-2 border-t border-slate-200/60 pt-3 animate-in fade-in duration-200">
+                            {/* Subtopics / Lessons List - Directly visible when subject is opened */}
+                            <div className="mt-3.5 space-y-2 border-t border-slate-200/60 pt-3">
                               {(!chapter.topics || chapter.topics.length === 0) ? (
                                 <p className="text-[11px] text-slate-400 italic">No subtopics added yet.</p>
                               ) : (
@@ -637,27 +657,13 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
                                 </Link>
                               </div>
                             </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => toggleChapter(chapter.id)}
-                              className="mt-3 pt-2.5 border-t border-slate-200/50 flex items-center justify-between text-xs text-slate-500 hover:text-[#2E3AE3] transition-colors w-full text-left"
-                            >
-                              <span className="text-[11px] font-semibold text-slate-500">
-                                {chapter.topics?.length || 0} Lessons &bull; Tap arrow to release
-                              </span>
-                              <span className="text-xs font-bold text-[#2E3AE3] flex items-center gap-1">
-                                <span>View Mocks</span>
-                                <span>&rarr;</span>
-                              </span>
-                            </button>
-                          )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
