@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
+    "dev": "node --max-http-header-size=1048576 node_modules/next/dist/bin/next dev --webpack",
     "build": "next build --webpack",
-    "start": "next start",
+    "start": "node --max-http-header-size=1048576 node_modules/next/dist/bin/next start",
     "lint": "eslint"
   },
   "dependencies": {

@@ -80,7 +80,10 @@ export async function updateStudentProfile(input: ProfileInput): Promise<Profile
 
     const isCompleted = isProfileComplete(profileData);
 
-    // 1. Update Supabase Auth user metadata (survives without SQL migrations)
+    // 1. Update Supabase Auth user metadata (never store large data URLs in JWT metadata!)
+    const isDataUrl = avatarUrl.startsWith("data:");
+    const authMetadataAvatar = isDataUrl ? "custom_avatar" : avatarUrl;
+
     const { error: updateAuthErr } = await supabase.auth.updateUser({
       data: {
         full_name: fullName,
@@ -90,7 +93,7 @@ export async function updateStudentProfile(input: ProfileInput): Promise<Profile
         dob,
         gender,
         location,
-        avatar_url: avatarUrl,
+        avatar_url: authMetadataAvatar,
         academic_year: academicYear,
         year: academicYear,
         subscription,

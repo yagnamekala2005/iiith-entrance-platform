@@ -103,11 +103,9 @@ export function MobileSignIn({ initialRole = "student" }: MobileSignInProps) {
         return;
       }
 
-      router.push(nextUrl || "/admin");
-      router.refresh();
+      window.location.href = nextUrl || "/admin";
     } else {
-      router.push(nextUrl || "/dashboard");
-      router.refresh();
+      window.location.href = nextUrl || "/dashboard";
     }
   }
 

@@ -155,6 +155,19 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
                     webSettings.setDatabaseEnabled(true);
                     webSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
                     webSettings.setLoadsImagesAutomatically(true);
+                    webSettings.setJavaScriptCanOpenWindowsAutomatically(true);
+
+                    // Ensure CookieManager accepts third-party cookies for Supabase & OAuth
+                    android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
+                    cookieManager.setAcceptCookie(true);
+                    cookieManager.setAcceptThirdPartyCookies(webView, true);
+
+                    // Remove '; wv' from User-Agent so Google OAuth does not block with 403 disallowed_useragent
+                    String userAgent = webSettings.getUserAgentString();
+                    if (userAgent != null && userAgent.contains("; wv")) {
+                        webSettings.setUserAgentString(userAgent.replace("; wv", ""));
+                    }
+
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
                         webSettings.setOffscreenPreRaster(true);
                     }

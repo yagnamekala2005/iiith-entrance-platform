@@ -71,6 +71,13 @@ export const getStudentProfile = cache(async (userId?: string): Promise<StudentP
 
     const meta = (user.user_metadata || {}) as Record<string, unknown>;
 
+    // Auto-clean bloated data URL from auth user_metadata if previously saved to prevent JWT cookie inflation
+    if (typeof meta.avatar_url === "string" && meta.avatar_url.startsWith("data:")) {
+      void supabase.auth.updateUser({
+        data: { avatar_url: "custom_avatar" },
+      }).catch(() => {});
+    }
+
     const fullName = String(
       dbProfile?.full_name ||
       dbProfile?.display_name ||

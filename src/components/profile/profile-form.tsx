@@ -54,7 +54,7 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement("canvas");
-        const maxDim = 300;
+        const maxDim = 150;
         let width = img.width;
         let height = img.height;
         if (width > height) {
@@ -73,7 +73,7 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
         const ctx = canvas.getContext("2d");
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
-          const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.75);
           setAvatarUrl(compressedDataUrl);
         }
       };
