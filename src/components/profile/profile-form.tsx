@@ -34,9 +34,6 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
   const [location, setLocation] = useState(initialProfile.location || "");
   const [academicYear, setAcademicYear] = useState<"P1" | "P2" | "">(initialProfile.academic_year || "");
   const [avatarUrl, setAvatarUrl] = useState(initialProfile.avatar_url || "👨‍🎓");
-  const [customAvatarInput, setCustomAvatarInput] = useState(
-    initialProfile.avatar_url && initialProfile.avatar_url.startsWith("http") ? initialProfile.avatar_url : ""
-  );
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -45,16 +42,44 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
 
   const handleAvatarSelect = (emojiOrUrl: string) => {
     setAvatarUrl(emojiOrUrl);
-    if (!emojiOrUrl.startsWith("http")) {
-      setCustomAvatarInput("");
-    }
   };
 
-  const handleCustomAvatarChange = (val: string) => {
-    setCustomAvatarInput(val);
-    if (val.trim()) {
-      setAvatarUrl(val.trim());
-    }
+  const handleImageFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Read and compress image on client via canvas to ~300px JPEG data URL
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const maxDim = 300;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxDim) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          }
+        } else {
+          if (height > maxDim) {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          setAvatarUrl(compressedDataUrl);
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -132,30 +157,34 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
     Boolean(academicYear);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Notice Banner if redirected from mock tests */}
       {notice === "profile_required" && !isCompletedNow && (
-        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-5 shadow-xs flex items-start gap-3.5 animate-in fade-in">
-          <span className="text-2xl shrink-0">🔒</span>
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-2xs flex items-center gap-3 animate-in fade-in">
+          <span className="text-xl shrink-0">🔒</span>
           <div>
-            <h4 className="text-sm font-bold text-amber-950">
-              Mock Tests Locked — Profile Completion Required
+            <h4 className="text-xs sm:text-sm font-bold text-amber-950">
+              Mock Tests Locked — Profile Required
             </h4>
-            <p className="mt-1 text-xs text-amber-800 leading-relaxed">
-              To write competitive mock tests, track real-time scorecards, and maintain verified examination records, please complete all profile details below (Name, Mobile, Date of Birth, Gender, Location, and Academic Year P1/P2).
+            <p className="text-[11px] text-amber-800 font-medium">
+              Complete your profile details below to enable computer-based mock tests.
             </p>
           </div>
         </div>
       )}
 
       {/* Header Profile Status Card */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-7 shadow-xs">
-        <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6">
-          <div className="flex flex-col sm:flex-row items-center sm:items-center gap-5 text-center sm:text-left">
-            {/* Avatar Display */}
-            <div className="relative">
-              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-4xl shadow-md border-2 border-white overflow-hidden">
-                {avatarUrl && avatarUrl.startsWith("http") ? (
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-2xs">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
+            {/* Avatar Display with Tap to Upload */}
+            <div className="relative group/av">
+              <label
+                htmlFor="photo-upload-main"
+                className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-3xl sm:text-4xl shadow-xs border-2 border-white overflow-hidden cursor-pointer"
+                title="Tap to choose photo from Storage / Drive / Gallery"
+              >
+                {avatarUrl && (avatarUrl.startsWith("http") || avatarUrl.startsWith("data:")) ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={avatarUrl}
@@ -165,57 +194,68 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
                 ) : (
                   <span>{avatarUrl || "👨‍🎓"}</span>
                 )}
-              </div>
-              <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white text-[10px] font-bold shadow-xs">
-                ✓
-              </span>
+              </label>
+              <label
+                htmlFor="photo-upload-main"
+                className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white text-[10px] font-bold shadow-xs cursor-pointer hover:bg-emerald-600"
+                title="Upload Photo"
+              >
+                📷
+              </label>
+              <input
+                id="photo-upload-main"
+                type="file"
+                accept="image/*"
+                onChange={handleImageFileUpload}
+                className="hidden"
+              />
             </div>
 
             <div>
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900">
                   {fullName || "Student Profile"}
                 </h2>
                 {isCompletedNow ? (
                   <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 border border-emerald-200 flex items-center gap-1">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                    Profile Completed
+                    Completed
                   </span>
                 ) : (
                   <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 border border-amber-200 flex items-center gap-1 animate-pulse">
                     <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
-                    Completion Required
+                    Required
                   </span>
                 )}
               </div>
 
-              <p className="mt-1 text-xs text-slate-500 font-medium">
+              <p className="text-xs text-slate-500 font-medium">
                 {initialProfile.email}
               </p>
 
-              <div className="mt-3 flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs">
-                <span className="rounded-md bg-blue-50 px-2.5 py-1 font-bold text-blue-800 border border-blue-200">
+              <div className="mt-2 flex flex-wrap items-center justify-center sm:justify-start gap-1.5 text-xs">
+                <span className="rounded-lg bg-blue-50 px-2.5 py-0.5 font-bold text-blue-800 border border-blue-200">
                   Year: {academicYear || "Not Selected"}
                 </span>
-                <span className="rounded-md bg-emerald-50 px-2.5 py-1 font-bold text-emerald-800 border border-emerald-200">
-                  Subscription: Free Tier
+                <span className="rounded-lg bg-emerald-50 px-2.5 py-0.5 font-bold text-emerald-800 border border-emerald-200">
+                  Free Tier
                 </span>
               </div>
             </div>
           </div>
 
           {/* Quick Mock Test Enablement Badge */}
-          <div className="flex flex-col items-center sm:items-end gap-2 text-center sm:text-right shrink-0">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              CBT Mock Test Access
+          <div className="flex flex-col items-center sm:items-end gap-1.5 text-center sm:text-right shrink-0">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Mock Test Access
             </span>
             {isCompletedNow ? (
-              <span className="rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-black text-white shadow-xs">
-                ENABLED & UNLOCKED 🚀
+              <span className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs">
+                UNLOCKED 🚀
               </span>
             ) : (
-              <span className="rounded-xl bg-amber-500 px-3.5 py-1.5 text-xs font-black text-white shadow-xs">
-                LOCKED (FILL PROFILE) 🔒
+              <span className="rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-bold text-white shadow-xs">
+                LOCKED 🔒
               </span>
             )}
           </div>
@@ -223,48 +263,45 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
       </div>
 
       {/* Main Form */}
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
         {/* Alerts */}
         {errorMessage && (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs font-semibold text-rose-800">
+          <div className="rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-xs font-semibold text-rose-800">
             {errorMessage}
           </div>
         )}
 
         {successMessage && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold text-emerald-800 flex flex-wrap items-center justify-between gap-3 animate-in fade-in">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 text-xs font-bold text-emerald-800 flex flex-wrap items-center justify-between gap-3 animate-in fade-in">
             <span>{successMessage}</span>
             {returnTo ? (
               <Link
                 href={returnTo}
-                className="rounded-lg bg-emerald-700 px-3.5 py-1.5 text-white font-black hover:bg-emerald-800 transition-colors shadow-xs"
+                className="rounded-lg bg-emerald-700 px-3.5 py-1.5 text-white font-bold hover:bg-emerald-800 transition-colors shadow-xs"
               >
-                Proceed to Exam &rarr;
+                Proceed to Exam
               </Link>
             ) : (
               <Link
                 href="/tests"
-                className="rounded-lg bg-blue-700 px-3.5 py-1.5 text-white font-black hover:bg-blue-800 transition-colors shadow-xs"
+                className="rounded-lg bg-[#2E3AE3] px-3.5 py-1.5 text-white font-bold hover:bg-[#2029B8] transition-colors shadow-xs"
               >
-                Write Mock Tests &rarr;
+                Mock Tests
               </Link>
             )}
           </div>
         )}
 
         {/* Section 1: Personal Details */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-7 shadow-xs space-y-5">
-          <div className="border-b border-slate-100 pb-3">
-            <h3 className="text-base font-bold text-slate-900">1. Student Identification Details</h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Enter your legal name, contact, and personal details for verified examination records.
-            </p>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-2xs space-y-4">
+          <div className="border-b border-slate-100 pb-2.5">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900">1. Student Details</h3>
           </div>
 
-          <div className="grid gap-5 sm:grid-cols-2">
+          <div className="grid gap-3.5 sm:grid-cols-2">
             {/* Full Name */}
             <div>
-              <label htmlFor="full_name" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+              <label htmlFor="full_name" className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
                 Full Name <span className="text-rose-500">*</span>
               </label>
               <input
@@ -274,13 +311,13 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="e.g. Ramesh Kumar"
-                className="w-full rounded-xl border border-slate-300 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 transition-all"
+                className="w-full rounded-xl border border-slate-300 bg-slate-50/50 px-3 py-2 text-xs sm:text-sm text-slate-900 outline-none focus:border-[#2E3AE3] focus:bg-white focus:ring-1 focus:ring-[#2E3AE3] transition-all"
               />
             </div>
 
             {/* Mobile Number */}
             <div>
-              <label htmlFor="mobile_number" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+              <label htmlFor="mobile_number" className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
                 Mobile Number <span className="text-rose-500">*</span>
               </label>
               <input
@@ -290,34 +327,28 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
                 maxLength={15}
                 value={mobileNumber}
                 onChange={(e) => setMobileNumber(e.target.value)}
-                placeholder="e.g. 9876543210"
-                className="w-full rounded-xl border border-slate-300 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 transition-all"
+                placeholder="10-digit mobile number"
+                className="w-full rounded-xl border border-slate-300 bg-slate-50/50 px-3 py-2 text-xs sm:text-sm text-slate-900 outline-none focus:border-[#2E3AE3] focus:bg-white focus:ring-1 focus:ring-[#2E3AE3] transition-all"
               />
-              <span className="text-[11px] text-slate-400 mt-1 block">
-                10-digit mobile number for CBT notifications
-              </span>
             </div>
 
             {/* Email (Read-only / verified) */}
             <div>
-              <label htmlFor="email" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                Email Address <span className="text-slate-400">(Linked Account)</span>
+              <label htmlFor="email" className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Email Address
               </label>
               <input
                 id="email"
                 type="email"
                 disabled
                 value={initialProfile.email}
-                className="w-full rounded-xl border border-slate-200 bg-slate-100 px-3.5 py-2.5 text-sm text-slate-600 cursor-not-allowed select-none"
+                className="w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs sm:text-sm text-slate-600 cursor-not-allowed select-none"
               />
-              <span className="text-[11px] text-slate-400 mt-1 block">
-                🔒 Verified account login address
-              </span>
             </div>
 
             {/* Date of Birth */}
             <div>
-              <label htmlFor="dob" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+              <label htmlFor="dob" className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
                 Date of Birth <span className="text-rose-500">*</span>
               </label>
               <input
@@ -327,13 +358,13 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
                 max={new Date().toISOString().split("T")[0]}
                 value={dob}
                 onChange={(e) => setDob(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 transition-all"
+                className="w-full rounded-xl border border-slate-300 bg-slate-50/50 px-3 py-2 text-xs sm:text-sm text-slate-900 outline-none focus:border-[#2E3AE3] focus:bg-white focus:ring-1 focus:ring-[#2E3AE3] transition-all"
               />
             </div>
 
             {/* Gender */}
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
                 Gender <span className="text-rose-500">*</span>
               </label>
               <div className="grid grid-cols-3 gap-2">
@@ -344,9 +375,9 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
                       key={g}
                       type="button"
                       onClick={() => setGender(g)}
-                      className={`rounded-xl border py-2.5 text-xs font-bold transition-all ${
+                      className={`rounded-xl border py-2 text-xs font-bold transition-all ${
                         isSelected
-                          ? "border-blue-600 bg-blue-50 text-blue-800 shadow-2xs"
+                          ? "border-[#2E3AE3] bg-[#EEF2FF] text-[#2E3AE3] shadow-2xs"
                           : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                       }`}
                     >
@@ -359,7 +390,7 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
 
             {/* Location */}
             <div>
-              <label htmlFor="location" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+              <label htmlFor="location" className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
                 Location / City <span className="text-rose-500">*</span>
               </label>
               <input
@@ -368,194 +399,212 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
                 required
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                placeholder="e.g. Hyderabad, Telangana"
-                className="w-full rounded-xl border border-slate-300 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 transition-all"
+                placeholder="e.g. Hyderabad"
+                className="w-full rounded-xl border border-slate-300 bg-slate-50/50 px-3 py-2 text-xs sm:text-sm text-slate-900 outline-none focus:border-[#2E3AE3] focus:bg-white focus:ring-1 focus:ring-[#2E3AE3] transition-all"
               />
             </div>
           </div>
         </div>
 
         {/* Section 2: Academic Year & Subscription */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-7 shadow-xs space-y-5">
-          <div className="border-b border-slate-100 pb-3">
-            <h3 className="text-base font-bold text-slate-900">2. Academic Year & Access Plan</h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Select your current pre-university class year (P1 or P2).
-            </p>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-2xs space-y-4">
+          <div className="border-b border-slate-100 pb-2.5">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900">2. Academic Year</h3>
           </div>
 
           {/* Academic Year Selection (P1 or P2) */}
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-              Academic Year <span className="text-rose-500">*</span>
-            </label>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {/* Option P1 */}
-              <div
-                onClick={() => setAcademicYear("P1")}
-                className={`cursor-pointer rounded-2xl border p-4 sm:p-5 transition-all ${
-                  academicYear === "P1"
-                    ? "border-blue-600 bg-blue-50/70 ring-2 ring-blue-600/20 shadow-xs"
-                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-700 font-black text-sm text-white">
-                    P1
-                  </span>
-                  <input
-                    type="radio"
-                    name="academic_year"
-                    checked={academicYear === "P1"}
-                    onChange={() => setAcademicYear("P1")}
-                    className="h-4 w-4 text-blue-600"
-                  />
-                </div>
-                <h4 className="mt-3 text-base font-bold text-slate-900">Year P1 (PUC-1)</h4>
-                <p className="mt-1 text-xs text-slate-600 leading-relaxed">
-                  Pre-University 1st Year / Class 11 equivalent. Foundation concepts across Maths, Physics, Chemistry, and Logical Aptitude.
-                </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {/* Option P1 */}
+            <div
+              onClick={() => setAcademicYear("P1")}
+              className={`cursor-pointer rounded-2xl border p-3.5 transition-all ${
+                academicYear === "P1"
+                  ? "border-[#2E3AE3] bg-[#EEF2FF]/70 ring-2 ring-[#2E3AE3]/20 shadow-xs"
+                  : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-700 font-bold text-xs text-white">
+                  P1
+                </span>
+                <input
+                  type="radio"
+                  name="academic_year"
+                  checked={academicYear === "P1"}
+                  onChange={() => setAcademicYear("P1")}
+                  className="h-4 w-4 text-[#2E3AE3]"
+                />
               </div>
+              <h4 className="mt-2 text-sm font-bold text-slate-900">Year P1 (PUC-1)</h4>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Class 11 / 1st Year Foundation
+              </p>
+            </div>
 
-              {/* Option P2 */}
-              <div
-                onClick={() => setAcademicYear("P2")}
-                className={`cursor-pointer rounded-2xl border p-4 sm:p-5 transition-all ${
-                  academicYear === "P2"
-                    ? "border-blue-600 bg-blue-50/70 ring-2 ring-blue-600/20 shadow-xs"
-                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-700 font-black text-sm text-white">
-                    P2
-                  </span>
-                  <input
-                    type="radio"
-                    name="academic_year"
-                    checked={academicYear === "P2"}
-                    onChange={() => setAcademicYear("P2")}
-                    className="h-4 w-4 text-blue-600"
-                  />
-                </div>
-                <h4 className="mt-3 text-base font-bold text-slate-900">Year P2 (PUC-2)</h4>
-                <p className="mt-1 text-xs text-slate-600 leading-relaxed">
-                  Pre-University 2nd Year / Class 12 equivalent. Advanced curriculum tailored for IIITH UGEE (SUPR & REAP) and SPEC examinations.
-                </p>
+            {/* Option P2 */}
+            <div
+              onClick={() => setAcademicYear("P2")}
+              className={`cursor-pointer rounded-2xl border p-3.5 transition-all ${
+                academicYear === "P2"
+                  ? "border-[#2E3AE3] bg-[#EEF2FF]/70 ring-2 ring-[#2E3AE3]/20 shadow-xs"
+                  : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-700 font-bold text-xs text-white">
+                  P2
+                </span>
+                <input
+                  type="radio"
+                  name="academic_year"
+                  checked={academicYear === "P2"}
+                  onChange={() => setAcademicYear("P2")}
+                  className="h-4 w-4 text-[#2E3AE3]"
+                />
               </div>
+              <h4 className="mt-2 text-sm font-bold text-slate-900">Year P2 (PUC-2)</h4>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Class 12 / 2nd Year Advanced Prep
+              </p>
             </div>
           </div>
 
           {/* Subscription Plan */}
-          <div className="mt-4 pt-4 border-t border-slate-100">
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-              Subscription Plan
-            </label>
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 flex flex-wrap items-center justify-between gap-4">
+          <div className="pt-2 border-t border-slate-100">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white font-bold text-lg">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-600 text-white font-bold text-sm">
                   🎁
                 </span>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h4 className="text-sm font-bold text-emerald-950">Free Student Tier</h4>
-                    <span className="rounded-full bg-emerald-200/70 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-900">
+                    <h4 className="text-xs sm:text-sm font-bold text-emerald-950">Free Student Tier</h4>
+                    <span className="rounded-full bg-emerald-200/70 px-2 py-0.5 text-[10px] font-bold text-emerald-900">
                       Active
                     </span>
                   </div>
-                  <p className="text-xs text-emerald-800 mt-0.5">
-                    Unlimited access to computer-based mock tests, curriculum topics, and performance analytics.
+                  <p className="text-[11px] text-emerald-800 mt-0.5">
+                    Full CBT mock tests &amp; curriculum access
                   </p>
                 </div>
               </div>
-              <span className="text-xs font-black uppercase tracking-wider text-emerald-900 bg-white px-3 py-1.5 rounded-lg border border-emerald-300 shadow-2xs">
-                Free ₹0
+              <span className="text-xs font-bold text-emerald-900 bg-white px-2.5 py-1 rounded-lg border border-emerald-300">
+                Free
               </span>
             </div>
           </div>
         </div>
 
         {/* Section 3: Profile Picture & Avatar */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-7 shadow-xs space-y-5">
-          <div className="border-b border-slate-100 pb-3">
-            <h3 className="text-base font-bold text-slate-900">3. Profile Picture & Avatar</h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Choose an academic student avatar or enter a custom photo URL.
-            </p>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-2xs space-y-4">
+          <div className="border-b border-slate-100 pb-2.5">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900">3. Profile Photo &amp; Avatar</h3>
           </div>
 
-          {/* Preset Avatars */}
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-              Choose an Avatar Preset
+          {/* Device Storage / Google Drive Photo Picker */}
+          <div className="space-y-3">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700">
+              Select Profile Photo
             </label>
-            <div className="grid grid-cols-4 sm:grid-cols-8 gap-2.5">
-              {PRESET_AVATARS.map((av) => {
-                const isSelected = avatarUrl === av.emoji;
-                return (
-                  <button
-                    key={av.id}
-                    type="button"
-                    onClick={() => handleAvatarSelect(av.emoji)}
-                    className={`flex flex-col items-center justify-center rounded-xl border p-2.5 transition-all text-2xl ${av.bg} ${
-                      isSelected
-                        ? "ring-2 ring-blue-600 shadow-sm scale-105"
-                        : "opacity-80 hover:opacity-100 hover:scale-102"
-                    }`}
-                    title={av.label}
+            <div className="flex flex-col sm:flex-row items-center gap-3.5 p-3 rounded-2xl border border-slate-200 bg-slate-50/60">
+              {/* Photo Preview */}
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-3xl shadow-xs border-2 border-white overflow-hidden shrink-0">
+                {avatarUrl && (avatarUrl.startsWith("http") || avatarUrl.startsWith("data:")) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={avatarUrl} alt="Avatar Preview" className="h-full w-full object-cover" />
+                ) : (
+                  <span>{avatarUrl || "👨‍🎓"}</span>
+                )}
+              </div>
+
+              {/* Action Buttons: Pick from Storage / Drive */}
+              <div className="flex-1 text-center sm:text-left space-y-1.5">
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                  <label
+                    htmlFor="photo-upload-section"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-slate-300 hover:border-[#2E3AE3] hover:bg-[#EEF2FF] hover:text-[#2E3AE3] px-3.5 py-2 text-xs font-bold text-slate-700 cursor-pointer transition-all shadow-2xs active:scale-95"
                   >
-                    <span>{av.emoji}</span>
-                    <span className="text-[9px] font-bold text-slate-600 mt-1 truncate max-w-full">
-                      {av.label.split(" ")[0]}
-                    </span>
-                  </button>
-                );
-              })}
+                    <span>📁</span>
+                    <span>Choose from Storage / Drive / Gallery</span>
+                  </label>
+                  <input
+                    id="photo-upload-section"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageFileUpload}
+                    className="hidden"
+                  />
+                  {avatarUrl && (avatarUrl.startsWith("http") || avatarUrl.startsWith("data:")) && (
+                    <button
+                      type="button"
+                      onClick={() => setAvatarUrl("👨‍🎓")}
+                      className="rounded-xl border border-rose-200 bg-white hover:bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600 transition-all shadow-2xs active:scale-95"
+                    >
+                      Reset Photo
+                    </button>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400 font-medium">
+                  Select image from Recent, Internal Storage, or Google Drive
+                </p>
+              </div>
             </div>
-          </div>
 
-          {/* Custom Avatar URL option */}
-          <div className="pt-2">
-            <label htmlFor="custom_avatar" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-              Or Enter Custom Image URL <span className="text-slate-400 font-normal">(Optional)</span>
-            </label>
-            <input
-              id="custom_avatar"
-              type="url"
-              value={customAvatarInput}
-              onChange={(e) => handleCustomAvatarChange(e.target.value)}
-              placeholder="https://example.com/my-photo.jpg"
-              className="w-full rounded-xl border border-slate-300 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 transition-all"
-            />
+            {/* Preset Avatars */}
+            <div className="pt-1">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-2">
+                Or Choose an Avatar Preset
+              </label>
+              <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+                {PRESET_AVATARS.map((av) => {
+                  const isSelected = avatarUrl === av.emoji;
+                  return (
+                    <button
+                      key={av.id}
+                      type="button"
+                      onClick={() => handleAvatarSelect(av.emoji)}
+                      className={`flex flex-col items-center justify-center rounded-xl border p-2 transition-all text-xl ${av.bg} ${
+                        isSelected
+                          ? "ring-2 ring-[#2E3AE3] shadow-xs scale-105"
+                          : "opacity-80 hover:opacity-100"
+                      }`}
+                      title={av.label}
+                    >
+                      <span>{av.emoji}</span>
+                      <span className="text-[9px] font-bold text-slate-600 mt-0.5 truncate max-w-full">
+                        {av.label.split(" ")[0]}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Submit Actions */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
           <div>
             <p className="text-xs font-bold text-slate-700">
               {isFormComplete
                 ? "All required fields are completed."
-                : "Please fill in all required fields (marked with *)"}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Saving your profile enables instant access to all competitive CBT mock exams.
+                : "Please fill in all required fields (*)"}
             </p>
           </div>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="w-full sm:w-auto">
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full sm:w-auto rounded-xl bg-blue-700 px-7 py-3 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+              className="h-11 w-full sm:w-auto rounded-xl bg-[#2E3AE3] px-6 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-[#2029B8] active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
             >
               {isSubmitting ? (
                 <>
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-                  <span>Saving Profile...</span>
+                  <span>Saving...</span>
                 </>
               ) : (
-                <span>Save Profile & Enable Tests →</span>
+                <span>Save Profile</span>
               )}
             </button>
           </div>

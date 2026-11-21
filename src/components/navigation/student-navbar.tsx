@@ -158,11 +158,23 @@ export function StudentNavbar({
               <button
                 type="button"
                 onClick={() => setIsExitConfirmOpen(true)}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-rose-200 bg-rose-50/80 hover:bg-rose-100 text-rose-700 active:scale-95 transition-all shadow-2xs"
+                className="flex h-8 w-8 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 active:scale-95 transition-all shadow-2xs"
                 title="Sign Out"
                 aria-label="Sign Out"
               >
-                <span className="text-sm leading-none">🚪</span>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-4 w-4"
+                >
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
               </button>
             </div>
           </div>

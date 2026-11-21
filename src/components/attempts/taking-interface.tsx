@@ -662,7 +662,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                     onClick={handleSaveAndNext}
                     className="flex-1 sm:flex-none rounded-xl bg-[#2E3AE3] px-4 sm:px-5 py-2.5 sm:py-2 text-xs font-black uppercase text-white shadow-md shadow-[#2E3AE3]/25 hover:bg-[#252fb8] active:scale-95 transition-all text-center"
                   >
-                    Save & Next &rarr;
+                    Save & Next
                   </button>
                 ) : (
                   <button
@@ -670,7 +670,7 @@ export function TakingInterface({ data }: TakingInterfaceProps) {
                     onClick={() => setIsSubmitModalOpen(true)}
                     className="flex-1 sm:flex-none rounded-xl bg-emerald-600 px-4 sm:px-5 py-2.5 sm:py-2 text-xs font-black uppercase text-white shadow-md shadow-emerald-600/25 hover:bg-emerald-700 active:scale-95 transition-all text-center"
                   >
-                    Submit Exam &rarr;
+                    Submit Exam
                   </button>
                 )}
               </div>

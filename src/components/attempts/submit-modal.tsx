@@ -114,7 +114,7 @@ export function SubmitModal({
                 <span>Grading Answers...</span>
               </>
             ) : (
-              <span>Confirm & Submit Exam &rarr;</span>
+              <span>Confirm & Submit Exam</span>
             )}
           </button>
         </div>

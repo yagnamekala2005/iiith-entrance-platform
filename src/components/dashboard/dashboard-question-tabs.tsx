@@ -58,7 +58,6 @@ export function DashboardQuestionTabs({ questions }: DashboardQuestionTabsProps)
             className="inline-flex items-center gap-1.5 rounded-xl bg-blue-700 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 transition-all"
           >
             <span>View Available Mock Tests</span>
-            <span>&rarr;</span>
           </Link>
         </div>
       </div>
@@ -88,7 +87,7 @@ export function DashboardQuestionTabs({ questions }: DashboardQuestionTabsProps)
           href="/tests"
           className="rounded-xl bg-blue-700 px-5 py-2.5 text-xs font-bold uppercase text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 transition-all"
         >
-          Launch Timed Mock Exam &rarr;
+          Launch Timed Mock Exam
         </Link>
       </div>
 
@@ -242,7 +241,7 @@ export function DashboardQuestionTabs({ questions }: DashboardQuestionTabsProps)
             href="/practice"
             className="text-xs font-bold uppercase tracking-wider text-blue-700 hover:text-blue-900"
           >
-            Explore all {subjectQuestions.length} {activeSubject} practice questions &rarr;
+            Explore all {subjectQuestions.length} {activeSubject} practice questions
           </Link>
         </div>
       )}

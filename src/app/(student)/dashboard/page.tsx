@@ -99,7 +99,7 @@ export default async function DashboardPage() {
             prefetch={true}
             className="rounded-xl bg-amber-600 px-5 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-md shadow-amber-600/30 hover:bg-amber-700 active:scale-95 transition-all text-center w-full sm:w-auto shrink-0"
           >
-            Resume Exam &rarr;
+            Resume Exam
           </Link>
         </div>
       )}
@@ -119,7 +119,7 @@ export default async function DashboardPage() {
             prefetch={true}
             className="rounded-xl bg-amber-600 hover:bg-amber-700 px-3.5 py-1.5 text-xs font-black text-white shadow-xs shrink-0 active:scale-95 transition-all"
           >
-            Complete &rarr;
+            Complete Profile
           </Link>
         </div>
       )}
@@ -128,24 +128,20 @@ export default async function DashboardPage() {
       <div className="rounded-3xl bg-[#1F2227] text-white p-5 sm:p-6 shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 -mr-12 -mt-12 h-48 w-48 rounded-full bg-[#2E3AE3]/25 blur-3xl pointer-events-none" />
 
-        <div className="relative z-10 space-y-4">
+        <div className="relative z-10 space-y-3.5">
           <div className="flex items-center justify-between">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#2E3AE3]/30 border border-[#2E3AE3]/40 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#A7B2CE]">
-              <span>🎯</span>
-              <span>Preparation &bull; Progress &bull; Practice</span>
+            <span className="text-[10px] font-black uppercase tracking-wider text-[#A7B2CE]">
+              Performance Snapshot
             </span>
-            <span className="text-[11px] font-bold text-emerald-400">
-              Free CBT Plan Active
+            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2.5 py-0.5 rounded-full">
+              Free CBT Plan
             </span>
           </div>
 
           <div>
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight leading-snug">
-              Turn Practice Into Confident Rank.
+            <h2 className="text-lg sm:text-xl font-black tracking-tight leading-snug">
+              Preparation Overview
             </h2>
-            <p className="mt-1 text-xs text-slate-300 font-normal leading-relaxed">
-              Authentic computer-based simulations for UGEE and SPEC with verified step-by-step explanations.
-            </p>
           </div>
 
           {/* 4-Item Quick Stats Matrix */}
@@ -207,7 +203,7 @@ export default async function DashboardPage() {
               prefetch={true}
               className="text-xs font-black text-[#2E3AE3] hover:underline"
             >
-              All Tests &rarr;
+              All Tests
             </Link>
           </div>
 
@@ -231,34 +227,32 @@ export default async function DashboardPage() {
               <h4 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
                 {latestTest.name}
               </h4>
-              <p className="mt-1 text-xs text-slate-500 line-clamp-2">
-                {latestTest.description || "Complete timed simulation covering Mathematics, Physics, Chemistry, and Aptitude."}
-              </p>
             </div>
 
-            {/* 4 Core Subjects Pill Tags */}
-            <div className="flex flex-wrap gap-1.5 pt-0.5">
-              <span className="rounded-lg border border-blue-200 bg-blue-50/70 px-2 py-0.5 text-[11px] font-bold text-blue-900">
+            {/* 4 Core Subjects: Single Balanced 4-Column Row */}
+            <div className="grid grid-cols-4 gap-1.5 pt-0.5 text-center">
+              <span className="rounded-lg border border-blue-200/80 bg-blue-50/80 px-1 py-1 text-[10px] font-bold text-blue-900 truncate">
                 📐 Maths
               </span>
-              <span className="rounded-lg border border-amber-200 bg-amber-50/70 px-2 py-0.5 text-[11px] font-bold text-amber-900">
+              <span className="rounded-lg border border-amber-200/80 bg-amber-50/80 px-1 py-1 text-[10px] font-bold text-amber-900 truncate">
                 ⚡ Physics
               </span>
-              <span className="rounded-lg border border-emerald-200 bg-emerald-50/70 px-2 py-0.5 text-[11px] font-bold text-emerald-900">
-                🧪 Chemistry
+              <span className="rounded-lg border border-emerald-200/80 bg-emerald-50/80 px-1 py-1 text-[10px] font-bold text-emerald-900 truncate">
+                🧪 Chem
               </span>
-              <span className="rounded-lg border border-purple-200 bg-purple-50/70 px-2 py-0.5 text-[11px] font-bold text-purple-900">
+              <span className="rounded-lg border border-purple-200/80 bg-purple-50/80 px-1 py-1 text-[10px] font-bold text-purple-900 truncate">
                 🧠 Reasoning
               </span>
             </div>
 
-            <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-100">
+            {/* Bottom Actions: Perfectly Aligned 50/50 Equal-Height App Buttons */}
+            <div className="grid grid-cols-2 gap-2.5 pt-3 border-t border-slate-100">
               <Link
                 href={`/tests/${latestTest.slug}`}
                 prefetch={true}
-                className="rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 px-3.5 py-2.5 text-xs font-bold text-slate-700 transition-all text-center"
+                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 active:scale-98 text-xs font-bold uppercase tracking-wider text-slate-700 transition-all flex items-center justify-center text-center whitespace-nowrap"
               >
-                View Instructions &rarr;
+                Instructions
               </Link>
 
               <StartAttemptButton
@@ -266,6 +260,8 @@ export default async function DashboardPage() {
                 isProfileComplete={isProfileComplete}
                 returnUrl="/dashboard"
                 size="md"
+                label="Start Mock"
+                className="h-11 w-full text-xs font-bold uppercase tracking-wider whitespace-nowrap"
               />
             </div>
           </div>
@@ -283,7 +279,7 @@ export default async function DashboardPage() {
             prefetch={true}
             className="text-xs font-black text-[#2E3AE3] hover:underline"
           >
-            Explore Syllabus &rarr;
+            Explore Syllabus
           </Link>
         </div>
 
@@ -294,10 +290,7 @@ export default async function DashboardPage() {
         >
           <div className="flex items-center justify-between gap-3">
             <div>
-              <span className="text-[11px] font-black uppercase tracking-wider text-[#2E3AE3] block">
-                Learning Progress
-              </span>
-              <p className="mt-1 text-base sm:text-lg font-bold text-slate-900">
+              <p className="text-base sm:text-lg font-bold text-slate-900">
                 {learningProgress.completedTopics} of {learningProgress.totalTopics} topics completed
               </p>
             </div>
@@ -327,7 +320,7 @@ export default async function DashboardPage() {
               prefetch={true}
               className="text-xs font-black text-[#2E3AE3] hover:underline"
             >
-              History &rarr;
+              History
             </Link>
           </div>
 
@@ -352,7 +345,7 @@ export default async function DashboardPage() {
               prefetch={true}
               className="rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 px-3.5 py-2 text-xs font-bold text-slate-700 transition-all shrink-0 active:scale-95"
             >
-              Review &rarr;
+              Review
             </Link>
           </div>
         </section>

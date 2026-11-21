@@ -13,80 +13,58 @@ export default async function StudentAttemptsPage() {
   const attempts = await getUserAttempts(user.id);
 
   return (
-    <main className="mx-auto max-w-5xl px-3.5 py-4 sm:px-6 sm:py-8 lg:px-8 font-sans pb-28 md:pb-12">
-      {/* 1-Step Back Navigation & Breadcrumb */}
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <Link
-          href="/dashboard"
-          prefetch={true}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 active:scale-95 px-3 py-1.5 text-xs font-bold text-slate-700 transition-all shadow-2xs"
-          title="Return to Student Dashboard"
-        >
-          <span className="text-sm font-black leading-none">‹</span>
-          <span>Dashboard</span>
-        </Link>
-
-        <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-          <Link href="/dashboard" className="hover:text-[#2E3AE3]">Dashboard</Link>
-          <span>/</span>
-          <span className="text-[#2E3AE3]">Attempts</span>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 pb-6">
+    <main className="mx-auto max-w-5xl px-3.5 py-4 sm:px-6 sm:py-6 lg:px-8 font-sans pb-28 md:pb-12 space-y-4 sm:space-y-6">
+      {/* App Header */}
+      <div className="flex items-center justify-between gap-3 pt-1">
         <div>
-          <span className="rounded-full bg-[#EEF2FF] px-3 py-1 text-[11px] font-black uppercase tracking-wider text-[#2E3AE3] border border-[#2E3AE3]/20">
-            Performance History
-          </span>
-          <h1 className="mt-2 text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-[#1F2227]">
-            My Exam Scorecards & Attempts
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
+            Scorecards
           </h1>
-          <p className="mt-1.5 text-xs sm:text-sm text-slate-600 max-w-2xl">
-            Review detailed question-by-question breakdowns, attempted vs unattempted statistics, and official solutions.
+          <p className="text-xs text-slate-500 font-medium">
+            Past mock test attempts &amp; results
           </p>
         </div>
+
         <Link
           href="/tests"
           prefetch={true}
-          className="rounded-2xl bg-[#2E3AE3] px-5 py-3 text-xs font-black uppercase tracking-wider text-white shadow-md shadow-[#2E3AE3]/25 hover:bg-[#252fb8] active:scale-95 transition-all"
+          className="rounded-xl bg-[#2E3AE3] hover:bg-[#2029B8] px-3.5 py-2 text-xs font-bold text-white shadow-xs active:scale-95 transition-all shrink-0"
         >
-          Take a Mock Test &rarr;
+          New Test
         </Link>
       </div>
 
       {attempts.length === 0 ? (
-        <div className="mt-8 rounded-3xl border border-slate-200 bg-white p-8 sm:p-12 text-center shadow-xs">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#EEF2FF] text-2xl text-[#2E3AE3]">
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-8 sm:p-12 text-center shadow-xs">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#EEF2FF] text-2xl text-[#2E3AE3]">
             📝
           </div>
-          <h3 className="mt-4 text-lg font-black text-[#1F2227]">No test attempts yet</h3>
-          <p className="mt-2 max-w-md mx-auto text-xs sm:text-sm text-slate-500">
-            You haven&apos;t started any CBT mock tests yet. Select an exam to evaluate your readiness for UGEE or SPEC.
+          <h3 className="mt-3 text-base font-bold text-slate-900">No test attempts yet</h3>
+          <p className="mt-1 max-w-md mx-auto text-xs text-slate-500">
+            You haven&apos;t taken any mock tests yet. Take a test to evaluate your preparation.
           </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <div className="mt-5 flex flex-wrap justify-center gap-2.5">
             <Link
               href="/tests"
               prefetch={true}
-              className="rounded-xl bg-[#2E3AE3] px-5 py-2.5 text-xs font-black uppercase text-white shadow-md hover:bg-[#252fb8] transition-all"
+              className="rounded-xl bg-[#2E3AE3] px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#2029B8] transition-all"
             >
               Start a Mock Test
             </Link>
             <Link
               href="/learning"
               prefetch={true}
-              className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold uppercase text-slate-700 hover:bg-slate-50 transition-all"
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all"
             >
               Explore Curriculum
             </Link>
           </div>
         </div>
       ) : (
-        <div className="mt-6 space-y-3.5">
+        <div className="space-y-3">
           {attempts.map((att) => {
             const isSubmitted = att.status === "submitted";
             const attemptedCount = att.correct_count + att.incorrect_count;
-            const totalQuestions = att.total_questions || (att.test?.total_questions || attemptedCount);
-            const unattemptedCount = Math.max(0, totalQuestions - attemptedCount);
             const accuracy = attemptedCount > 0 ? ((att.correct_count / attemptedCount) * 100).toFixed(0) : 0;
             const formattedDate = new Date(att.created_at).toLocaleDateString("en-US", {
               month: "short",
@@ -99,83 +77,92 @@ export default async function StudentAttemptsPage() {
             return (
               <div
                 key={att.id}
-                className="flex flex-col justify-between rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs transition-all hover:border-slate-300 hover:shadow-sm sm:flex-row sm:items-center gap-5"
+                className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-2xs hover:border-slate-300 transition-all space-y-3"
               >
-                <div className="space-y-3 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
+                {/* Header Row: Status, Exam Badge, Date */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
                     <span
-                      className={`rounded-full px-3 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+                      className={`rounded-lg px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider shrink-0 ${
                         isSubmitted
-                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                          : "bg-amber-50 text-amber-900 border border-amber-300 animate-pulse"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : "bg-amber-50 text-amber-800 border border-amber-300 animate-pulse"
                       }`}
                     >
-                      {isSubmitted ? "✓ Submitted" : "⏱️ In Progress"}
+                      {isSubmitted ? "✓ Submitted" : "In Progress"}
                     </span>
                     {att.test?.exam && (
-                      <span className="rounded-full bg-[#EEF2FF] px-2.5 py-0.5 text-[10px] font-black uppercase text-[#2E3AE3] border border-[#2E3AE3]/20">
+                      <span className="rounded-lg bg-[#EEF2FF] px-2 py-0.5 text-[11px] font-bold uppercase text-[#2E3AE3] border border-[#2E3AE3]/15 shrink-0">
                         {att.test.exam.name}
                       </span>
                     )}
-                    <span className="text-xs text-slate-300">&bull;</span>
-                    <span className="text-xs text-slate-500 font-medium">{formattedDate}</span>
                   </div>
-
-                  <h3 className="text-base sm:text-lg font-black text-[#1F2227]">
-                    {att.test?.name || "Practice Entrance Exam"}
-                  </h3>
-
-                  {isSubmitted ? (
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <span className="rounded-lg bg-blue-50 px-2.5 py-1 font-bold text-blue-900 border border-blue-200">
-                        Attempted: {attemptedCount}
-                      </span>
-                      <span className="rounded-lg bg-slate-100 px-2.5 py-1 font-bold text-slate-700 border border-slate-200">
-                        Skipped: {unattemptedCount}
-                      </span>
-                      <span className="rounded-lg bg-emerald-50 px-2.5 py-1 font-bold text-emerald-800 border border-emerald-200">
-                        ✓ {att.correct_count} Correct
-                      </span>
-                      <span className="rounded-lg bg-rose-50 px-2.5 py-1 font-bold text-rose-800 border border-rose-200">
-                        ✗ {att.incorrect_count} Wrong
-                      </span>
-                      <span className="text-slate-500 font-medium ml-1">
-                        Score: <strong className="text-[#1F2227] font-black">{att.score.toFixed(2)}</strong> / {att.max_score.toFixed(2)} ({accuracy}% Acc)
-                      </span>
-                    </div>
-                  ) : (
-                    <p className="text-xs font-medium text-amber-900 bg-amber-50 p-2.5 rounded-xl border border-amber-200 inline-block">
-                      Attempt is actively in progress. The synchronized live timer is running. Click resume to continue answering questions.
-                    </p>
-                  )}
+                  <span className="text-[11px] text-slate-400 font-medium shrink-0 truncate">
+                    {formattedDate}
+                  </span>
                 </div>
 
-                <div className="flex items-center gap-2.5 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                {/* Test Name */}
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-snug">
+                  {att.test?.name || "Practice Entrance Exam"}
+                </h3>
+
+                {/* Score Stats Grid */}
+                {isSubmitted ? (
+                  <div className="grid grid-cols-4 gap-2 rounded-xl bg-slate-50/80 p-2.5 border border-slate-100 text-center">
+                    <div>
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Score</span>
+                      <span className="text-xs sm:text-sm font-black text-slate-900">
+                        {att.score.toFixed(1)} <span className="text-[10px] font-medium text-slate-400">/{att.max_score.toFixed(0)}</span>
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Accuracy</span>
+                      <span className="text-xs sm:text-sm font-black text-slate-900">{accuracy}%</span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-emerald-600">Correct</span>
+                      <span className="text-xs sm:text-sm font-black text-emerald-700">{att.correct_count}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-rose-500">Wrong</span>
+                      <span className="text-xs sm:text-sm font-black text-rose-600">{att.incorrect_count}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-xl bg-amber-50 p-2.5 border border-amber-200">
+                    <p className="text-xs font-semibold text-amber-900">
+                      Exam is currently in progress. Tap resume below to continue.
+                    </p>
+                  </div>
+                )}
+
+                {/* Bottom Action Buttons: Clean 50/50 Grid */}
+                <div className="pt-1">
                   {isSubmitted ? (
-                    <>
+                    <div className="grid grid-cols-2 gap-2">
                       <Link
                         href={`/attempts/${att.id}/result`}
                         prefetch={true}
-                        className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-2xs transition-all active:scale-95"
+                        className="h-10 sm:h-11 w-full rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center transition-all active:scale-95 text-center"
                       >
                         Scorecard
                       </Link>
                       <Link
                         href={`/attempts/${att.id}/review`}
                         prefetch={true}
-                        className="rounded-xl bg-[#2E3AE3] px-4 py-2 text-xs font-black text-white shadow-md shadow-[#2E3AE3]/25 hover:bg-[#252fb8] transition-all flex items-center gap-1.5 active:scale-95"
+                        className="h-10 sm:h-11 w-full rounded-xl bg-[#2E3AE3] hover:bg-[#2029B8] text-white font-bold text-xs flex items-center justify-center transition-all active:scale-95 text-center"
                       >
-                        <span>Solutions</span>
-                        <span>&rarr;</span>
+                        Solutions
                       </Link>
-                    </>
+                    </div>
                   ) : (
                     <Link
                       href={`/attempts/${att.id}`}
                       prefetch={true}
-                      className="rounded-xl bg-amber-600 px-5 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-md shadow-amber-600/20 hover:bg-amber-700 transition-all active:scale-95"
+                      className="h-10 sm:h-11 w-full rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center transition-all active:scale-95 text-center"
                     >
-                      Resume Test &rarr;
+                      Resume Test
                     </Link>
                   )}
                 </div>

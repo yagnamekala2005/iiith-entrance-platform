@@ -1228,69 +1228,93 @@ export function AdminPanel({
     <div className="min-h-screen bg-[#f1f5f9] flex flex-col font-sans relative overflow-x-hidden w-full max-w-full">
       {/* Admin Top Navigation Bar */}
       <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-900 text-white px-4 sm:px-8 py-3.5 shadow-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <div className="flex items-center gap-2.5 sm:gap-3">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <button
               type="button"
               onClick={() => handleAdminStepBack()}
-              className="flex items-center gap-1 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 active:scale-95 px-2.5 py-1.5 text-xs font-bold text-slate-200 transition-all shadow-xs"
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 transition-all shadow-xs shrink-0"
               title={
                 activeTab !== "tests"
                   ? "Go back to Mock Tests (1 step back)"
                   : "Return to Entrance Portal"
               }
+              aria-label="Go Back"
             >
-   </button>
+              <span className="text-base font-black leading-none">‹</span>
+            </button>
 
-            <span className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-black uppercase tracking-wider text-white shadow-xs hidden sm:inline-block">
+            <span className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-black uppercase tracking-wider text-white shadow-xs hidden sm:inline-block shrink-0">
               ADMIN CONTROL
             </span>
-            <div>
-              <span className="text-base sm:text-lg font-bold tracking-tight block">
+            <div className="min-w-0">
+              <span className="text-sm sm:text-lg font-bold tracking-tight block truncate">
                 IIITH Entrance Management Portal
               </span>
-              <span className="text-[10px] text-slate-400 font-semibold block">
-                Administrator Studio & Question Authoring
+              <span className="text-[10px] text-slate-400 font-semibold block truncate">
+                Administrator Studio &amp; Question Authoring
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <span className="text-xs text-slate-300 hidden md:block">
               Logged in: <strong className="text-sky-300">{currentAdminEmail}</strong>
             </span>
 
             <Link
+              href="/admin/subscription-plans"
+              className="hidden sm:flex h-9 items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 text-xs font-bold transition-all shadow-xs active:scale-95"
+              title="Manage Subscription Plans"
+            >
+              <span>💳</span>
+              <span>Plans</span>
+            </Link>
+
+            <Link
               href="/dashboard"
-              className="rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs active:scale-95"
+              className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 text-xs font-bold transition-all shadow-xs active:scale-95"
               title="Switch to Student Dashboard"
             >
               <span>👨‍🎓</span>
               <span className="hidden xs:inline">Student View</span>
             </Link>
 
+            {/* Sign Out: Clean Exit Arrow Icon at Right End */}
             <button
               type="button"
               onClick={handleSignOut}
-              className="rounded-xl border border-rose-800/80 bg-rose-950/60 hover:bg-rose-900 px-3 py-1.5 text-xs font-bold text-rose-200 hover:text-white transition-all flex items-center gap-1.5 shadow-xs active:scale-95"
-              title="Sign out of Admin Session"
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-rose-800/80 bg-rose-950/60 hover:bg-rose-900 text-rose-200 hover:text-white transition-all shadow-xs active:scale-95 shrink-0"
+              title="Sign Out"
+              aria-label="Sign Out"
             >
-              <span>🚪</span>
-              <span>Sign Out</span>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-4 w-4"
+              >
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
             </button>
           </div>
         </div>
       </header>
 
       {/* Main Admin Workspace */}
-      <main className="mx-auto max-w-7xl w-full flex-1 px-4 py-8 sm:px-6">
+      <main className="mx-auto max-w-7xl w-full flex-1 px-3 sm:px-6 py-5 sm:py-8">
         {/* Navigation Tabs: Mock Tests -> Add Question -> My Learning -> Admin Roles (Question Bank completely removed) */}
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="border-b border-slate-200 pb-3 sm:pb-4">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none no-scrollbar">
             <button
               type="button"
               onClick={() => switchTab("tests")}
-              className={`rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
+              className={`shrink-0 whitespace-nowrap rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
                 activeTab === "tests"
                   ? "bg-blue-700 text-white shadow-md shadow-blue-700/20"
                   : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
@@ -1302,7 +1326,7 @@ export function AdminPanel({
             <button
               type="button"
               onClick={() => switchTab("create")}
-              className={`rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
+              className={`shrink-0 whitespace-nowrap rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
                 activeTab === "create"
                   ? "bg-blue-700 text-white shadow-md shadow-blue-700/20"
                   : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
@@ -1319,7 +1343,7 @@ export function AdminPanel({
             <button
               type="button"
               onClick={() => switchTab("learning")}
-              className={`rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
+              className={`shrink-0 whitespace-nowrap rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
                 activeTab === "learning"
                   ? "bg-blue-700 text-white shadow-md shadow-blue-700/20"
                   : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
@@ -1334,7 +1358,7 @@ export function AdminPanel({
             <button
               type="button"
               onClick={() => switchTab("admins")}
-              className={`rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
+              className={`shrink-0 whitespace-nowrap rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
                 activeTab === "admins"
                   ? "bg-blue-700 text-white shadow-md shadow-blue-700/20"
                   : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
@@ -1342,60 +1366,65 @@ export function AdminPanel({
             >
               <span>👥 Admin Roles ({adminUsersList.length})</span>
             </button>
-          </div>
 
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <span className="font-semibold">Curriculum Disciplines:</span>
-            <span>Maths, Physics, Chem, Aptitude</span>
+            <Link
+              href="/admin/subscription-plans"
+              className="shrink-0 whitespace-nowrap rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all flex items-center gap-2 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:text-blue-700 shadow-2xs"
+            >
+              <span>💳 Subscription Plans</span>
+            </Link>
           </div>
         </div>
 
         {/* TAB 1: MOCK TESTS WORKFLOW */}
         {activeTab === "tests" && (
-          <div className="mt-6 space-y-6">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs">
-              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-5">
+          <div className="mt-5 sm:mt-6 space-y-6">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-7 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-5">
                 <div>
-                  <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-black uppercase tracking-wider text-blue-800 border border-blue-200">
+                  <span className="inline-block rounded-md bg-blue-50 px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-blue-800 border border-blue-200">
                     Step 1: Mock Test Management
                   </span>
-                  <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900">
-                    Active Mock Tests & Entrance Simulations
+                  <h2 className="mt-1.5 text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900">
+                    Active Mock Tests &amp; Entrance Simulations
                   </h2>
                   <p className="mt-1 text-xs sm:text-sm text-slate-500">
                     Create a new mock test or select an existing one to add questions directly to it.
                   </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  {mockTests.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={handleCleanAllOldTests}
-                      disabled={isPending}
-                      className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-rose-800 hover:bg-rose-100 hover:border-rose-400 active:scale-95 transition-all flex items-center gap-1.5 shadow-xs"
-                      title="Remove old / unused mock tests to author fresh ones"
-                    >
-                      <span>🧹</span>
-                      <span>Remove Old Mock Tests ({mockTests.length})</span>
-                    </button>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => setIsAddingExam((prev) => !prev)}
-                    className="rounded-xl border border-blue-300 bg-blue-50 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-blue-800 hover:bg-blue-100 active:scale-95 transition-all flex items-center gap-2"
-                  >
-                    <span>{isAddingExam ? "✕ Cancel Exam" : "➕ Add Exam"}</span>
-                  </button>
-
+                {/* App-Style Action Buttons: Clean 2-row on mobile, 1-row on desktop */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto shrink-0">
                   <button
                     type="button"
                     onClick={() => setIsCreatingMockTest(!isCreatingMockTest)}
-                    className="rounded-xl bg-blue-700 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 transition-all flex items-center gap-2"
+                    className="w-full sm:w-auto h-11 sm:h-10 rounded-xl bg-blue-700 hover:bg-blue-800 active:scale-[0.98] px-5 text-xs sm:text-sm font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 transition-all flex items-center justify-center gap-2 shrink-0"
                   >
                     <span>{isCreatingMockTest ? "✕ Cancel" : "➕ Create New Mock Test"}</span>
                   </button>
+
+                  <div className={`grid ${mockTests.length > 0 ? "grid-cols-2" : "grid-cols-1"} sm:flex items-center gap-2 w-full sm:w-auto`}>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingExam((prev) => !prev)}
+                      className="w-full sm:w-auto h-10 rounded-xl border border-blue-200 bg-blue-50/90 hover:bg-blue-100 active:scale-[0.98] px-3.5 text-xs font-bold uppercase tracking-wider text-blue-800 transition-all flex items-center justify-center gap-1.5 text-center shrink-0"
+                    >
+                      <span>{isAddingExam ? "✕ Cancel" : "➕ Add Exam"}</span>
+                    </button>
+
+                    {mockTests.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleCleanAllOldTests}
+                        disabled={isPending}
+                        className="w-full sm:w-auto h-10 rounded-xl border border-rose-200 bg-rose-50/90 hover:bg-rose-100 active:scale-[0.98] px-3.5 text-xs font-bold uppercase tracking-wider text-rose-700 transition-all flex items-center justify-center gap-1.5 text-center shrink-0"
+                        title="Remove old / unused mock tests"
+                      >
+                        <span>🧹</span>
+                        <span className="truncate">Clean Tests ({mockTests.length})</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1585,7 +1614,7 @@ export function AdminPanel({
                       return (
                         <div
                           key={t.id}
-                          className={`relative flex flex-col justify-between rounded-2xl border p-6 transition-all shadow-xs ${
+                          className={`relative flex flex-col justify-between rounded-2xl border p-4 sm:p-5 transition-all shadow-2xs ${
                             isSelected
                               ? "border-blue-600 bg-blue-50/20 ring-2 ring-blue-600/20"
                               : "border-slate-200 bg-white hover:border-slate-300"
@@ -1593,27 +1622,32 @@ export function AdminPanel({
                         >
                           <div>
                             <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2">
-                                <span className="rounded-md bg-blue-100 px-2.5 py-0.5 text-[11px] font-bold text-blue-800">
-                                  {Math.round((t.duration_seconds || 10800) / 60)} Mins
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700 border border-blue-100">
+                                  ⏱ {Math.round((t.duration_seconds || 10800) / 60)} Mins
                                 </span>
                                 <span
-                                  className={`rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider ${
+                                  className={`rounded-lg px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider ${
                                     t.status === "published"
-                                      ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                                      : "bg-amber-100 text-amber-800 border border-amber-300"
+                                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                      : "bg-amber-50 text-amber-700 border border-amber-200"
                                   }`}
                                 >
-                                  {t.status === "published" ? "● Live / Published" : "○ Draft Mode"}
+                                  {t.status === "published" ? "● Live" : "○ Draft"}
                                 </span>
+                                {Boolean(t.is_free) && (
+                                  <span className="rounded-lg bg-sky-50 px-2 py-0.5 text-[10px] font-bold text-sky-700 border border-sky-200">
+                                    Free CBT
+                                  </span>
+                                )}
                               </div>
 
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1 shrink-0">
                                 <button
                                   type="button"
                                   onClick={() => handleRenameMockTest(t)}
                                   disabled={isPending}
-                                  className="rounded-lg p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                                  className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-700 active:scale-95 transition-all"
                                   title="Edit mock test name"
                                   aria-label={`Edit name of ${t.name}`}
                                 >
@@ -1631,8 +1665,9 @@ export function AdminPanel({
                                   type="button"
                                   onClick={() => handleDeleteMockTest(t.id, t.name)}
                                   disabled={isPending}
-                                  className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                                  className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 active:scale-95 transition-all"
                                   title="Delete mock test"
+                                  aria-label={`Delete ${t.name}`}
                                 >
                                   <svg
                                     className="h-4 w-4"
@@ -1651,40 +1686,46 @@ export function AdminPanel({
                               </div>
                             </div>
 
-                            <h4 className="mt-3 text-xl font-black text-slate-900">{t.name}</h4>
-                            <p className="mt-1 text-xs text-slate-600 leading-relaxed line-clamp-2">
+                            <h4 className="mt-3 text-base sm:text-lg font-black text-slate-900 leading-snug">{t.name}</h4>
+                            <p className="mt-1 text-xs text-slate-500 leading-relaxed line-clamp-2">
                               {t.description || "Official IIITH CBT entrance mock test simulation."}
                             </p>
 
-                            <div className="mt-3 flex items-center gap-2">
-                              <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-800">
-                                📊 Questions in test: <strong className="text-blue-700">{countInThisTest}</strong>
+                            <div className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-slate-50 border border-slate-100 px-3 py-1.5">
+                              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                <span>📊</span>
+                                <span>Questions in test:</span>
+                                <strong className="text-blue-700 font-extrabold">{countInThisTest}</strong>
                               </span>
+                              <span className="text-[10px] font-semibold text-slate-400">4 Subjects</span>
                             </div>
 
-                            {/* 4 Subjects tested */}
-                            <div className="mt-3 flex flex-wrap gap-1.5">
-                              <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-800 border border-blue-200">
-                                📐 Mathematics
+                            {/* 4 Subjects - Balanced 4-column row */}
+                            <div className="mt-2 grid grid-cols-4 gap-1.5 text-center">
+                              <span className="rounded-lg bg-blue-50/80 px-1 py-1 text-[10px] font-bold text-blue-800 border border-blue-100 truncate">
+                                📐 Maths
                               </span>
-                              <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-200">
+                              <span className="rounded-lg bg-amber-50/80 px-1 py-1 text-[10px] font-bold text-amber-800 border border-amber-100 truncate">
                                 ⚡ Physics
                               </span>
-                              <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
-                                🧪 Chemistry
+                              <span className="rounded-lg bg-emerald-50/80 px-1 py-1 text-[10px] font-bold text-emerald-800 border border-emerald-100 truncate">
+                                🧪 Chem
                               </span>
-                              <span className="rounded-md bg-purple-50 px-2 py-0.5 text-[10px] font-bold text-purple-800 border border-purple-200">
+                              <span className="rounded-lg bg-purple-50/80 px-1 py-1 text-[10px] font-bold text-purple-800 border border-purple-100 truncate">
                                 🧠 Aptitude
                               </span>
                             </div>
                           </div>
 
-                          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-                            <span className="text-xs text-slate-500 font-medium">
-                              {t.is_free ? "Free for every student" : t.status === "published" ? "Available in Student Portal" : "Draft — ready for questions"}
-                            </span>
+                          <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col gap-2">
+                            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+                              <span>Student Access:</span>
+                              <span className={t.is_free ? "text-emerald-700 font-bold" : "text-slate-600 font-semibold"}>
+                                {t.is_free ? "🆓 Free for all students" : t.status === "published" ? "🔒 Paid Subscription" : "Draft (Not Live)"}
+                              </span>
+                            </div>
 
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="grid grid-cols-2 gap-2 w-full">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1705,9 +1746,13 @@ export function AdminPanel({
                                   });
                                 }}
                                 disabled={isPending || t.status !== "published" || t.test_type !== "mock" || Boolean(t.is_free)}
-                                className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+                                className={`h-10 w-full rounded-xl border text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-all active:scale-98 whitespace-nowrap ${
+                                  t.is_free
+                                    ? "border-emerald-200 bg-emerald-50 text-emerald-700 cursor-default opacity-90"
+                                    : "border-slate-300 bg-white hover:bg-slate-50 text-slate-700 hover:border-slate-400"
+                                } disabled:cursor-not-allowed`}
                               >
-                                {t.is_free ? "✓ Free for Students" : "Set as Free Test"}
+                                <span>{t.is_free ? "✓ Free" : "Set Free"}</span>
                               </button>
 
                               <button
@@ -1716,10 +1761,10 @@ export function AdminPanel({
                                   handleSelectTargetTest(t.id);
                                   switchTab("create");
                                 }}
-                                className="rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 transition-all flex items-center gap-1.5"
+                                className="h-10 w-full rounded-xl bg-blue-700 hover:bg-blue-800 active:scale-98 text-white shadow-sm shadow-blue-700/20 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-all whitespace-nowrap"
                               >
-                              <span>➕ Manage &amp; Add Questions</span>
-                              <span>&rarr;</span>
+                                <span>➕ Questions</span>
+                                <span className="leading-none">&rarr;</span>
                               </button>
                             </div>
                           </div>
@@ -2302,7 +2347,7 @@ export function AdminPanel({
               </div>
 
               {/* Subject Selector Tabs */}
-              <div className="mt-6 flex flex-wrap gap-2 border-b border-slate-200 pb-3">
+              <div className="mt-6 flex items-center gap-2 overflow-x-auto pb-3 scrollbar-none no-scrollbar border-b border-slate-200">
                 {adminSubjects.map((sub) => {
                   const chapCount = adminChapters.filter((c) => c.subject_id === sub.id).length;
                   const isSelected = selectedLearningSubjectId === sub.id;
@@ -2311,7 +2356,7 @@ export function AdminPanel({
                       key={sub.id}
                       type="button"
                       onClick={() => setSelectedLearningSubjectId(sub.id)}
-                      className={`rounded-xl px-4 py-2 text-xs font-bold transition-all flex items-center gap-2 ${
+                      className={`shrink-0 whitespace-nowrap rounded-xl px-4 py-2 text-xs font-bold transition-all flex items-center gap-2 ${
                         isSelected
                           ? "bg-blue-700 text-white shadow-xs"
                           : "bg-slate-100 text-slate-700 hover:bg-slate-200"
@@ -2331,7 +2376,7 @@ export function AdminPanel({
               </div>
 
               {/* Add Chapter Form */}
-              <form onSubmit={handleCreateChapter} className="mt-6 flex flex-wrap items-center gap-3">
+              <form onSubmit={handleCreateChapter} className="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 <input
                   type="text"
                   placeholder={`Add new chapter to ${adminSubjects.find((s) => s.id === selectedLearningSubjectId)?.name || "Subject"}...`}
@@ -2343,7 +2388,7 @@ export function AdminPanel({
                 <button
                   type="submit"
                   disabled={isPending}
-                  className="rounded-xl bg-blue-700 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-blue-800 transition-all"
+                  className="w-full sm:w-auto rounded-xl bg-blue-700 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-blue-800 transition-all text-center justify-center flex items-center"
                 >
                   {isPending ? "Adding..." : "+ Add Chapter"}
                 </button>
@@ -2952,7 +2997,7 @@ export function AdminPanel({
               </p>
 
               {/* Add New Admin Form */}
-              <form onSubmit={handleEnrollAdmin} className="mt-6 flex flex-wrap items-center gap-3">
+              <form onSubmit={handleEnrollAdmin} className="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 <input
                   type="email"
                   placeholder="Enter user email to grant admin..."
@@ -2964,7 +3009,7 @@ export function AdminPanel({
                 <button
                   type="submit"
                   disabled={isPending}
-                  className="rounded-xl bg-blue-700 px-6 py-3 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 transition-all"
+                  className="w-full sm:w-auto rounded-xl bg-blue-700 px-6 py-3 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 transition-all text-center justify-center flex items-center"
                 >
                   {isPending ? "Adding..." : "+ Grant Admin Role"}
                 </button>

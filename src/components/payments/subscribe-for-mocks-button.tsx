@@ -63,7 +63,15 @@ async function loadCheckout(): Promise<boolean> {
   });
 }
 
-export function SubscribeForMocksButton({ compact = false }: { compact?: boolean }) {
+export function SubscribeForMocksButton({
+  compact = false,
+  className = "",
+  label,
+}: {
+  compact?: boolean;
+  className?: string;
+  label?: string;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -196,34 +204,57 @@ export function SubscribeForMocksButton({ compact = false }: { compact?: boolean
   }
 
   return (
-    <div className="flex flex-col items-start gap-2">
-      <button type="button" onClick={openPlans} disabled={busy}
-        className={compact
-          ? "rounded-xl bg-blue-700 px-3.5 py-2 text-xs font-bold text-white hover:bg-blue-800 disabled:opacity-60"
-          : "rounded-xl bg-blue-700 px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-blue-800 disabled:opacity-60"}>
-        {busy ? "Loading plans…" : compact ? "Unlock all mocks · View plans" : "View subscription plans"}
+    <div className={`relative flex flex-col items-start ${className.includes("w-full") ? "w-full" : ""}`}>
+      <button
+        type="button"
+        onClick={openPlans}
+        disabled={busy}
+        className={
+          className
+            ? `flex items-center justify-center rounded-xl bg-[#2E3AE3] hover:bg-[#2029B8] font-bold text-xs text-white shadow-xs active:scale-95 disabled:opacity-60 transition-all ${className}`
+            : compact
+            ? "rounded-xl bg-[#2E3AE3] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#2029B8] disabled:opacity-60 transition-all"
+            : "rounded-xl bg-[#2E3AE3] px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#2029B8] disabled:opacity-60 transition-all"
+        }
+      >
+        {busy ? "Loading…" : label || (compact ? "Unlock Mocks" : "View subscription plans")}
       </button>
       {showPlans && (
-        <div className="w-full min-w-[220px] rounded-xl border border-blue-100 bg-white p-3 shadow-sm">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-xs font-extrabold uppercase tracking-wide text-slate-700">Choose a plan</p>
-            <button type="button" onClick={() => setShowPlans(false)} className="text-xs font-bold text-slate-500 hover:text-slate-800">Close</button>
+        <div className="absolute left-0 right-0 bottom-full mb-2 z-50 w-full min-w-[240px] rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xl animate-in fade-in zoom-in-95">
+          <div className="mb-2.5 flex items-center justify-between gap-2">
+            <p className="text-xs font-black uppercase tracking-wide text-slate-800">Choose a plan</p>
+            <button
+              type="button"
+              onClick={() => setShowPlans(false)}
+              className="text-xs font-bold text-slate-400 hover:text-slate-700 px-1.5 py-0.5 rounded-md hover:bg-slate-100"
+            >
+              ✕
+            </button>
           </div>
           <div className="space-y-2">
             {plans.map((plan) => (
-              <button key={plan.id} type="button" onClick={() => payForPlan(plan)} disabled={busy}
-                className="flex w-full items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2.5 text-left hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50">
-                <span>
-                  <span className="block text-sm font-bold text-slate-900">{plan.name}</span>
-                  <span className="block text-xs text-slate-500">{plan.duration_months} {plan.duration_months === 1 ? "month" : "months"} · all mock tests</span>
+              <button
+                key={plan.id}
+                type="button"
+                onClick={() => payForPlan(plan)}
+                disabled={busy}
+                className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2 text-left hover:border-[#2E3AE3] hover:bg-[#EEF2FF] transition-all disabled:opacity-50"
+              >
+                <div>
+                  <span className="block text-xs font-bold text-slate-900">{plan.name}</span>
+                  <span className="block text-[11px] text-slate-500">
+                    {plan.duration_months} {plan.duration_months === 1 ? "month" : "months"} · all mocks
+                  </span>
+                </div>
+                <span className="shrink-0 text-xs font-extrabold text-[#2E3AE3]">
+                  ₹{(plan.price_paise / 100).toFixed(0)}
                 </span>
-                <span className="shrink-0 text-sm font-extrabold text-blue-800">₹{(plan.price_paise / 100).toFixed(2)}</span>
               </button>
             ))}
           </div>
         </div>
       )}
-      {message && <p role="status" className="max-w-md text-xs text-slate-700">{message}</p>}
+      {message && <p role="status" className="max-w-md text-xs text-rose-600 font-medium">{message}</p>}
     </div>
   );
 }

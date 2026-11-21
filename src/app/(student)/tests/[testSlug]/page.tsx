@@ -194,7 +194,7 @@ export default async function TestDetailPage({ params }: PageProps) {
             href={`/profile?notice=profile_required&returnTo=/tests/${testSlug}`}
             className="rounded-2xl bg-amber-600 px-5 py-2.5 text-xs font-black uppercase tracking-wider text-white hover:bg-amber-700 transition-colors shrink-0 shadow-xs active:scale-95 text-center"
           >
-            Complete Profile &rarr;
+            Complete Profile
           </Link>
         </div>
       )}
@@ -205,7 +205,7 @@ export default async function TestDetailPage({ params }: PageProps) {
           href="/tests"
           className="text-xs font-bold uppercase tracking-wider text-slate-500 hover:text-slate-900 text-center sm:text-left"
         >
-          &larr; Tests Directory
+          Tests Directory
         </Link>
 
         <div className="flex items-center justify-center">

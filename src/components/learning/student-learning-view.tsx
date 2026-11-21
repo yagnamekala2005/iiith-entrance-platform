@@ -17,11 +17,27 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
   const [selectedSubjectSlug, setSelectedSubjectSlug] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [expandedSubjectIds, setExpandedSubjectIds] = useState<Record<string, boolean>>({});
+  const [expandedChapterIds, setExpandedChapterIds] = useState<Record<string, boolean>>({});
+  const [expandedTopicIds, setExpandedTopicIds] = useState<Record<string, boolean>>({});
 
   const toggleSubject = (subjectId: string, currentExpanded: boolean) => {
     setExpandedSubjectIds((prev) => ({
       ...prev,
       [subjectId]: !currentExpanded,
+    }));
+  };
+
+  const toggleChapter = (chapterId: string) => {
+    setExpandedChapterIds((prev) => ({
+      ...prev,
+      [chapterId]: !prev[chapterId],
+    }));
+  };
+
+  const toggleTopic = (topicId: string) => {
+    setExpandedTopicIds((prev) => ({
+      ...prev,
+      [topicId]: !prev[topicId],
     }));
   };
 
@@ -299,50 +315,40 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
   return (
     <div className="space-y-8 w-full max-w-full overflow-x-hidden">
       {/* Header Banner */}
-      <div className="border-b border-slate-200 pb-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="border-b border-slate-200 pb-5">
+        <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="rounded-md bg-blue-50 px-3 py-1 text-xs font-black uppercase tracking-wider text-blue-800 border border-blue-200">
-                📖 IIITH Entrance Syllabus &amp; Study Notes
-              </span>
-              <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-800 border border-emerald-200">
-                Synced with Admin
-              </span>
-            </div>
-            <h1 className="mt-2 text-2xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
-              My Learning: Curriculum &amp; Formula Books
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
+              My Learning
             </h1>
-            <p className="mt-2 max-w-2xl text-xs sm:text-sm leading-relaxed text-slate-600">
-              Access comprehensive theory notes, formula sheets, reference books, and old exam materials curated by professors and platform administrators. Click any topic below to open its full study view.
+            <p className="mt-0.5 text-xs text-slate-500 font-medium">
+              Theory notes, formulas &amp; study materials
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/tests"
-              prefetch={true}
-              className="rounded-xl bg-blue-700 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 transition-all"
-            >
-              Take Timed Mock Test &rarr;
-            </Link>
-          </div>
+          <Link
+            href="/tests"
+            prefetch={true}
+            className="h-10 rounded-xl bg-blue-700 hover:bg-blue-800 active:scale-95 px-4 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 transition-all flex items-center justify-center shrink-0 whitespace-nowrap"
+          >
+            Take Mock Test
+          </Link>
         </div>
 
         {/* Learning Progress */}
-        <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+        <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
               <span className="text-[10px] font-black uppercase tracking-wider text-blue-700">
                 Learning Progress
               </span>
-              <p className="mt-1 text-sm font-bold text-slate-900">
+              <p className="mt-0.5 text-sm font-bold text-slate-900">
                 {completedTopicsCount} of {totalTopics} topics completed
               </p>
             </div>
             <span className="text-2xl font-black text-blue-700">{learningPercentage}%</span>
           </div>
-          <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white">
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
             <div
               className="h-full rounded-full bg-blue-700 transition-all duration-500"
               style={{ width: `${learningPercentage}%` }}
@@ -350,33 +356,31 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
           </div>
         </div>
 
-        {/* Global Stats Summary Bar */}
-        <div className="mt-6 flex flex-wrap items-center gap-3 sm:gap-6 rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-4 text-xs font-semibold text-slate-600 shadow-2xs">
+        {/* Global Stats Summary Bar - 3-Column Mobile App Grid */}
+        <div className="mt-3.5 grid grid-cols-3 gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-center text-xs font-semibold text-slate-600 shadow-2xs">
           <div>
-            <span className="text-slate-400 uppercase text-[10px] block">Subjects</span>
+            <span className="text-slate-400 uppercase text-[9px] font-bold block">Subjects</span>
             <span className="text-sm font-black text-slate-900">{subjects.length} Disciplines</span>
           </div>
-          <div className="h-6 w-px bg-slate-200"></div>
-          <div>
-            <span className="text-slate-400 uppercase text-[10px] block">Chapters</span>
+          <div className="border-x border-slate-100">
+            <span className="text-slate-400 uppercase text-[9px] font-bold block">Chapters</span>
             <span className="text-sm font-black text-slate-900">{totalChapters} Chapters</span>
           </div>
-          <div className="h-6 w-px bg-slate-200"></div>
           <div>
-            <span className="text-slate-400 uppercase text-[10px] block">Subtopics</span>
+            <span className="text-slate-400 uppercase text-[9px] font-bold block">Subtopics</span>
             <span className="text-sm font-black text-slate-900">{totalTopics} Topics</span>
           </div>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        {/* Subject Filter Pills */}
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Subject Filter Pills: Horizontal scroll on mobile */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
           <button
             type="button"
             onClick={() => setSelectedSubjectSlug("all")}
-            className={`rounded-xl px-3 sm:px-4 py-2 text-xs font-bold transition-all ${
+            className={`shrink-0 whitespace-nowrap rounded-xl px-3.5 sm:px-4 py-2 text-xs font-bold transition-all ${
               selectedSubjectSlug === "all"
                 ? "bg-blue-700 text-white shadow-xs"
                 : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
@@ -393,7 +397,7 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
                 key={sub.id}
                 type="button"
                 onClick={() => setSelectedSubjectSlug(sub.slug)}
-                className={`rounded-xl px-3 sm:px-4 py-2 text-xs font-bold transition-all flex items-center gap-1.5 ${
+                className={`shrink-0 whitespace-nowrap rounded-xl px-3.5 sm:px-4 py-2 text-xs font-bold transition-all flex items-center gap-1.5 ${
                   isSelected
                     ? "bg-blue-700 text-white shadow-xs"
                     : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
@@ -407,14 +411,26 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
         </div>
 
         {/* Search Bar */}
-        <div className="w-full sm:w-72">
+        <div className="w-full sm:w-72 relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">
+            🔍
+          </span>
           <input
             type="text"
-            placeholder="Search subjects, chapters, topics, formulas, books..."
+            placeholder="Search subjects, topics, formulas..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-medium text-slate-800 outline-none focus:border-blue-600 shadow-2xs"
+            className="w-full rounded-xl border border-slate-300 bg-white pl-8 pr-7 py-2 text-xs font-medium text-slate-800 outline-none focus:border-blue-600 shadow-2xs"
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
 
@@ -487,10 +503,9 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
                     href="/tests"
                     prefetch={true}
                     onClick={(e) => e.stopPropagation()}
-                    className="hidden xs:flex items-center gap-1.5 rounded-full border border-slate-200 bg-white hover:bg-[#EEF2FF] hover:border-[#2E3AE3]/30 px-3.5 py-1.5 text-xs font-bold text-slate-700 hover:text-[#2E3AE3] active:scale-95 transition-all shadow-2xs group"
+                    className="hidden xs:flex items-center gap-1.5 rounded-full border border-slate-200 bg-white hover:bg-[#EEF2FF] hover:border-[#2E3AE3]/30 px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-[#2E3AE3] active:scale-95 transition-all shadow-2xs group"
                   >
-                    <span>View All Mock Tests</span>
-                    <span className="text-[#2E3AE3] group-hover:translate-x-0.5 transition-transform">&rarr;</span>
+                    <span>Mock Tests</span>
                   </Link>
 
                   {/* Dropdown Arrow at Right End of Subject */}
@@ -534,7 +549,6 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
                         className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-[#2E3AE3] hover:underline"
                       >
                         <span>Browse general mock tests</span>
-                        <span>&rarr;</span>
                       </Link>
                     </div>
                   ) : (
@@ -546,6 +560,10 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
                       const allCompleted =
                         chapterTopicIds.length > 0 &&
                         chapterTopicIds.every((id) => completedTopicIds.includes(id));
+                      const isChapterExpanded =
+                        expandedChapterIds[chapter.id] !== undefined
+                          ? expandedChapterIds[chapter.id]
+                          : Boolean(query);
 
                       return (
                         <div
@@ -553,110 +571,199 @@ export function StudentLearningView({ subjects, learningProgress }: StudentLearn
                           className="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 sm:p-5 transition-all hover:border-slate-300 hover:bg-white hover:shadow-xs"
                         >
                           <div>
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="rounded-md bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 border border-slate-200">
-                                Chapter
-                              </span>
-                              <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
-                                {completedCount === chapterTopicIds.length && chapterTopicIds.length > 0 ? (
-                                  <span className="text-emerald-700 font-bold">
-                                    ✓ {completedCount}/{chapterTopicIds.length} completed
-                                  </span>
-                                ) : (
-                                  `${completedCount}/${chapterTopicIds.length} topics`
-                                )}
-                              </span>
-                            </div>
-
-                            <div className="mt-2.5 flex items-start justify-between gap-2">
-                              <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug">
-                                {chapter.name}
-                              </h3>
-                              {allCompleted && (
-                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-xs font-black text-emerald-700 shrink-0">
-                                  ✓
+                            {/* Chapter Header: Click to toggle lessons with identical dropdown arrow */}
+                            <div
+                              onClick={() => toggleChapter(chapter.id)}
+                              className="cursor-pointer select-none group/chap"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="rounded-md bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 border border-slate-200">
+                                  Chapter
                                 </span>
-                              )}
-                            </div>
+                                <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
+                                  {completedCount === chapterTopicIds.length && chapterTopicIds.length > 0 ? (
+                                    <span className="text-emerald-700 font-bold">
+                                      ✓ {completedCount}/{chapterTopicIds.length} completed
+                                    </span>
+                                  ) : (
+                                    `${completedCount}/${chapterTopicIds.length} lessons`
+                                  )}
+                                </span>
+                              </div>
 
-                            {/* Subtopics / Lessons List - Directly visible when subject is opened */}
-                            <div className="mt-3.5 space-y-2 border-t border-slate-200/60 pt-3">
-                              {(!chapter.topics || chapter.topics.length === 0) ? (
-                                <p className="text-[11px] text-slate-400 italic">No subtopics added yet.</p>
-                              ) : (
-                                chapter.topics.map((topic) => {
-                                  const content = parseTopicLearningContent(topic.description);
-                                  const hasNotes = Boolean(content.explanation && content.explanation.trim());
-                                  const hasFormulas = Boolean(content.formulas && content.formulas.trim());
-                                  const resourceCount = content.resources?.length || 0;
-                                  const isTopicCompleted = completedTopicIds.includes(topic.id);
+                              <div className="mt-2.5 flex items-center justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <h3 className="text-sm sm:text-base font-bold text-slate-900 group-hover/chap:text-[#2E3AE3] transition-colors leading-snug">
+                                    {chapter.name}
+                                  </h3>
+                                  <p className="mt-0.5 text-[11px] text-slate-400 font-medium">
+                                    {chapter.topics?.length || 0} Lessons &bull; Tap arrow to {isChapterExpanded ? "hide" : "view"}
+                                  </p>
+                                </div>
 
-                                  return (
-                                    <button
-                                      key={topic.id}
-                                      type="button"
-                                      onClick={() =>
-                                        openTopicModal({
-                                          topic,
-                                          chapterName: chapter.name,
-                                          subjectName: subject.name,
-                                          subjectSlug: subject.slug,
-                                        })
-                                      }
-                                      className="w-full text-left rounded-lg border border-slate-200 bg-white p-2.5 transition-all hover:border-blue-400 hover:bg-blue-50/40 hover:shadow-2xs active:scale-[0.99] group"
-                                    >
-                                      <div className="flex items-center justify-between gap-1">
-                                        <span className="text-xs font-bold text-slate-800 group-hover:text-blue-900">
-                                          {topic.name}
-                                        </span>
-                                        <span className="flex items-center gap-1 text-xs font-bold">
-                                          {isTopicCompleted ? (
-                                            <span className="text-emerald-600">✓ Completed</span>
-                                          ) : (
-                                            <span className="text-slate-400 group-hover:text-blue-600">&rarr;</span>
-                                          )}
-                                        </span>
-                                      </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  {allCompleted && (
+                                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-xs font-black text-emerald-700">
+                                      ✓
+                                    </span>
+                                  )}
 
-                                      {/* Badges for study material availability */}
-                                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                                        {hasNotes && (
-                                          <span className="rounded bg-blue-50 px-1.5 py-0.2 text-[9px] font-bold text-blue-700 border border-blue-200">
-                                            📝 Notes
-                                          </span>
-                                        )}
-                                        {hasFormulas && (
-                                          <span className="rounded bg-amber-50 px-1.5 py-0.2 text-[9px] font-bold text-amber-700 border border-amber-200">
-                                            ⚡ Formulas
-                                          </span>
-                                        )}
-                                        {resourceCount > 0 && (
-                                          <span className="rounded bg-emerald-50 px-1.5 py-0.2 text-[9px] font-bold text-emerald-700 border border-emerald-200">
-                                            📚 {resourceCount} Materials
-                                          </span>
-                                        )}
-                                        {!hasNotes && !hasFormulas && resourceCount === 0 && (
-                                          <span className="text-[10px] text-slate-400 italic">
-                                            Click to view overview
-                                          </span>
-                                        )}
-                                      </div>
-                                    </button>
-                                  );
-                                })
-                              )}
-
-                              <div className="pt-2.5 mt-2 flex items-center justify-between text-[11px] border-t border-slate-200/50">
-                                <span className="text-slate-400 font-medium">Topic Mocks &amp; Practice</span>
-                                <Link
-                                  href="/tests"
-                                  className="font-bold text-[#2E3AE3] hover:underline flex items-center gap-1"
-                                >
-                                  <span>View Mock Tests</span>
-                                  <span>&rarr;</span>
-                                </Link>
+                                  {/* Same Dropdown Arrow as Subject */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleChapter(chapter.id);
+                                    }}
+                                    className={`flex h-8 w-8 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-2xs group-hover/chap:border-[#2E3AE3]/40 group-hover/chap:bg-[#EEF2FF] group-hover/chap:text-[#2E3AE3] transition-all duration-200 ${
+                                      isChapterExpanded ? "rotate-180 bg-[#EEF2FF] text-[#2E3AE3] border-[#2E3AE3]/40" : ""
+                                    }`}
+                                    title={isChapterExpanded ? `Collapse ${chapter.name}` : `View ${chapter.name} Lessons`}
+                                    aria-label={isChapterExpanded ? `Collapse ${chapter.name}` : `View ${chapter.name} Lessons`}
+                                  >
+                                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-4.5 w-4.5">
+                                      <path
+                                        fillRule="evenodd"
+                                        d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                                        clipRule="evenodd"
+                                      />
+                                    </svg>
+                                  </button>
+                                </div>
                               </div>
                             </div>
+
+                            {/* Subtopics / Lessons List - Revealed when Chapter Dropdown is clicked */}
+                            {isChapterExpanded && (
+                              <div className="mt-3.5 space-y-2 border-t border-slate-200/60 pt-3 animate-in fade-in duration-150">
+                                {(!chapter.topics || chapter.topics.length === 0) ? (
+                                  <p className="text-[11px] text-slate-400 italic">No lessons added yet.</p>
+                                ) : (
+                                  chapter.topics.map((topic) => {
+                                    const content = parseTopicLearningContent(topic.description);
+                                    const hasNotes = Boolean(content.explanation && content.explanation.trim());
+                                    const hasFormulas = Boolean(content.formulas && content.formulas.trim());
+                                    const resourceCount = content.resources?.length || 0;
+                                    const isTopicCompleted = completedTopicIds.includes(topic.id);
+                                    const isTopicExpanded = Boolean(expandedTopicIds[topic.id]);
+
+                                    return (
+                                      <div
+                                        key={topic.id}
+                                        className="w-full rounded-xl border border-slate-200 bg-white transition-all shadow-2xs hover:border-blue-400 overflow-hidden"
+                                      >
+                                        {/* Lesson Header with Same Round Dropdown Arrow Button */}
+                                        <div
+                                          onClick={() => toggleTopic(topic.id)}
+                                          className="flex items-center justify-between gap-2 p-2.5 cursor-pointer select-none hover:bg-slate-50/80 transition-colors group/topic"
+                                        >
+                                          <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                              <span className="text-xs font-bold text-slate-800 group-hover/topic:text-[#2E3AE3] transition-colors">
+                                                {topic.name}
+                                              </span>
+                                              {isTopicCompleted && (
+                                                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-bold text-emerald-700 border border-emerald-200">
+                                                  ✓ Completed
+                                                </span>
+                                              )}
+                                            </div>
+
+                                            {/* Badges for study material availability */}
+                                            <div className="mt-1 flex flex-wrap items-center gap-1">
+                                              {hasNotes && (
+                                                <span className="rounded bg-blue-50 px-1.5 py-0.2 text-[9px] font-bold text-blue-700 border border-blue-200">
+                                                  📝 Notes
+                                                </span>
+                                              )}
+                                              {hasFormulas && (
+                                                <span className="rounded bg-amber-50 px-1.5 py-0.2 text-[9px] font-bold text-amber-700 border border-amber-200">
+                                                  ⚡ Formulas
+                                                </span>
+                                              )}
+                                              {resourceCount > 0 && (
+                                                <span className="rounded bg-emerald-50 px-1.5 py-0.2 text-[9px] font-bold text-emerald-700 border border-emerald-200">
+                                                  📚 {resourceCount} Materials
+                                                </span>
+                                              )}
+                                              {!hasNotes && !hasFormulas && resourceCount === 0 && (
+                                                <span className="text-[10px] text-slate-400 italic">
+                                                  Overview Available
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          {/* Dropdown Arrow: Same rounded style as Subject and Chapter */}
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              toggleTopic(topic.id);
+                                            }}
+                                            className={`flex h-7 w-7 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 shadow-2xs hover:bg-[#EEF2FF] hover:text-[#2E3AE3] hover:border-[#2E3AE3]/30 transition-all duration-200 shrink-0 ${
+                                              isTopicExpanded ? "rotate-180 bg-[#EEF2FF] text-[#2E3AE3] border-[#2E3AE3]/30" : ""
+                                            }`}
+                                            title={isTopicExpanded ? "Collapse Lesson Details" : "Show Lesson Details"}
+                                            aria-label={isTopicExpanded ? "Collapse Lesson Details" : "Show Lesson Details"}
+                                          >
+                                            <svg
+                                              viewBox="0 0 20 20"
+                                              fill="currentColor"
+                                              className="h-4 w-4"
+                                            >
+                                              <path
+                                                fillRule="evenodd"
+                                                d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                                                clipRule="evenodd"
+                                              />
+                                            </svg>
+                                          </button>
+                                        </div>
+
+                                        {/* Dropdown Content Panel */}
+                                        {isTopicExpanded && (
+                                          <div className="border-t border-slate-100 bg-slate-50/70 p-3 space-y-2.5 animate-in fade-in duration-150">
+                                            {content.explanation && (
+                                              <p className="text-xs text-slate-600 line-clamp-3 leading-relaxed">
+                                                {content.explanation.replace(/^[#\s*_-]+/gm, "").slice(0, 180)}...
+                                              </p>
+                                            )}
+
+                                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  openTopicModal({
+                                                    topic,
+                                                    chapterName: chapter.name,
+                                                    subjectName: subject.name,
+                                                    subjectSlug: subject.slug,
+                                                  })
+                                                }
+                                                className="rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 text-xs font-bold shadow-xs active:scale-95 transition-all flex items-center gap-1.5"
+                                              >
+                                                <span>📖 Study Notes &amp; Formulas</span>
+                                              </button>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })
+                                )}
+
+                                <div className="pt-2.5 mt-2 flex items-center justify-between text-[11px] border-t border-slate-200/50">
+                                  <span className="text-slate-400 font-medium">Topic Mocks &amp; Practice</span>
+                                  <Link
+                                    href="/tests"
+                                    className="font-bold text-[#2E3AE3] hover:underline flex items-center gap-1"
+                                  >
+                                    <span>View Mocks</span>
+                                  </Link>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       );

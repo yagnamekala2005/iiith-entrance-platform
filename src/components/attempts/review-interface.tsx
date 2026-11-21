@@ -308,7 +308,7 @@ export function ReviewInterface({ data }: ReviewInterfaceProps) {
                   onClick={() => setSelectedQuestionIndex((prev) => Math.min(filteredQuestions.length - 1, prev + 1))}
                   className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold uppercase text-slate-700 hover:bg-slate-50 disabled:opacity-40 active:scale-95 transition-all"
                 >
-                  Next &rarr;
+                  Next
                 </button>
               </div>
             </div>

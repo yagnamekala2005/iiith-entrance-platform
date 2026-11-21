@@ -11,6 +11,8 @@ interface StartAttemptButtonProps {
   size?: "sm" | "md" | "lg";
   isProfileComplete?: boolean;
   returnUrl?: string;
+  className?: string;
+  label?: string;
 }
 
 export function StartAttemptButton({
@@ -20,6 +22,8 @@ export function StartAttemptButton({
   size = "md",
   isProfileComplete = true,
   returnUrl,
+  className = "",
+  label,
 }: StartAttemptButtonProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -48,11 +52,11 @@ export function StartAttemptButton({
           }`;
           router.push(target);
         }}
-        className={`rounded-xl border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 active:scale-95 transition-all uppercase tracking-wider flex items-center justify-center gap-2 shadow-2xs ${sizeClasses}`}
+        className={`rounded-xl border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 active:scale-95 transition-all uppercase tracking-wider flex items-center justify-center gap-2 shadow-2xs ${sizeClasses} ${className}`}
         title="Complete student profile to unlock mock test"
       >
         <span>🔒</span>
-        <span>Complete Profile to Unlock →</span>
+        <span>Complete Profile to Unlock</span>
       </button>
     );
   }
@@ -88,17 +92,19 @@ export function StartAttemptButton({
       type="button"
       disabled={isLoading}
       onClick={handleStartOrResume}
-      className={`rounded-xl bg-blue-700 text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 active:scale-95 disabled:opacity-50 transition-all uppercase tracking-wider flex items-center justify-center gap-2 ${sizeClasses}`}
+      className={`rounded-xl bg-[#2E3AE3] hover:bg-[#2029B8] text-white shadow-md shadow-[#2E3AE3]/25 active:scale-95 disabled:opacity-50 transition-all uppercase tracking-wider flex items-center justify-center gap-2 ${sizeClasses} ${className}`}
     >
       {isLoading ? (
         <>
           <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-          <span>{hasActiveAttempt ? "Opening Exam..." : "Launching Exam..."}</span>
+          <span>{hasActiveAttempt ? "Opening..." : "Launching..."}</span>
         </>
+      ) : label ? (
+        label
       ) : hasActiveAttempt ? (
-        "Resume Live Exam →"
+        "Resume Live Exam"
       ) : (
-        "Start Mock Exam →"
+        "Start Mock Exam"
       )}
     </button>
   );

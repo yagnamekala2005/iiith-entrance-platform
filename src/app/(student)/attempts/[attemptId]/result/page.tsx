@@ -108,7 +108,6 @@ export default async function AttemptResultPage({ params }: PageProps) {
               className="rounded-2xl bg-[#2E3AE3] hover:bg-[#252fb8] px-5 py-3 text-xs sm:text-sm font-black text-white shadow-lg shadow-[#2E3AE3]/35 active:scale-95 transition-all flex items-center gap-2"
             >
               <span>Review Solutions</span>
-              <span>&rarr;</span>
             </Link>
           </div>
         </div>
@@ -343,7 +342,7 @@ export default async function AttemptResultPage({ params }: PageProps) {
           prefetch={true}
           className="text-xs font-bold uppercase text-slate-600 hover:text-slate-900"
         >
-          &larr; Back to Dashboard
+          Back to Dashboard
         </Link>
         <div className="flex flex-wrap items-center gap-3">
           <Link
@@ -358,7 +357,7 @@ export default async function AttemptResultPage({ params }: PageProps) {
             prefetch={true}
             className="rounded-xl bg-[#2E3AE3] px-5 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-md shadow-[#2E3AE3]/25 hover:bg-[#252fb8] active:scale-95 transition-all"
           >
-            Review Solutions &rarr;
+            Review Solutions
           </Link>
         </div>
       </div>

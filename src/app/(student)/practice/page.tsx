@@ -40,7 +40,7 @@ export default async function PracticeDirectoryPage() {
             href="/tests"
             className="rounded-xl bg-blue-700 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 transition-all"
           >
-            Take Full Mock Test &rarr;
+            Take Full Mock Test
           </Link>
         </div>
       </div>
@@ -73,7 +73,7 @@ export default async function PracticeDirectoryPage() {
                   href={`/practice/${exam.slug}`}
                   className="rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 transition-all"
                 >
-                  View Exam Sections &rarr;
+                  View Exam Sections
                 </Link>
                 <Link
                   href={`/tests?exam=${exam.slug}`}
@@ -138,7 +138,7 @@ export default async function PracticeDirectoryPage() {
                             className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-700 transition-all hover:border-blue-600 hover:text-blue-900 shadow-2xs hover:shadow-xs"
                           >
                             <span>{topic.name}</span>
-                            <span className="text-xs font-bold text-blue-700">Practice &rarr;</span>
+                            <span className="text-xs font-bold text-blue-700">Practice</span>
                           </Link>
                         ))}
                       </div>

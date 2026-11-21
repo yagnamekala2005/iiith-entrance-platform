@@ -39,7 +39,7 @@ export default async function ExamPracticePage({ params }: PageProps) {
             href={`/tests?exam=${exam.slug}`}
             className="rounded-xl bg-blue-700 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 transition-all"
           >
-            Browse {exam.slug.toUpperCase()} Mock Tests &rarr;
+            Browse {exam.slug.toUpperCase()} Mock Tests
           </Link>
         </div>
       </div>
@@ -72,7 +72,7 @@ export default async function ExamPracticePage({ params }: PageProps) {
                   href={`/practice/${exam.slug}/${section.slug}`}
                   className="rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold text-white shadow-md shadow-blue-700/20 hover:bg-blue-800 transition-all"
                 >
-                  Enter Section Practice &rarr;
+                  Enter Section Practice
                 </Link>
               </div>
             </div>
