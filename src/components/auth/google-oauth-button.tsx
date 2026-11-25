@@ -52,7 +52,9 @@ export function GoogleOAuthButton({
 
     try {
       const isNative = Capacitor.isNativePlatform();
-      const webClientId = process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+      const webClientId =
+        process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
+        "746005594724-ei11p39tvt6nslofsnjupqcsaaa494es.apps.googleusercontent.com";
 
       // 1. Try Native Google Sign-In if available on Capacitor Android
       if (isNative && webClientId) {
@@ -180,7 +182,7 @@ export function GoogleOAuthButton({
           redirectTo: callbackUrl.toString(),
           queryParams: {
             access_type: "offline",
-            prompt: "consent",
+            prompt: "select_account",
           },
         },
       });
