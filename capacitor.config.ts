@@ -17,7 +17,16 @@ const config: CapacitorConfig = {
   webDir: 'public',
   server: {
     url: 'https://mocktest-kappa-nine.vercel.app',
-    cleartext: false
+    cleartext: false,
+    allowNavigation: [
+      'mocktest-kappa-nine.vercel.app',
+      '*.supabase.co',
+      'accounts.google.com',
+      '*.google.com',
+      '*.gstatic.com',
+      '*.googleusercontent.com',
+      'accounts.youtube.com'
+    ]
   }
 };
 
