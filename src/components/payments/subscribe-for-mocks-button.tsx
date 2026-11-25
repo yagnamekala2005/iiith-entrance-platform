@@ -219,42 +219,81 @@ export function SubscribeForMocksButton({
       >
         {busy ? "Loading…" : label || (compact ? "Unlock Mocks" : "View subscription plans")}
       </button>
+
+      {/* Modal Dialog: Centered overlay ensuring pricing and plans are never clipped */}
       {showPlans && (
-        <div className="absolute left-0 right-0 bottom-full mb-2 z-50 w-full min-w-[240px] rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xl animate-in fade-in zoom-in-95">
-          <div className="mb-2.5 flex items-center justify-between gap-2">
-            <p className="text-xs font-black uppercase tracking-wide text-slate-800">Choose a plan</p>
-            <button
-              type="button"
-              onClick={() => setShowPlans(false)}
-              className="text-xs font-bold text-slate-400 hover:text-slate-700 px-1.5 py-0.5 rounded-md hover:bg-slate-100"
-            >
-              ✕
-            </button>
-          </div>
-          <div className="space-y-2">
-            {plans.map((plan) => (
-              <button
-                key={plan.id}
-                type="button"
-                onClick={() => payForPlan(plan)}
-                disabled={busy}
-                className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2 text-left hover:border-[#2E3AE3] hover:bg-[#EEF2FF] transition-all disabled:opacity-50"
-              >
-                <div>
-                  <span className="block text-xs font-bold text-slate-900">{plan.name}</span>
-                  <span className="block text-[11px] text-slate-500">
-                    {plan.duration_months} {plan.duration_months === 1 ? "month" : "months"} · all mocks
-                  </span>
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setShowPlans(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-base">🚀</span>
+                  <h3 className="text-sm font-black text-slate-900 tracking-tight uppercase">
+                    Choose a Plan
+                  </h3>
                 </div>
-                <span className="shrink-0 text-xs font-extrabold text-[#2E3AE3]">
-                  ₹{(plan.price_paise / 100).toFixed(0)}
-                </span>
+                <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                  Unlock all timed CBT entrance mock tests
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPlans(false)}
+                className="h-8 w-8 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-500 flex items-center justify-center text-sm font-bold transition-all cursor-pointer"
+              >
+                ✕
               </button>
-            ))}
+            </div>
+
+            <div className="space-y-2.5">
+              {plans.map((plan) => (
+                <button
+                  key={plan.id}
+                  type="button"
+                  onClick={() => payForPlan(plan)}
+                  disabled={busy}
+                  className="flex w-full items-center justify-between gap-3 rounded-2xl border-2 border-slate-200/80 bg-white p-3.5 text-left hover:border-[#2E3AE3] hover:bg-[#EEF2FF]/60 active:scale-[0.99] transition-all shadow-2xs group disabled:opacity-50 cursor-pointer"
+                >
+                  <div className="min-w-0 flex-1">
+                    <span className="block text-sm font-black text-slate-900 group-hover:text-[#2E3AE3] transition-colors truncate">
+                      {plan.name}
+                    </span>
+                    <span className="block text-xs text-slate-500 font-medium mt-0.5">
+                      {plan.duration_months} {plan.duration_months === 1 ? "month" : "months"} · All Mocks
+                    </span>
+                  </div>
+                  <div className="text-right shrink-0 pl-2">
+                    <span className="block text-base font-black text-[#2E3AE3] tracking-tight">
+                      ₹{(plan.price_paise / 100).toFixed(0)}
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Total
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {message && (
+              <p role="status" className="rounded-xl bg-rose-50 border border-rose-200 p-2.5 text-xs text-rose-700 font-semibold text-center">
+                {message}
+              </p>
+            )}
+
+            <p className="text-[10px] text-slate-400 text-center font-medium">
+              🔒 Instant activation &bull; Secure checkout via Razorpay
+            </p>
           </div>
         </div>
       )}
-      {message && <p role="status" className="max-w-md text-xs text-rose-600 font-medium">{message}</p>}
+
+      {message && !showPlans && <p role="status" className="max-w-md text-xs text-rose-600 font-medium mt-1">{message}</p>}
     </div>
   );
 }
