@@ -94,7 +94,6 @@ export function GoogleOAuthButton({
             const { data, error } = await supabase.auth.signInWithIdToken({
               provider: "google",
               token: googleResult.idToken as string,
-              access_token: googleResult.accessToken?.token ?? undefined,
             });
 
             if (error) throw error;
@@ -158,15 +157,18 @@ export function GoogleOAuthButton({
             window.location.href = destination;
             return;
           }
+          throw new Error("Google sign-in did not return an ID token. Please try again.");
         } catch (nativeErr: unknown) {
-          const rawMsg = nativeErr instanceof Error ? nativeErr.message.toLowerCase() : "";
-          if (rawMsg.includes("cancel") || rawMsg.includes("dismissed")) {
+          const rawMsg = nativeErr instanceof Error ? nativeErr.message : String(nativeErr);
+          const lowerMsg = rawMsg.toLowerCase();
+          if (lowerMsg.includes("cancel") || lowerMsg.includes("dismissed")) {
             setErrorMessage("Google sign-in was cancelled.");
-            setLoading(false);
-            return;
+          } else {
+            console.error("Native Google sign-in error:", nativeErr);
+            setErrorMessage(rawMsg || "Unable to complete Google sign-in on this device.");
           }
-          console.warn("Native Google sign-in failed, proceeding with browser OAuth:", nativeErr);
-          // Fall through to standard OAuth flow below
+          setLoading(false);
+          return;
         }
       }
 
