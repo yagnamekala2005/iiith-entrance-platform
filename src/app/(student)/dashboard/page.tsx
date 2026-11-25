@@ -261,7 +261,7 @@ export default async function DashboardPage() {
                 returnUrl="/dashboard"
                 size="md"
                 label="Start Mock"
-                className="h-11 w-full text-xs font-bold uppercase tracking-wider whitespace-nowrap"
+                className="h-11 w-full text-[11px] sm:text-xs font-bold uppercase tracking-wide"
               />
             </div>
           </div>

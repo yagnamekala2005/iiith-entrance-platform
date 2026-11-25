@@ -36,10 +36,10 @@ export function StartAttemptButton({
 
   const sizeClasses =
     size === "sm"
-      ? "px-4 py-2 text-xs font-bold"
+      ? "px-3 py-2 text-[11px] sm:text-xs font-bold"
       : size === "lg"
-      ? "px-8 py-3.5 text-sm sm:text-base font-bold"
-      : "px-5 py-2.5 text-xs sm:text-sm font-bold";
+      ? "px-6 py-3.5 text-sm sm:text-base font-bold"
+      : "px-3 sm:px-5 py-2.5 text-[11px] sm:text-xs font-bold";
 
   // If profile is not complete and user doesn't already have an active attempt, prompt to complete profile
   if (!hasActiveAttempt && isProfileComplete === false) {
@@ -52,11 +52,11 @@ export function StartAttemptButton({
           }`;
           router.push(target);
         }}
-        className={`rounded-xl border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 active:scale-95 transition-all uppercase tracking-wider flex items-center justify-center gap-2 shadow-2xs ${sizeClasses} ${className}`}
+        className={`rounded-xl border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 active:scale-95 transition-all uppercase tracking-wide flex items-center justify-center gap-1.5 shadow-2xs overflow-hidden text-center leading-tight ${sizeClasses} ${className}`}
         title="Complete student profile to unlock mock test"
       >
-        <span>🔒</span>
-        <span>Complete Profile to Unlock</span>
+        <span className="shrink-0">🔒</span>
+        <span className="truncate">Complete Profile</span>
       </button>
     );
   }
